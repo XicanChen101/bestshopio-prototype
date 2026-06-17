@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BestShopio · Platform Center</title>
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../assets/tailwind-config.js?v=20260607k"></script>
+  <link rel="stylesheet" href="../assets/theme.css?v=20260610g" />
+  <style>
+    /* Platform Center — twin of the store admin. Reuses ../assets/theme.css wholesale;
+       only adds the few page-level bits the store admin's modules also define locally. */
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+    /* page header (title + actions), mirrors the analytics module header */
+    .pc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .pc-sub { font-size: 13px; color: var(--ink-muted); margin-top: 4px; max-width: 760px; line-height: 1.5; }
+    .pc-acts { display: flex; align-items: center; gap: 8px; flex: none; }
+    .pc-eff { font-size: 12.5px; color: var(--ink-muted); }
+    /* list filter bar (mirrors the reports-list pattern: select + search + right action) */
+    .pc-filters { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .pc-search { position: relative; display: inline-flex; align-items: center; }
+    .pc-search > svg { position: absolute; left: 10px; color: var(--ink-muted); pointer-events: none; }
+    .pc-spacer { flex: 1; }
+    /* tree cells (Menu / Category) */
+    .tree { display: inline-flex; align-items: center; gap: 6px; }
+    .tree-tg { width: 22px; height: 22px; border: 0; background: none; border-radius: 5px; color: var(--ink-muted); cursor: pointer; display: grid; place-items: center; }
+    .tree-tg:hover { background: var(--panel); }
+    .tree-sp { width: 22px; display: inline-block; flex: none; }
+    .tree-ico { color: var(--ink-muted); display: inline-flex; }
+    .perm-tag { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6d28d9; background: #efe9ff; border-radius: 5px; padding: 1px 7px; }
+    .row-acts { display: flex; gap: 2px; }
+    .row-ic { width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; color: var(--ink-muted); cursor: pointer; display: grid; place-items: center; }
+    .row-ic:hover { background: var(--panel); color: var(--ink); }
+    .row-ic.danger:hover { background: #fdecea; color: var(--err); }
+    /* attribution forms */
+    .blk-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+    .blk-sub { font-size: 12.5px; color: var(--ink-muted); margin: 0 0 10px; line-height: 1.5; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .col-stack { display: flex; flex-direction: column; gap: 16px; }
+    .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .prio-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .prio { font-size: 12.5px; color: var(--ink-body); background: var(--panel); border-radius: 6px; padding: 4px 9px; }
+    .prio-arr { color: var(--ink-muted); font-size: 12px; }
+    .form-block { max-width: 680px; }
+    .radio-card { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--hair); border-radius: 9px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; }
+    .radio-card.on { border-color: var(--brand); background: #f4f8ff; }
+    .radio-card input { margin-top: 3px; accent-color: var(--brand); flex: none; }
+    .rc-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+    .rc-sub { font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; margin-top: 2px; }
+    .win-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .win-fld { flex: 1; min-width: 220px; }
+    .fld-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-body); margin: 12px 0 6px; }
+    .fld-hint { font-size: 12px; color: var(--ink-muted); margin: 6px 0 0; line-height: 1.45; }
+    .num-input { display: inline-flex; align-items: center; }
+    .num-input input { width: 110px; height: 36px; border: 1px solid var(--ctl); border-radius: 8px 0 0 8px; padding: 0 12px; font-size: 14px; }
+    .num-input input:focus { outline: none; border-color: var(--brand); position: relative; z-index: 1; }
+    .num-input .suffix { height: 36px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--ctl); border-left: 0; border-radius: 0 8px 8px 0; background: var(--panel); color: var(--ink-muted); font-size: 13px; }
+    .form-foot { margin-top: 18px; }
+    .ver-item { padding: 14px 0; border-bottom: 1px solid var(--hair); }
+    .ver-item:last-child { border-bottom: 0; }
+    .ver-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .ver-num { font-weight: 700; color: var(--ink); font-size: 14px; }
+    .ver-sum { font-size: 13px; color: var(--ink-body); line-height: 1.5; }
+    .ver-rc { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); margin-top: 6px; }
+    /* top-center success toast — mirrors store admin (Ant Design message), not a bottom bar (C36) */
+    .pc-toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 200; display: inline-flex; align-items: center; gap: 8px; background: #fff; color: var(--ink); border: 1px solid var(--hair); border-radius: 8px; padding: 9px 16px; font-size: 13.5px; box-shadow: 0 6px 20px rgb(20 30 55 / 14%); animation: pcToastIn .18s ease; }
+    .pc-toast-ico { color: #1f8f4e; display: inline-flex; }
+    .pc-toast.pc-toast-out { opacity: 0; transform: translateX(-50%) translateY(-6px); transition: opacity .32s, transform .32s; }
+    @keyframes pcToastIn { from { opacity: 0; transform: translateX(-50%) translateY(-8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    /* modal close x (C25) */
+    .modal { position: relative; }
+    .modal-x { position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; color: var(--ink-muted); cursor: pointer; display: grid; place-items: center; }
+    .modal-x:hover { background: var(--panel); color: var(--ink); }
+    /* danger button (Delete domain) */
+    .btn-danger { background: var(--err); color: #fff; border: 1px solid var(--err); }
+    .btn-danger:hover { filter: brightness(.94); }
+    @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="bg-page text-ink font-sans antialiased">
+  <div id="app" class="flex h-screen overflow-hidden"></div>
+  <script src="../assets/widgets.js?v=20260609i"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/attribution.js?v=2"></script>
+  <script src="js/app.js?v=2"></script>
+</body>
+</html>
