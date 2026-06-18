@@ -335,7 +335,7 @@
       const ico = g.kind === 'swatch'
         ? '<span class="cpg-sw" style="background:' + (COLOR_SWATCHES[v] || '#eee') + '"></span>'
         : '<span class="cpg-ck">' + (on ? sicon.check : '') + '</span>';
-      return '<button class="cpg-opt' + (on ? ' on' : '') + (dis ? ' dis' : '') + '" data-cpg-opt="' + g.id + ':' + OS.esc(v) + '">' + ico + '<span class="lb">' + OS.esc(v) + '</span>' + (st._showCount ? '<span class="cn">' + c + '</span>' : '') + '</button>';
+      return '<button class="cpg-opt' + (on ? ' on' : '') + (dis ? ' dis' : '') + '"' + (dis ? ' disabled' : ' data-cpg-opt="' + g.id + ':' + OS.esc(v) + '"') + '>' + ico + '<span class="lb">' + OS.esc(v) + '</span>' + (st._showCount ? '<span class="cn">' + c + '</span>' : '') + '</button>';
     }).join('');
   }
   function media(p, i, s, st, listRow) {

@@ -285,7 +285,7 @@
         '<span class="pill ' + pill[0] + '"><span class="dot"></span>' + pill[1] + '</span>' +
       '</div>' +
       '<div class="os-top-c">' +
-        '<div class="os-pagesel" id="t-page"><span>' + esc(pageLabel()) + '</span>' + I.chev + '</div>' +
+        '<select class="os-pagesel" id="t-page" aria-label="Select page to edit">' + D.PAGE_OPTIONS.map((p) => '<option value="' + esc(p.value) + '"' + (p.value === ED.currentPage ? ' selected' : '') + '>' + esc(p.label) + '</option>').join('') + '</select>' +
         '<div class="os-dev">' +
           '<button class="' + (ED.device === 'desktop' ? 'on' : '') + '" data-dev="desktop" title="Desktop">' + I.desktop + '</button>' +
           '<button class="' + (ED.device === 'mobile' ? 'on' : '') + '" data-dev="mobile" title="Mobile">' + I.mobile + '</button>' +
@@ -303,7 +303,7 @@
     const b = document.getElementById('os-builder');
     b.querySelector('#t-back').onclick = () => attemptLeave(() => { location.hash = '#/online-store'; });
     b.querySelectorAll('[data-rail]').forEach((x) => x.onclick = () => { ED.leftMode = x.getAttribute('data-rail'); if (ED.leftMode === 'settings') ED.selection = { kind: 'theme-settings' }; else if (ED.selection.kind === 'theme-settings') ED.selection = { kind: 'header' }; rerender(); });
-    b.querySelector('#t-page').onclick = (e) => openPageMenu(e.currentTarget);
+    const psel = b.querySelector('#t-page'); if (psel) psel.onchange = () => switchPage(psel.value);
     b.querySelectorAll('[data-dev]').forEach((x) => x.onclick = () => { const d = x.getAttribute('data-dev'); if (d !== ED.device) { ED.device = d; refreshTop(); refreshCanvas(); } });
     const dis = b.querySelector('#t-discard'); if (dis && !dis.disabled) dis.onclick = onDiscard;
     const sv = b.querySelector('#t-save'); if (sv && !sv.disabled) sv.onclick = onSave;
@@ -444,30 +444,38 @@
   }
   function canvasHtml() {
     let html = '';
+    const secs = pageSections().filter((s) => !s.hidden);
+    const first = secs[0];
+    const transHdr = !!(first && first.kind === 'collection-banner' && first.settings && first.settings.allow_transparent_header) && !ED.theme.header.hidden;
     html += wrapGlobal('announcement', ED.theme.announcement);
-    html += wrapGlobal('header', ED.theme.header);
-    pageSections().filter((s) => !s.hidden).forEach((s, i) => { html += wrapSection(s, i === 0); });
+    if (transHdr) {
+      html += '<div class="os-transhdr">' + wrapGlobal('header', ED.theme.header, true) + wrapSection(first, true) + '</div>';
+      secs.slice(1).forEach((s) => { html += wrapSection(s, false); });
+    } else {
+      html += wrapGlobal('header', ED.theme.header);
+      secs.forEach((s, i) => { html += wrapSection(s, i === 0); });
+    }
     html += wrapGlobal('footer', ED.theme.footer);
-    if (!pageSections().filter((s) => !s.hidden).length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
+    if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, page: ED.currentPage }; }
-  function wrapGlobal(scope, inst) {
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage }; }
+  function wrapGlobal(scope, inst, transHdr) {
     if (inst.hidden) return '';
     const def = SECTIONS[inst.kind]; const sel = ED.selection.kind === scope;
-    const inner = def ? safeRender(def, inst, scope, inst.id) : unknown(inst.kind);
-    return '<div class="os-sec' + (sel ? ' active' : '') + '" data-csel-global="' + scope + '"><span class="os-sec-tag">' + esc(scope === 'announcement' ? 'Announcement' : scope[0].toUpperCase() + scope.slice(1)) + '</span>' + inner + '</div>';
+    const inner = def ? safeRender(def, inst, scope, inst.id, false, transHdr) : unknown(inst.kind);
+    return '<div class="os-sec' + (sel ? ' active' : '') + (transHdr ? ' os-sec-overlay' : '') + '" data-csel-global="' + scope + '"><span class="os-sec-tag">' + esc(scope === 'announcement' ? 'Announcement' : scope[0].toUpperCase() + scope.slice(1)) + '</span>' + inner + '</div>';
   }
   function wrapSection(s, isFirst) {
     const def = SECTIONS[s.kind]; const sel = ED.selection.kind === 'section' && ED.selection.sectionId === s.id;
     const inner = def ? safeRender(def, s, 'section', s.id, isFirst) : unknown(s.kind);
     return '<div class="os-sec' + (sel ? ' active' : '') + '" data-csel="' + s.id + '" data-preview-id="section:' + s.id + '"><span class="os-sec-tag">' + esc(sectionLabel(s)) + '</span>' + inner + '</div>';
   }
-  function safeRender(def, inst, scope, id, isFirst) {
+  function safeRender(def, inst, scope, id, isFirst, transHdr) {
     try {
       const selBlk = (ED.selection.kind === 'block' && ED.selection.sectionId === id) ? ED.selection.blockId : null;
       const selBool = (scope === 'section' ? (ED.selection.kind === 'section' && ED.selection.sectionId === id) : ED.selection.kind === scope);
-      return def.render(inst.settings, inst.blocks || [], ctxFor(scope, id, selBool, selBlk, isFirst));
+      return def.render(inst.settings, inst.blocks || [], ctxFor(scope, id, selBool, selBlk, isFirst, transHdr));
     } catch (e) { return '<div class="os-render-err">⚠ ' + esc(def.kind) + ' failed to render: ' + esc(e.message) + '</div>'; }
   }
   function unknown(kind) { return '<div class="os-render-err">Section “' + esc(kind) + '” isn’t available yet.</div>'; }
@@ -997,7 +1005,17 @@
   function rerender() { renderBuilder(ED.meta.handle); }
   function refreshTop() { const b = document.getElementById('os-builder'); if (!b) return; const old = b.querySelector('.os-top'); const nw = topBar(); old.replaceWith(nw); wireTop(); }
   function refreshTree() { const b = document.getElementById('os-builder'); if (!b) return; const old = b.querySelector('.os-left'); const nw = leftPanel(); old.replaceWith(nw); wireLeft(); }
-  function refreshRight() { const b = document.getElementById('os-builder'); if (!b) return; const old = b.querySelector('.os-right'); const nw = rightPanel(); old.replaceWith(nw); if (ED.leftMode === 'settings' || ED.selection.kind === 'theme-settings') wireSettings(); else wireRight(); }
+  function rightSelKey() { const s = ED.selection; if (ED.leftMode === 'settings' || s.kind === 'theme-settings') return 'settings'; return [s.kind, s.sectionId || '', s.blockId || ''].join(':'); }
+  function refreshRight() {
+    const b = document.getElementById('os-builder'); if (!b) return;
+    const old = b.querySelector('.os-right'); if (!old) return;
+    const oldSc = old.querySelector('.os-right-scroll'); const sy = oldSc ? oldSc.scrollTop : 0;
+    const sameSel = ED._rightKey === rightSelKey();
+    const nw = rightPanel(); old.replaceWith(nw);
+    if (ED.leftMode === 'settings' || ED.selection.kind === 'theme-settings') wireSettings(); else wireRight();
+    const newSc = nw.querySelector('.os-right-scroll'); if (newSc && sameSel) newSc.scrollTop = sy;
+    ED._rightKey = rightSelKey();
+  }
   function refreshCanvas() { const fr = document.getElementById('os-frame'); if (!fr) return; fr.className = 'os-frame ' + ED.device; fr.innerHTML = canvasHtml(); wireCanvas(); applyHighlight(); const bar = document.querySelector('.os-canvas-bar'); if (bar) bar.textContent = 'Live preview · ' + pageLabel() + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile'); }
   function refreshAffectedCanvas() {
     const sel = ED.selection;
@@ -1013,12 +1031,20 @@
   function scrollToSelected() {
     const sc = document.getElementById('os-cscroll'); if (!sc) return; const sel = ED.selection;
     setTimeout(() => {
-      if (sel.kind === 'header' || sel.kind === 'announcement') { sc.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      if (sel.kind === 'header' || sel.kind === 'announcement') { if (sc.scrollTop > 4) sc.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       let el = null;
       if (sel.kind === 'section') el = sc.querySelector('[data-preview-id="section:' + cssesc(sel.sectionId) + '"]');
       else if (sel.kind === 'block') { const sEl = sc.querySelector('[data-block-id="' + cssesc(sel.blockId) + '"]'); el = sEl; }
       else if (sel.kind === 'footer') el = sc.querySelector('[data-csel-global="footer"]');
-      if (el) { const r = el.getBoundingClientRect(); const sr = sc.getBoundingClientRect(); sc.scrollTo({ top: sc.scrollTop + (r.top - sr.top) - 10, behavior: 'smooth' }); }
+      if (!el) return;
+      const r = el.getBoundingClientRect(); const sr = sc.getBoundingClientRect();
+      // Skip auto-scroll when the element is already comfortably in view (e.g. clicked directly
+      // in the preview). Only scroll when its top is above the viewport or it sits below the fold —
+      // which mainly happens when selecting from the left tree.
+      const topVisible = r.top >= sr.top && r.top <= sr.bottom - 24;
+      const fillsView = r.top <= sr.top && r.bottom >= sr.bottom;
+      if (topVisible || fillsView) return;
+      sc.scrollTo({ top: sc.scrollTop + (r.top - sr.top) - 10, behavior: 'smooth' });
     }, 30);
   }
   function findSel() {
@@ -1088,9 +1114,9 @@
   .os-rail-b{width:32px;height:28px;border:0;background:none;color:var(--ink-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}
   .os-rail-b.on{background:#fff;color:var(--brand);box-shadow:0 1px 2px rgba(0,0,0,.12)}
   .os-tname{font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
-  .os-pagesel{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);min-width:170px;cursor:pointer}
+  .os-pagesel{height:32px;padding:0 30px 0 12px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;font-family:inherit;color:var(--ink);min-width:180px;cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
   .os-pagesel:hover{border-color:var(--brand)}
-  .os-pagesel span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .os-pagesel:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-50)}
   .os-dev{display:inline-flex;background:var(--panel);border-radius:8px;padding:3px;gap:2px}
   .os-dev button{width:32px;height:28px;border:0;background:none;color:var(--ink-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}
   .os-dev button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
@@ -1141,6 +1167,8 @@
   .os-sec:hover{outline-color:#b9d2ff}.os-sec.active{outline-color:var(--brand)}
   .os-sec-tag{position:absolute;top:0;left:0;z-index:4;background:var(--brand);color:#fff;font-size:10px;font-weight:600;padding:2px 7px;border-bottom-right-radius:6px;opacity:0;pointer-events:none;transition:opacity .12s;letter-spacing:.02em}
   .os-sec:hover .os-sec-tag,.os-sec.active .os-sec-tag{opacity:1}
+  .os-transhdr{position:relative}
+  .os-transhdr>.os-sec-overlay{position:absolute;top:0;left:0;right:0;z-index:6}
   .os-block-sel{outline:2px solid var(--brand);outline-offset:-2px}
   .os-empty-canvas{padding:64px 20px;text-align:center;color:#9aa3b0;font-size:13px;line-height:1.7}
   .os-render-err{margin:8px;padding:14px;background:#fff4f2;color:#b3401f;font-size:12.5px;border:1px solid #f3c9c0;border-radius:8px}
