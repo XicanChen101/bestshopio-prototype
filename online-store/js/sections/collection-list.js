@@ -94,13 +94,15 @@
       const cardW = mob ? 150 : 220, cardGap = mob ? 12 : 16;
       const items = (blocks || []).filter((b) => !b.hidden);
 
+      // Stacked = real grid of `cols` columns (cards fill their cell). Scroll = fixed-width cards.
+      const cardSizeStyle = stacked ? 'width:100%' : ('flex:0 0 ' + cardW + 'px;width:' + cardW + 'px;max-width:' + cardW + 'px');
       const card = (b0) => {
         const b = b0.settings;
         const c = OS.sample.collections.find((x) => x.id === b.collection) || {};
         const img = b.image || c.image || OS.sample.IMG.cat1;
         const heading = (b.heading && b.heading.trim()) || c.title || 'Collection';
         const headingPx = HEADING_PX[b.heading_style] || 26;
-        return '<a class="cls-card" data-block-id="' + OS.esc(b0.id) + '" style="flex:0 0 ' + cardW + 'px;width:' + cardW + 'px;max-width:' + cardW + 'px">' +
+        return '<a class="cls-card" data-block-id="' + OS.esc(b0.id) + '" style="' + cardSizeStyle + '">' +
           '<div class="bg" style="background-image:url(' + OS.esc(img) + ')"></div>' +
           (b.overlay_opacity > 0 ? '<div class="ov" style="background:' + OS.hexAlpha(b.overlay_color || '#000', (b.overlay_opacity || 0) / 100) + '"></div>' : '') +
           '<div class="cap" style="' + posStyle(b.content_position) + ';color:' + (b.text_color || '#fff') + '">' +
@@ -109,14 +111,14 @@
       };
 
       const rowStyle = stacked
-        ? 'gap:' + cardGap + 'px' + (mob ? '' : ';max-width:' + (cols * cardW + (cols - 1) * cardGap) + 'px')
+        ? 'display:grid;grid-template-columns:repeat(' + cols + ',minmax(0,1fr));gap:' + cardGap + 'px' + (mob ? '' : ';max-width:' + (cols * cardW + (cols - 1) * cardGap) + 'px')
         : 'gap:' + cardGap + 'px';
       const head = '<div class="cls-head"><div class="cls-htext">' +
         (s.subheading && s.subheading.trim() ? '<div class="cls-sub" style="color:' + textColor + '">' + OS.esc(s.subheading) + '</div>' : '') +
         (s.heading && s.heading.trim() ? '<h2 style="font-family:' + OS.headingFamily(t) + ';font-size:' + OS.headingSize(t, mob ? 20 : 26) + 'px;color:' + headColor + '">' + OS.esc(s.heading) + '</h2>' : '') +
         (s.content && s.content.trim() ? '<div class="cls-content" style="color:' + textColor + '">' + OS.esc(s.content) + '</div>' : '') +
         '</div>' +
-        (s.link_text && s.link_text.trim() ? '<a class="cls-view" style="cursor:pointer;color:' + ((t.colors && t.colors.link_color) || '#2563eb') + '">' + OS.esc(s.link_text) + ' ' + OS.icon('chevR') + '</a>' : '') +
+        (s.link_text && s.link_text.trim() ? '<a class="cls-view" style="cursor:pointer;color:' + textColor + '">' + OS.esc(s.link_text) + ' ' + OS.icon('chevR') + '</a>' : '') +
         '</div>';
 
       const body = items.length
