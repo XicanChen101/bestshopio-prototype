@@ -911,7 +911,9 @@
     closePops(); const layer = h('<div class="pop-layer"></div>'); const pop = h('<div class="menu-pop" style="min-width:180px"></div>');
     pop.innerHTML = D.PAGE_OPTIONS.map((p) => '<div class="opt" data-pt="' + p.value + '"' + (p.value === ED.currentPage ? ' style="color:var(--brand);font-weight:600"' : '') + '>' + esc(p.label) + '</div>').join('');
     layer.appendChild(pop); document.body.appendChild(layer);
-    const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.left = r.left + 'px';
+    const r = anchor.getBoundingClientRect(); const w = Math.max(180, pop.offsetWidth || 180);
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
     pop.querySelectorAll('[data-pt]').forEach((o) => o.onclick = () => { closePops(); switchPage(o.getAttribute('data-pt')); });
     closeOnOutside(pop, anchor);
   }
