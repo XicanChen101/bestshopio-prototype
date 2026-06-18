@@ -19,33 +19,33 @@
     '.cpgx .cpg-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;font-size:12px;color:#475569}',
     '.cpgx .cpg-barl,.cpgx .cpg-barr{display:flex;align-items:center;gap:12px}',
     '.cpgx .cpg-fbtn,.cpgx .cpg-sort,.cpgx .cpg-vtoggle{font-family:inherit}',
-    '.cpgx .cpg-fbtn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#0f172a;font-size:13px;font-weight:600;cursor:pointer}',
-    '.cpgx .cpg-sortwrap{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}',
-    '.cpgx .cpg-sort{height:32px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:12px;background:#fff;color:#0f172a;font-weight:600;cursor:pointer}',
+    '.cpgx .cpg-fbtn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:var(--cpg-text,#0f172a);font-size:13px;font-weight:600;cursor:pointer}',
+    '.cpgx .cpg-sortwrap{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:var(--cpg-text,#475569)}',
+    '.cpgx .cpg-sort{height:32px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:12px;background:#fff;color:var(--cpg-text,#0f172a);font-weight:600;cursor:pointer}',
     '.cpgx .cpg-vtoggle{display:inline-flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden}',
     '.cpgx .cpg-vtoggle button{width:32px;height:32px;border:0;background:#fff;color:#475569;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}',
     '.cpgx .cpg-vtoggle button.on{background:#eff6ff;color:#2563eb}',
     '.cpgx .cpg-body{display:flex;gap:28px;align-items:flex-start}',
     '.cpgx .cpg-feed{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}',
     '.cpgx .cpg-side{width:230px;flex-shrink:0;display:flex;flex-direction:column;gap:2px}',
-    '.cpgx .cpg-side-h{font-size:14px;font-weight:700;color:#0f172a;padding:2px 0 8px}',
+    '.cpgx .cpg-side-h{font-size:14px;font-weight:700;color:var(--cpg-text,#0f172a);padding:2px 0 8px}',
     '.cpgx .cpg-fg{border-bottom:1px solid #e2e8f0}',
-    '.cpgx .cpg-fg-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 0;border:0;background:none;cursor:pointer;color:#0f172a;font-size:13px;font-weight:600;font-family:inherit}',
+    '.cpgx .cpg-fg-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 0;border:0;background:none;cursor:pointer;color:var(--cpg-text,#0f172a);font-size:13px;font-weight:600;font-family:inherit}',
     '.cpgx .cpg-fg-h .cv{display:inline-flex;color:#94a3b8;transition:transform .15s}.cpgx .cpg-fg.open .cpg-fg-h .cv{transform:rotate(180deg)}',
     '.cpgx .cpg-fg-b{padding-bottom:12px;display:none}.cpgx .cpg-fg.open .cpg-fg-b{display:block}',
-    '.cpgx .cpg-opt{display:flex;align-items:center;gap:10px;border:0;background:none;cursor:pointer;padding:3px 0;color:#0f172a;width:100%;text-align:left;font-family:inherit}',
+    '.cpgx .cpg-opt{display:flex;align-items:center;gap:10px;border:0;background:none;cursor:pointer;padding:3px 0;color:var(--cpg-text,#0f172a);width:100%;text-align:left;font-family:inherit}',
     '.cpgx .cpg-opt.dis{color:#94a3b8;cursor:default}',
     '.cpgx .cpg-opt .lb{flex:1;font-size:13px}.cpgx .cpg-opt .cn{font-size:12px;color:#94a3b8}',
     '.cpgx .cpg-ck{width:16px;height:16px;border-radius:4px;border:1px solid #cbd5e1;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}.cpgx .cpg-opt.on .cpg-ck{background:#2563eb;border-color:#2563eb}',
     '.cpgx .cpg-sw{width:20px;height:20px;border-radius:50%;border:1px solid #cbd5e1;flex-shrink:0}.cpgx .cpg-opt.on .cpg-sw{box-shadow:0 0 0 2px #fff,0 0 0 3px #2563eb}',
     '.cpgx .cpg-price{display:flex;flex-direction:column;gap:8px}.cpgx .cpg-prow{display:flex;align-items:center;gap:8px}',
     '.cpgx .cpg-pin{display:flex;align-items:center;flex:1;height:32px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;gap:4px;background:#fff}',
-    '.cpgx .cpg-pin input{width:100%;border:0;outline:0;font-size:13px;color:#0f172a;background:transparent;font-family:inherit}',
+    '.cpgx .cpg-pin input{width:100%;border:0;outline:0;font-size:13px;color:var(--cpg-text,#0f172a);background:transparent;font-family:inherit}',
     '.cpgx .cpg-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}',
     '.cpgx .cpg-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border:1px solid #cbd5e1;border-radius:999px;background:#f1f5f9;color:#0f172a;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit}',
     '.cpgx .cpg-clear{height:28px;padding:0 8px;border:0;background:none;color:#2563eb;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}',
     '.cpgx .cpg-topbar{display:flex;flex-wrap:wrap;gap:10px;position:relative;z-index:5}',
-    '.cpgx .cpg-tb{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}.cpgx .cpg-tb.on{border-color:#2563eb;background:#eff6ff}',
+    '.cpgx .cpg-tb{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:var(--cpg-text,#0f172a);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}.cpgx .cpg-tb.on{border-color:#2563eb;background:#eff6ff}',
     '.cpgx .cpg-tbpop{position:absolute;top:calc(100% + 6px);left:0;min-width:230px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;z-index:6;box-shadow:0 14px 36px rgba(15,23,42,.14)}',
     '.cpgx .cpg-grid{display:grid;gap:16px}',
     '.cpgx .cpg-pc{display:flex;flex-direction:column;gap:8px;font-size:13px}',
@@ -80,7 +80,7 @@
     '.cpgx .cpg-drawer{position:absolute;inset:0;z-index:30;display:flex;justify-content:flex-end}',
     '.cpgx .cpg-drawer .scrim{position:absolute;inset:0;background:rgba(15,23,42,.45)}',
     '.cpgx .cpg-drawer .panel{position:relative;width:320px;max-width:88%;background:#fff;height:100%;display:flex;flex-direction:column;border-left:1px solid #e2e8f0}',
-    '.cpgx .cpg-drawer .dh{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#0f172a}',
+    '.cpgx .cpg-drawer .dh{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:var(--cpg-text,#0f172a)}',
     '.cpgx .cpg-drawer .db{flex:1;overflow-y:auto;padding:4px 16px 16px}',
     '.cpgx .cpg-drawer .df{display:flex;gap:10px;padding:12px 16px;border-top:1px solid #e2e8f0}',
     '.cpgx .cpg-drawer .df button{flex:1;height:40px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}',
@@ -341,7 +341,8 @@
     const badge = resolveBadge(p, s);
     const hov = (s.enable_image_hover && !listRow) ? ' hov' : (listRow ? ' hov' : '');
     const qa = s.show_quick_add;
-    const baseImg = imgFor(i), altImg = altImgFor(i);
+    const selSw = st.swatch[p.id] || 0;
+    const baseImg = imgFor(i + selSw), altImg = altImgFor(i + selSw);
     return '<div class="cpg-media' + hov + '" data-cpg-media>' +
       '<div class="im" style="background-image:url(' + OS.esc(baseImg) + ')"></div>' +
       (s.enable_image_hover ? '<div class="im alt" style="background-image:url(' + OS.esc(altImg) + ')"></div>' : '') +
@@ -446,7 +447,8 @@
     render: function (s, blocks, ctx) {
       const st = getState(ctx.sectionId, s); syncState(st, s); st._showCount = s.show_filter_count;
       const bg = OS.bgOrTransparent(s.background);
-      return '<div class="cpgx' + (ctx.mob ? ' mob' : '') + '" style="background:' + bg + ';font-family:' + OS.bodyFamily(ctx.tokens) + '"><div data-cpg-host>' + inner(s, ctx, st) + '</div></div>';
+      const txt = (s.text && s.text !== 'transparent') ? s.text : '';
+      return '<div class="cpgx' + (ctx.mob ? ' mob' : '') + '" style="background:' + bg + ';font-family:' + OS.bodyFamily(ctx.tokens) + (txt ? ';--cpg-text:' + txt : '') + '"><div data-cpg-host>' + inner(s, ctx, st) + '</div></div>';
     },
     hydrate: function (root, s, blocks, ctx) {
       const st = getState(ctx.sectionId, s); st._showCount = s.show_filter_count;
