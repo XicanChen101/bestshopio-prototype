@@ -208,7 +208,6 @@
   }
 
   function resolveBadge(p, s) {
-    if (s.show_custom_badge && p.badge) return { text: p.badge, bg: '#0f172a' };
     if (s.show_collection_badge) return { text: p.category, bg: '#2563eb' };
     if (s.show_badge && p.comparePrice != null && p.comparePrice > p.price) return { text: Math.round((p.comparePrice - p.price) / p.comparePrice * 100) + '% OFF', bg: '#dc2626' };
     return null;
@@ -412,7 +411,6 @@
       { key: 'show_product_count', control: 'toggle', label: 'Show product count', default: true },
       { sub: 'Product card' },
       { key: 'show_badge', control: 'toggle', label: 'Show badge', default: true, info: 'Auto discount label, e.g. 30% OFF.' },
-      { key: 'show_custom_badge', control: 'toggle', label: 'Show custom badge', default: false, info: 'Manual labels, e.g. Best Seller.' },
       { key: 'show_collection_badge', control: 'toggle', label: 'Show collection badge', default: false },
       { key: 'show_vendor', control: 'toggle', label: 'Show vendor', default: false },
       { key: 'show_rating', control: 'toggle', label: 'Show rating', default: true },
