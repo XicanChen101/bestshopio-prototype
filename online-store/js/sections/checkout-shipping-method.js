@@ -22,9 +22,10 @@
       }
       const rows = methods.map((m, i) => {
         const sel = (m.id === mock.selectedShipping) || (i === 0 && !mock.selectedShipping);
+        const eta = m.eta ? '<span class="eta">' + esc(m.eta) + '</span>' : '';
         return '<label class="ck-radio' + (sel ? ' sel' : '') + '" data-ck-ship="' + esc(m.id) + '" style="' + (sel ? '--ck-sel-border:' + selBorder : '') + '">' +
           '<span class="dot"></span>' +
-          '<span class="nm">' + esc(m.name) + '<span class="eta">' + esc(m.eta || '') + '</span></span>' +
+          '<span class="nm">' + esc(m.name) + eta + '</span>' +
           '<span class="pr">' + (m.price ? money(m.price) : 'Free') + '</span>' +
         '</label>';
       }).join('');

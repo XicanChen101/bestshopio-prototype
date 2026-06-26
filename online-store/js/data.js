@@ -313,8 +313,7 @@
   const CHECKOUT_SETTINGS_GROUPS = [
     { key: 'main', name: 'Main', desc: 'Page, content & summary surfaces', open: true, fields: [
       { key: 'page_background', label: 'Page background', control: 'color', default: '#FFFFFF', info: 'Checkout page overall background.' },
-      { key: 'content_background', label: 'Content background', control: 'color', default: '#FFFFFF' },
-      { key: 'summary_background', label: 'Summary background', control: 'color', default: '#F7F7F7' },
+      { key: 'content_background', label: 'Content background', control: 'color', default: '#FFFFFF', info: 'Background behind the left-hand form column.' },
       { key: 'text_color', label: 'Text color', control: 'color', default: '#1F1F1F' },
       { key: 'muted_text_color', label: 'Muted text', control: 'color', default: '#777777' },
       { key: 'divider_color', label: 'Divider', control: 'color', default: '#E5E5E5' },
@@ -411,11 +410,10 @@
       { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, image: IMG.p6 },
     ],
     shippingMethods: [
-      { id: 'std', name: 'Standard', eta: '5–8 business days', price: 0 },
-      { id: 'exp', name: 'Express', eta: '2–3 business days', price: 12.9 },
-      { id: 'pri', name: 'Priority', eta: '1–2 business days', price: 24.0 },
+      { id: 'free', name: 'Free Shipping', eta: '', price: 0 },
+      { id: 'vip', name: 'VIP Shipping', eta: '', price: 12.99 },
     ],
-    selectedShipping: 'std',
+    selectedShipping: 'free',
     coupon: { code: 'WELCOME10', amount: 10.99 },
     tax: 7.34,
   };

@@ -19,7 +19,6 @@
       return '<div class="cksec ck-contact">' +
         '<div class="ck-top"><h3 class="ck-h">' + esc(s.heading || 'Contact') + '</h3>' + signin + '</div>' +
         '<div class="ck-field"><input class="ck-input" type="email" placeholder="' + esc(s.email_placeholder || 'Email') + '"></div>' +
-        '<label class="ck-check"><input type="checkbox" checked> Email me with news and offers</label>' +
       '</div>';
     },
   });

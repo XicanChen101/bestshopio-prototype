@@ -1502,7 +1502,8 @@
   .ckwrap{margin:0 auto;display:flex;align-items:flex-start;padding:32px 20px 80px}
   .ckwrap.mob{display:block}
   .ckcol{min-width:0}
-  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap)}
+  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);background:var(--ck-content-bg)}
+  .ckpage.mob .ckwrap.mob{background:var(--ck-content-bg)}
   .ckpage.mob .ckwrap.mob>.os-sec{margin-bottom:var(--ck-section-gap)}
   .ckpage.mob .ckwrap.mob>.os-sec:last-child{margin-bottom:0}
   .cksec{font-size:var(--ck-base-fs)}
@@ -1564,15 +1565,20 @@
   .ck-pay-opt.sel .ck-pay-head .dot{border-color:var(--ck-accent)}
   .ck-pay-opt.sel .ck-pay-head .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--ck-accent)}
   .ck-pay-head .nm{font-weight:500}
+  .ck-pay-card{color:var(--ck-muted);flex:none}
   .ck-pay-body{padding:0 14px 14px;display:none;flex-direction:column;gap:12px}
   .ck-pay-opt.sel .ck-pay-body{display:flex}
-  .ck-cardbrands{display:flex;gap:4px;margin-left:auto}
-  .ck-cardbrands span{height:20px;padding:0 5px;border-radius:3px;background:#fff;border:1px solid var(--ck-divider);font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555}
-  /* cta */
-  .ck-cta-btn{height:var(--ck-btn-h);border:0;text-transform:var(--ck-btn-tt);font-weight:700;font-size:15px;letter-spacing:.02em;cursor:pointer;font-family:inherit}
-  .ck-cta-btn:hover{filter:brightness(.92)}
+  .ck-cardnum{position:relative}
+  .ck-cardnum .ck-input{padding-right:150px}
+  .ck-cardnum .ck-cardbrands{position:absolute;right:12px;top:50%;transform:translateY(-50%)}
+  .ck-cardbrands{display:flex;gap:5px;margin-left:auto}
+  .ckbrand{height:20px;padding:0 5px;border-radius:3px;font-size:9px;line-height:20px;font-weight:800;letter-spacing:.02em;color:#fff;display:inline-block}
+  .ckbrand.visa{background:#1a1f71}.ckbrand.mc{background:#eb001b}.ckbrand.amex{background:#1d7fd6}.ckbrand.disc{background:#f37021}
+  .ckbrand.disc span{color:#fff}
+  /* cta — color/radius come from per-component CSS vars (which fall back to theme) */
+  .ck-cta-btn{height:var(--ck-btn-h);border:0;text-transform:var(--ck-btn-tt);font-weight:700;font-size:15px;letter-spacing:.02em;cursor:pointer;font-family:inherit;background:var(--cta-bg,var(--ck-btn-bg));color:var(--cta-text,var(--ck-btn-text));border-radius:var(--cta-radius,var(--ck-btn-radius))}
+  .ck-cta-btn:hover{background:var(--ck-btn-hover)}
   .ck-cta-btn.loading{opacity:.7;cursor:default}
-  .ck-terms{font-size:var(--ck-small-fs);color:var(--ck-muted);text-align:center;margin-top:12px;line-height:1.5}
   /* policy */
   .ck-policy{display:flex;flex-wrap:wrap;gap:8px 18px;padding-top:16px;border-top:1px solid var(--ck-divider)}
   .ck-policy a{color:var(--ck-accent);font-size:var(--ck-small-fs);text-decoration:none;cursor:pointer}
