@@ -129,7 +129,9 @@
   let _sectionsP = null;
   function ensureSections() {
     if (_sectionsP) return _sectionsP;
-    const kinds = ['announcement-bar', 'header', 'footer', 'collection-banner', 'collection-list', 'collection-page', 'list-collections'];
+    const kinds = ['announcement-bar', 'header', 'footer', 'collection-banner', 'collection-list', 'collection-page', 'list-collections',
+      'checkout-header', 'checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method',
+      'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-policy-links'];
     D.CATALOG.forEach((g) => g.entries.forEach((e) => { if (e.kind && kinds.indexOf(e.kind) < 0) kinds.push(e.kind); }));
     _sectionsP = Promise.all(kinds.map((k) => loadScript(MOD_BASE + 'sections/' + k + '.js?v=' + OS_V).catch(() => { /* not yet ported — skip */ })));
     return _sectionsP;
@@ -151,9 +153,11 @@
   // ==========================================================================
   let ED = null;
 
-  function buildSettingsDefaults() {
+  function buildSettingsDefaults() { return groupDefaults(D.SETTINGS_GROUPS); }
+  function buildCkSettingsDefaults() { return groupDefaults(D.CHECKOUT_SETTINGS_GROUPS || []); }
+  function groupDefaults(groups) {
     const out = {};
-    D.SETTINGS_GROUPS.forEach((g) => { out[g.key] = {}; g.fields.forEach((f) => { if (f.key) out[g.key][f.key] = f.default; }); });
+    groups.forEach((g) => { out[g.key] = {}; g.fields.forEach((f) => { if (f.key) out[g.key][f.key] = f.default; }); });
     return out;
   }
   function defForKind(kind) { return SECTIONS[kind]; }
@@ -192,6 +196,11 @@
       templates: {},
     };
     Object.keys(T.templates).forEach((pg) => { theme.templates[pg] = { sections: T.templates[pg].sections.map(matSection) }; });
+    // Checkout surface — separate locked skeleton + its own settings (Theme-Checkout PRD).
+    theme.checkout = {
+      settings: buildCkSettingsDefaults(),
+      sections: ((D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || []).map(matSection),
+    };
     return theme;
   }
 
@@ -203,6 +212,8 @@
       theme: base,
       savedTheme: clone(base),
       publishedTheme: clone(base),
+      surface: 'online-store',         // 'online-store' | 'checkout'
+      checkoutPage: 'checkout',
       currentPage: 'home',
       device: 'desktop',
       leftMode: 'sections',            // 'sections' | 'settings'
@@ -213,15 +224,19 @@
       settingsExpand: settingsExpandInit(),
     };
   }
-  function settingsExpandInit() { const o = {}; D.SETTINGS_GROUPS.forEach((g) => { o[g.key] = !!g.open; }); return o; }
+  function settingsExpandInit() { const o = {}; D.SETTINGS_GROUPS.forEach((g) => { o[g.key] = !!g.open; }); (D.CHECKOUT_SETTINGS_GROUPS || []).forEach((g) => { o['ck:' + g.key] = !!g.open; }); return o; }
 
   // derived
+  const isCheckout = () => ED.surface === 'checkout';
+  const sGroups = () => isCheckout() ? (D.CHECKOUT_SETTINGS_GROUPS || []) : D.SETTINGS_GROUPS;
+  const sExpKey = (k) => (isCheckout() ? 'ck:' : '') + k;
+  const settingsObj = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
   const isDirty = () => !eq(ED.theme, ED.savedTheme);
   const hasDraft = () => !eq(ED.savedTheme, ED.publishedTheme);
   const status = () => isDirty() ? 'unsaved' : hasDraft() ? 'draft' : 'saved';
-  const pageSections = () => ED.theme.templates[ED.currentPage].sections;
-  const pageLabel = () => (D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage;
-  const tokens = () => ED.theme.settings;
+  const pageSections = () => isCheckout() ? ED.theme.checkout.sections : ED.theme.templates[ED.currentPage].sections;
+  const pageLabel = () => isCheckout() ? 'Checkout' : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
+  const tokens = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
 
   // ==========================================================================
   //  THEME LIST  (#/online-store)
@@ -285,7 +300,7 @@
         '<span class="pill ' + pill[0] + '"><span class="dot"></span>' + pill[1] + '</span>' +
       '</div>' +
       '<div class="os-top-c">' +
-        '<select class="os-pagesel" id="t-page" aria-label="Select page to edit">' + D.PAGE_OPTIONS.map((p) => '<option value="' + esc(p.value) + '"' + (p.value === ED.currentPage ? ' selected' : '') + '>' + esc(p.label) + '</option>').join('') + '</select>' +
+        '<select class="os-pagesel" id="t-page" aria-label="Select page to edit">' + pageSelectOptions() + '</select>' +
         '<div class="os-dev">' +
           '<button class="' + (ED.device === 'desktop' ? 'on' : '') + '" data-dev="desktop" title="Desktop">' + I.desktop + '</button>' +
           '<button class="' + (ED.device === 'mobile' ? 'on' : '') + '" data-dev="mobile" title="Mobile">' + I.mobile + '</button>' +
@@ -299,11 +314,24 @@
       '</div>';
     return top;
   }
+  function pageSelectOptions() {
+    if (isCheckout()) {
+      const opts = '<optgroup label="Checkout">' + (D.CHECKOUT_PAGES || []).map((p) => '<option value="' + esc(p.value) + '"' + (p.value === ED.checkoutPage ? ' selected' : '') + '>' + esc(p.label) + '</option>').join('') + '</optgroup>';
+      return opts + '<option value="__back__">↩ Online store theme</option>';
+    }
+    return D.PAGE_OPTIONS.map((p) => '<option value="' + esc(p.value) + '"' + (p.value === ED.currentPage ? ' selected' : '') + '>' + esc(p.label) + '</option>').join('') +
+      '<option value="__checkout__">Checkout theme ›</option>';
+  }
   function wireTop() {
     const b = document.getElementById('os-builder');
     b.querySelector('#t-back').onclick = () => attemptLeave(() => { location.hash = '#/online-store'; });
-    b.querySelectorAll('[data-rail]').forEach((x) => x.onclick = () => { ED.leftMode = x.getAttribute('data-rail'); if (ED.leftMode === 'settings') ED.selection = { kind: 'theme-settings' }; else if (ED.selection.kind === 'theme-settings') ED.selection = { kind: 'header' }; rerender(); });
-    const psel = b.querySelector('#t-page'); if (psel) psel.onchange = () => switchPage(psel.value);
+    b.querySelectorAll('[data-rail]').forEach((x) => x.onclick = () => { ED.leftMode = x.getAttribute('data-rail'); if (ED.leftMode === 'settings') ED.selection = { kind: 'theme-settings' }; else if (ED.selection.kind === 'theme-settings') ED.selection = defaultSelection(); rerender(); });
+    const psel = b.querySelector('#t-page'); if (psel) psel.onchange = () => {
+      const v = psel.value;
+      if (v === '__checkout__') { switchSurface('checkout'); return; }
+      if (v === '__back__') { switchSurface('online-store'); return; }
+      switchPage(v);
+    };
     b.querySelectorAll('[data-dev]').forEach((x) => x.onclick = () => { const d = x.getAttribute('data-dev'); if (d !== ED.device) { ED.device = d; refreshTop(); refreshCanvas(); } });
     const dis = b.querySelector('#t-discard'); if (dis && !dis.disabled) dis.onclick = onDiscard;
     const sv = b.querySelector('#t-save'); if (sv && !sv.disabled) sv.onclick = onSave;
@@ -313,14 +341,46 @@
   // -------------------------------------------------------------- LEFT (tree / settings groups)
   function leftPanel() {
     const left = h('<div class="os-left"></div>');
-    left.innerHTML = ED.leftMode === 'settings'
-      ? '<div class="os-left-head">Theme settings</div><div class="os-left-scroll" id="os-tree">' + settingsTreeHint() + '</div>'
-      : '<div class="os-left-head">Sections</div><div class="os-left-scroll" id="os-tree">' + treeHtml() + '</div>';
+    const ck = isCheckout();
+    if (ED.leftMode === 'settings') {
+      left.innerHTML = '<div class="os-left-head">' + (ck ? 'Checkout settings' : 'Theme settings') + '</div><div class="os-left-scroll" id="os-tree">' + settingsTreeHint() + '</div>';
+    } else {
+      left.innerHTML = '<div class="os-left-head">' + (ck ? 'Checkout' : 'Sections') + '</div><div class="os-left-scroll" id="os-tree">' + (ck ? checkoutTreeHtml() : treeHtml()) + '</div>';
+    }
     return left;
   }
   function settingsTreeHint() {
-    return '<div class="os-tree-note">Global tokens — every Section &amp; Block inherits from here unless overridden. Edit on the right; the preview updates live.</div>' +
-      D.SETTINGS_GROUPS.map((g) => '<div class="os-tree-row" data-sgrp="' + g.key + '"><span class="os-tr-ico">' + I.gear + '</span><span class="os-tr-name">' + esc(g.name) + '</span></div>').join('');
+    const note = isCheckout()
+      ? 'Global Checkout / Thank you styles. Component overrides win, then these settings, then system defaults.'
+      : 'Global tokens — every Section & Block inherits from here unless overridden. Edit on the right; the preview updates live.';
+    return '<div class="os-tree-note">' + esc(note) + '</div>' +
+      sGroups().map((g) => '<div class="os-tree-row" data-sgrp="' + g.key + '"><span class="os-tr-ico">' + I.gear + '</span><span class="os-tr-name">' + esc(g.name) + '</span></div>').join('');
+  }
+  // Locked Checkout skeleton tree — no add / remove / hide / reorder (PRD §14.1).
+  function checkoutTreeHtml() {
+    let html = '<div class="os-grp-head" style="cursor:default">Checkout Template</div>';
+    pageSections().forEach((s) => { html += checkoutRow(s); });
+    html += '<div class="os-tree-note" style="margin-top:10px">Checkout components are required for the transaction flow, so they can\u2019t be added, removed or reordered.</div>';
+    return html;
+  }
+  function checkoutRow(s) {
+    const sel = ED.selection; const def = SECTIONS[s.kind];
+    const active = sel.kind === 'section' && sel.sectionId === s.id;
+    const hasBlocks = def && def.blocks; const open = ED.sectionExpand[s.id] !== false;
+    let html = '<div class="os-row sec locked' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '" data-sel-sec="' + s.id + '">' +
+      (hasBlocks ? '<span class="os-row-caret' + (open ? ' open' : '') + '" data-tog-sec="' + s.id + '">' + I.chevR + '</span>' : '<span class="os-row-caret ghost"></span>') +
+      '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
+      '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
+      '<span class="os-tr-lock" title="Required component">' + I.lock + '</span></div>';
+    if (hasBlocks && open) {
+      (s.blocks || []).forEach((bl) => {
+        const bActive = sel.kind === 'block' && sel.blockId === bl.id;
+        html += '<div class="os-row blk locked' + (bActive ? ' active' : '') + '" data-sel-blk="' + s.id + ':' + bl.id + '">' +
+          '<span class="os-tr-ico sm">' + ICON('layers') + '</span><span class="os-tr-name">' + esc(blockLabel(s, bl)) + '</span>' +
+          '<span class="os-tr-lock">' + I.lock + '</span></div>';
+      });
+    }
+    return html;
   }
   function treeHtml() {
     const sel = ED.selection;
@@ -417,7 +477,13 @@
   function wireLeft() {
     const b = document.getElementById('os-builder'); const tree = b.querySelector('#os-tree');
     if (ED.leftMode === 'settings') {
-      tree.querySelectorAll('[data-sgrp]').forEach((r) => r.onclick = () => { const k = r.getAttribute('data-sgrp'); ED.settingsExpand[k] = true; ED.selection = { kind: 'theme-settings' }; refreshRight(); setTimeout(() => { const el = document.querySelector('#os-set-' + k); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); });
+      tree.querySelectorAll('[data-sgrp]').forEach((r) => r.onclick = () => { const k = r.getAttribute('data-sgrp'); ED.settingsExpand[sExpKey(k)] = true; ED.selection = { kind: 'theme-settings' }; refreshRight(); setTimeout(() => { const el = document.querySelector('#os-set-' + k); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); });
+      return;
+    }
+    if (isCheckout()) {
+      tree.querySelectorAll('[data-tog-sec]').forEach((c) => c.onclick = (e) => { e.stopPropagation(); const id = c.getAttribute('data-tog-sec'); ED.sectionExpand[id] = ED.sectionExpand[id] === false ? true : false; refreshTree(); });
+      tree.querySelectorAll('[data-sel-sec]').forEach((r) => r.onclick = (e) => { if (e.target.closest('[data-tog-sec]')) return; select({ kind: 'section', sectionId: r.getAttribute('data-sel-sec') }); });
+      tree.querySelectorAll('[data-sel-blk]').forEach((r) => r.onclick = () => { const p = r.getAttribute('data-sel-blk').split(':'); select({ kind: 'block', sectionId: p[0], blockId: p[1] }); });
       return;
     }
     tree.querySelectorAll('[data-grp]').forEach((g) => g.onclick = () => { const k = g.getAttribute('data-grp'); ED.expand[k] = !ED.expand[k]; refreshTree(); });
@@ -443,6 +509,7 @@
     return c;
   }
   function canvasHtml() {
+    if (isCheckout()) return checkoutCanvasHtml();
     let html = '';
     const secs = pageSections().filter((s) => !s.hidden);
     const first = secs[0];
@@ -459,7 +526,71 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkout: D.CHECKOUT_MOCK }; }
+
+  // -------------------------------------------------------------- CHECKOUT canvas
+  // Fixed two-column layout on PC (form + summary); single column on mobile with a
+  // collapsed Order Summary on top (PRD §7). Each component is still a selectable
+  // `.os-sec`, so the shared wireCanvas()/hydrate() pipeline works unchanged.
+  function checkoutCanvasHtml() {
+    const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
+    const secs = pageSections();
+    const byKind = (k) => secs.find((s) => s.kind === k);
+    const wrap = (s, first) => (s && !s.hidden) ? wrapSection(s, !!first) : '';
+    const header = wrap(byKind('checkout-header'), true);
+    const summary = wrap(byKind('checkout-order-summary'));
+    const leftKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment', 'checkout-cta', 'checkout-policy-links'];
+    const leftCol = leftKinds.map((k) => wrap(byKind(k))).join('');
+    const vars = checkoutVars(tk);
+    const L = tk.layout || {};
+    const inner = mob
+      ? (summary + '<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' + leftCol + '</div>')
+      : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
+          '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
+          '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
+        '</div>';
+    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + vars + '">' + header + inner + '</div>';
+  }
+  const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
+  function checkoutVars(tk) {
+    const m = tk.main || {}, hd = tk.header || {}, os = tk.order_summary || {}, ac = tk.accent || {}, inp = tk.input || {}, ty = tk.typography || {};
+    const set = [];
+    set.push('--ck-page-bg:' + (m.page_background || '#fff'));
+    set.push('--ck-content-bg:' + (m.content_background || '#fff'));
+    set.push('--ck-text:' + (m.text_color || '#1F1F1F'));
+    set.push('--ck-muted:' + (m.muted_text_color || '#777'));
+    set.push('--ck-divider:' + (m.divider_color || '#E5E5E5'));
+    set.push('--ck-h-bg:' + (hd.header_background || '#fff'));
+    set.push('--ck-h-text:' + (hd.header_text_color || '#1F1F1F'));
+    set.push('--ck-h-accent:' + (hd.header_accent_color || '#121212'));
+    set.push('--ck-sum-bg:' + (os.summary_background || '#F7F7F7'));
+    set.push('--ck-sum-text:' + (os.summary_text || '#1F1F1F'));
+    set.push('--ck-sum-muted:' + (os.summary_muted_text || '#777'));
+    set.push('--ck-accent:' + (ac.accent_color || '#121212'));
+    set.push('--ck-btn-bg:' + (ac.button_background || '#121212'));
+    set.push('--ck-btn-text:' + (ac.button_text_color || '#fff'));
+    set.push('--ck-btn-hover:' + (ac.button_hover_background || '#000'));
+    set.push('--ck-btn-radius:' + (ac.button_border_radius == null ? 6 : ac.button_border_radius) + 'px');
+    set.push('--ck-btn-h:' + (ac.button_height || 52) + 'px');
+    set.push('--ck-btn-tt:' + (ac.button_text_transform || 'uppercase'));
+    set.push('--ck-input-bg:' + (inp.transparent_input ? 'transparent' : (inp.input_background || '#fff')));
+    set.push('--ck-input-text:' + (inp.input_text_color || '#1F1F1F'));
+    set.push('--ck-ph:' + (inp.placeholder_color || '#B5B5B5'));
+    set.push('--ck-input-border:' + (inp.input_border_color || '#D9D9D9'));
+    set.push('--ck-input-focus:' + (inp.input_focus_border_color || ac.accent_color || '#121212'));
+    set.push('--ck-error:' + (inp.input_error_color || '#D72C2C'));
+    set.push('--ck-input-radius:' + (inp.input_border_radius == null ? 6 : inp.input_border_radius) + 'px');
+    set.push('--ck-input-h:' + (inp.input_height || 48) + 'px');
+    set.push('--ck-base-fs:' + (ty.base_font_size || 14) + 'px');
+    set.push('--ck-heading-fs:' + (ty.heading_font_size || 18) + 'px');
+    set.push('--ck-small-fs:' + (ty.small_font_size || 12) + 'px');
+    set.push('--ck-fw-h:' + (ty.font_weight_heading || '600'));
+    set.push('--ck-fw-b:' + (ty.font_weight_body || '400'));
+    set.push('--ck-heading-font:' + CK_FONT(ty.heading_font));
+    set.push('--ck-body-font:' + CK_FONT(ty.body_font));
+    set.push('--ck-section-gap:' + ((tk.layout || {}).section_spacing || 24) + 'px');
+    return set.join(';');
+  }
   function wrapGlobal(scope, inst, transHdr) {
     if (inst.hidden) return '';
     const def = SECTIONS[inst.kind]; const sel = ED.selection.kind === scope;
@@ -521,26 +652,28 @@
       const s = pageSections().find((x) => x.id === sel.sectionId);
       if (!s) return emptyRight('Section not found.');
       const def = SECTIONS[s.kind];
-      return panelHead(def ? def.icon : 'layers', sectionLabel(s), def ? def.name : s.kind, s.hidden, 'section', s.id) +
-        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, s.settings, '') : noSettings()) +
-        '<button class="os-remove" data-remove-sec="' + s.id + '">' + I.trash + ' Remove section</button></div>';
+      const rm = isCheckout() ? '' : '<button class="os-remove" data-remove-sec="' + s.id + '">' + I.trash + ' Remove section</button>';
+      return panelHead(def ? def.icon : 'layers', sectionLabel(s), def ? def.name : s.kind, s.hidden, 'section', s.id, isCheckout()) +
+        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, s.settings, '') : noSettings()) + rm + '</div>';
     }
     if (sel.kind === 'block') {
       const s = pageSections().find((x) => x.id === sel.sectionId) || globalBySel(sel.sectionId);
       const bl = s && (s.blocks || []).find((x) => x.id === sel.blockId);
       if (!s || !bl) return emptyRight('Block not found.');
       const def = SECTIONS[s.kind]; const bd = blockDef(def, bl.kind);
-      return panelHead('layers', blockLabel(s, bl), (bd ? bd.name : 'Block') + ' · in ' + (def ? def.name : s.kind), bl.hidden, 'block', sel.blockId) +
-        '<div class="os-right-scroll" id="os-form">' + (bd ? schemaForm(bd.fields, bl.settings, '') : noSettings()) +
-        '<button class="os-remove" data-remove-blk="' + sel.sectionId + ':' + bl.id + '">' + I.trash + ' Remove block</button></div>';
+      const rm = isCheckout() ? '' : '<button class="os-remove" data-remove-blk="' + sel.sectionId + ':' + bl.id + '">' + I.trash + ' Remove block</button>';
+      return panelHead('layers', blockLabel(s, bl), (bd ? bd.name : 'Block') + ' · in ' + (def ? def.name : s.kind), bl.hidden, 'block', sel.blockId, isCheckout()) +
+        '<div class="os-right-scroll" id="os-form">' + (bd && bd.fields && bd.fields.length ? schemaForm(bd.fields, bl.settings, '') : noSettings()) + rm + '</div>';
     }
     return emptyRight('Select a section or block to edit.');
   }
   function globalBySel(scope) { return (scope === 'footer' || scope === 'header' || scope === 'announcement') ? ED.theme[scope] : null; }
-  function panelHead(icon, title, sub, hidden, scope, id) {
+  function panelHead(icon, title, sub, hidden, scope, id, locked) {
+    const vis = locked
+      ? '<span class="os-rh-vis" title="Required component" style="cursor:default;color:#c4cad3">' + I.lock + '</span>'
+      : '<button class="os-rh-vis' + (hidden ? ' off' : '') + '" data-head-vis="' + scope + ':' + id + '" title="' + (hidden ? 'Show section' : 'Hide section') + '">' + (hidden ? I.eyeOff : I.eye) + '</button>';
     return '<div class="os-right-head"><span class="os-rh-ico">' + ICON(icon) + '</span>' +
-      '<div style="min-width:0"><div class="os-rh-title">' + esc(title) + '</div><div class="os-rh-sub">' + esc(sub) + '</div></div>' +
-      '<button class="os-rh-vis' + (hidden ? ' off' : '') + '" data-head-vis="' + scope + ':' + id + '" title="' + (hidden ? 'Show section' : 'Hide section') + '">' + (hidden ? I.eyeOff : I.eye) + '</button></div>';
+      '<div style="min-width:0"><div class="os-rh-title">' + esc(title) + '</div><div class="os-rh-sub">' + esc(sub) + '</div></div>' + vis + '</div>';
   }
   function emptyRight(msg) { return '<div class="os-right-head"><span class="os-rh-ico">' + I.layers + '</span><div><div class="os-rh-title">Settings</div><div class="os-rh-sub">Nothing selected</div></div></div><div class="os-empty-right">' + esc(msg) + '</div>'; }
   function noSettings() { return '<div class="os-info">This section has no settings.</div>'; }
@@ -594,7 +727,9 @@
         return colorControl(f, val, dk);
       case 'image':
         return '<div class="os-imgf" ' + dk + '>' + (val ? '<div class="os-img-prev" style="background-image:url(' + esc(val) + ')"></div>' : '<div class="os-img-box">' + I.image + ' Paste an image URL</div>') + '<input class="os-input" data-img-url value="' + esc(val) + '" placeholder="https://…"></div>';
-      case 'product': case 'collection': case 'collections': case 'menu': case 'blog': case 'page':
+      case 'collections':
+        return collectionsControl(f, val, dk);
+      case 'product': case 'collection': case 'menu': case 'blog': case 'page':
         return pickerControl(f, val, dk);
       default:
         return '<input class="os-input" ' + dk + ' value="' + esc(val) + '">';
@@ -612,6 +747,23 @@
     const label = pickerLabel(f.control, val);
     return '<button class="os-picker" ' + dk + ' data-pick="' + f.control + '">' +
       '<span>' + esc(label) + '</span>' + I.chev + '</button>';
+  }
+  const I_grip = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
+  const I_coll = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
+  function collectionsControl(f, val, dk) {
+    const S = D.SAMPLE;
+    const ids = Array.isArray(val) ? val : [];
+    const items = ids.map((id) => S.collections.find((c) => c.id === id)).filter(Boolean);
+    if (!items.length) {
+      return '<div class="os-colsel" ' + dk + '><button class="os-colsel-btn" data-cols-pick>Select</button></div>';
+    }
+    const rows = items.map((c) => '<div class="os-colsel-row" draggable="true" data-cid="' + esc(c.id) + '">' +
+      '<span class="os-colsel-ico">' + I_coll + '</span>' +
+      '<span class="os-colsel-name">' + esc(c.title) + '</span>' +
+      '<span class="os-colsel-grip" title="Drag to reorder">' + I_grip + '</span></div>').join('');
+    return '<div class="os-colsel" ' + dk + '>' +
+      '<div class="os-colsel-list" data-cols-list>' + rows + '</div>' +
+      '<button class="os-colsel-change" data-cols-pick>Change</button></div>';
   }
   function pickerLabel(kind, val) {
     const S = D.SAMPLE;
@@ -653,11 +805,32 @@
         autoBtn.onclick = () => { const on = !autoBtn.classList.contains('on'); autoBtn.classList.toggle('on', on); if (on) { numEl.value = ''; numEl.disabled = true; onChange(k, null, false); } else { numEl.disabled = false; const dv = (f.min != null ? f.min : 0); numEl.value = dv; onChange(k, dv, false); numEl.focus(); } };
       } else if (ctl === 'image') {
         const u = el.querySelector('[data-img-url]'); u.oninput = () => onChange(k, u.value, false); u.onchange = () => refreshRight();
-      } else if (ctl === 'product' || ctl === 'collection' || ctl === 'collections' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
+      } else if (ctl === 'collections') {
+        const pick = el.querySelector('[data-cols-pick]'); if (pick) pick.onclick = () => openPicker(ctl, target[k], (v) => onChange(k, v, true));
+        const list = el.querySelector('[data-cols-list]'); if (list) wireColsReorder(list, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
+      } else if (ctl === 'product' || ctl === 'collection' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
         el.onclick = () => openPicker(ctl, target[k], (v) => onChange(k, v, true));
       }
     });
     wireRemove(form);
+  }
+  function wireColsReorder(list, getArr, setArr) {
+    let dragId = null;
+    list.querySelectorAll('[data-cid]').forEach((row) => {
+      row.addEventListener('dragstart', (e) => { dragId = row.getAttribute('data-cid'); row.classList.add('os-colsel-dragging'); if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {} } });
+      row.addEventListener('dragend', () => { dragId = null; row.classList.remove('os-colsel-dragging'); list.querySelectorAll('.os-colsel-over').forEach((x) => x.classList.remove('os-colsel-over')); });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; row.classList.add('os-colsel-over'); });
+      row.addEventListener('dragleave', () => row.classList.remove('os-colsel-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault(); row.classList.remove('os-colsel-over');
+        const targetId = row.getAttribute('data-cid'); if (!dragId || dragId === targetId) return;
+        const arr = getArr().slice(); const from = arr.indexOf(dragId); if (from < 0) return;
+        arr.splice(from, 1);
+        let insert = arr.indexOf(targetId); if (insert < 0) insert = arr.length;
+        const rect = row.getBoundingClientRect(); if (e.clientY > rect.top + rect.height / 2) insert += 1;
+        arr.splice(insert, 0, dragId); setArr(arr);
+      });
+    });
   }
   function wireRemove(form) {
     const rs = form.querySelector('[data-remove-sec]'); if (rs) rs.onclick = () => removeSection(rs.getAttribute('data-remove-sec'));
@@ -689,13 +862,14 @@
   //  THEME SETTINGS PANEL (right side, 8 collapsible groups)
   // ==========================================================================
   function themeSettingsPanel() {
+    const ck = isCheckout(); const groupsDef = sGroups(); const obj = settingsObj();
     const head = '<div class="os-right-head"><span class="os-rh-ico">' + I.gear + '</span>' +
-      '<div style="min-width:0"><div class="os-rh-title">Theme settings</div><div class="os-rh-sub">Global tokens — inherited everywhere</div></div>' +
+      '<div style="min-width:0"><div class="os-rh-title">' + (ck ? 'Checkout settings' : 'Theme settings') + '</div><div class="os-rh-sub">' + (ck ? 'Checkout / Thank you global styles' : 'Global tokens — inherited everywhere') + '</div></div>' +
       '<button class="os-expall" id="os-expall">Expand all</button></div>';
-    const groups = D.SETTINGS_GROUPS.map((g) => {
-      const open = ED.settingsExpand[g.key];
+    const groups = groupsDef.map((g) => {
+      const open = ED.settingsExpand[sExpKey(g.key)];
       const n = g.fields.filter((f) => f.key).length;
-      const body = open ? '<div class="os-set-body">' + g.fields.map((f) => fieldHtml(f, ED.theme.settings[g.key])).join('') + '</div>' : '';
+      const body = open ? '<div class="os-set-body">' + g.fields.map((f) => fieldHtml(f, obj[g.key])).join('') + '</div>' : '';
       return '<div class="os-set-grp' + (open ? ' open' : '') + '" id="os-set-' + g.key + '">' +
         '<div class="os-set-head" data-setgrp="' + g.key + '"><span class="os-caret' + (open ? ' open' : '') + '">' + I.chevR + '</span>' +
         '<div class="os-set-h-txt"><div class="os-set-name">' + esc(g.name) + '</div><div class="os-set-desc">' + esc(g.desc) + '</div></div>' +
@@ -705,14 +879,13 @@
   }
   function wireSettings() {
     const form = document.querySelector('#os-form'); if (!form) return;
-    const exp = document.querySelector('#os-expall'); if (exp) exp.onclick = () => { const anyClosed = D.SETTINGS_GROUPS.some((g) => !ED.settingsExpand[g.key]); D.SETTINGS_GROUPS.forEach((g) => ED.settingsExpand[g.key] = anyClosed); refreshRight(); };
-    form.querySelectorAll('[data-setgrp]').forEach((hd) => hd.onclick = () => { const k = hd.getAttribute('data-setgrp'); ED.settingsExpand[k] = !ED.settingsExpand[k]; refreshRight(); });
-    // wire each group's fields against theme.settings[group]
-    D.SETTINGS_GROUPS.forEach((g) => {
-      if (!ED.settingsExpand[g.key]) return;
+    const groupsDef = sGroups(); const obj = settingsObj();
+    const exp = document.querySelector('#os-expall'); if (exp) exp.onclick = () => { const anyClosed = groupsDef.some((g) => !ED.settingsExpand[sExpKey(g.key)]); groupsDef.forEach((g) => ED.settingsExpand[sExpKey(g.key)] = anyClosed); refreshRight(); };
+    form.querySelectorAll('[data-setgrp]').forEach((hd) => hd.onclick = () => { const k = hd.getAttribute('data-setgrp'); ED.settingsExpand[sExpKey(k)] = !ED.settingsExpand[sExpKey(k)]; refreshRight(); });
+    groupsDef.forEach((g) => {
+      if (!ED.settingsExpand[sExpKey(g.key)]) return;
       const grpEl = form.querySelector('#os-set-' + g.key); if (!grpEl) return;
-      const target = ED.theme.settings[g.key];
-      bindFields(grpEl, target, g.fields, () => { markDirty(); refreshCanvas(); });
+      bindFields(grpEl, obj[g.key], g.fields, () => { markDirty(); refreshCanvas(); });
     });
   }
   // generic field binder used by theme settings groups (reuses control wiring without the section-panel scope)
@@ -897,17 +1070,22 @@
     const back = h('<div class="modal-backdrop" style="z-index:240"></div>');
     const m = h('<div class="drawer"></div>');
     m.innerHTML = '<div class="drawer-head">Select ' + esc(kind) + (multi ? 's' : '') + '<span class="drawer-x">' + I.x + '</span></div>' +
+      '<div class="os-pk-search"><span class="os-pk-search-ico">' + I.search + '</span><input type="text" id="pk-search" placeholder="Search" autocomplete="off"></div>' +
       '<div class="drawer-body" id="pk-body"></div>' +
-      '<div class="drawer-foot"><button class="btn btn-default" data-cancel>Cancel</button><button class="btn btn-primary" data-ok>Done</button></div>';
+      '<div class="drawer-foot"><button class="btn btn-default" data-cancel>Cancel</button><button class="btn btn-primary" data-ok>Select</button></div>';
     back.appendChild(m); document.body.appendChild(back);
     const body = m.querySelector('#pk-body');
+    let query = '';
     const draw = () => {
-      body.innerHTML = items.map((it) => '<label class="os-pk-row"><input type="' + (multi ? 'checkbox' : 'radio') + '" ' + (sel.has(it.id) ? 'checked' : '') + ' data-id="' + esc(it.id) + '">' +
+      const q = query.trim().toLowerCase();
+      const shown = q ? items.filter((it) => String(nameOf(it) || '').toLowerCase().indexOf(q) >= 0) : items;
+      body.innerHTML = shown.length ? shown.map((it) => '<label class="os-pk-row"><input type="' + (multi ? 'checkbox' : 'radio') + '" ' + (sel.has(it.id) ? 'checked' : '') + ' data-id="' + esc(it.id) + '">' +
         (it.image ? '<span class="os-pk-thumb" style="background-image:url(' + esc(it.image) + ')"></span>' : '<span class="os-pk-thumb gen">' + ICON('layers') + '</span>') +
-        '<span class="os-pk-name">' + esc(nameOf(it)) + (it.price ? ' · ' + money(it.price) : it.count != null ? ' · ' + it.count + ' items' : '') + '</span></label>').join('');
+        '<span class="os-pk-name">' + esc(nameOf(it)) + (it.price ? ' · ' + money(it.price) : it.count != null ? ' · ' + it.count + ' items' : '') + '</span></label>').join('') : '<div class="os-pk-empty">No matches for “' + esc(query) + '”</div>';
       body.querySelectorAll('input').forEach((inp) => inp.onchange = () => { const id = inp.getAttribute('data-id'); if (multi) { inp.checked ? sel.add(id) : sel.delete(id); } else { sel.clear(); sel.add(id); } });
     };
     draw();
+    const searchEl = m.querySelector('#pk-search'); if (searchEl) searchEl.oninput = () => { query = searchEl.value; draw(); };
     const close = () => back.remove();
     m.querySelector('.drawer-x').onclick = close; m.querySelector('[data-cancel]').onclick = close;
     back.onclick = (e) => { if (e.target === back) close(); };
@@ -929,6 +1107,22 @@
     if (pt === ED.currentPage) return;
     ED.currentPage = pt; if (ED.selection.kind === 'section' || ED.selection.kind === 'block') ED.selection = { kind: 'header' };
     ED.leftMode = 'sections'; rerender();
+  }
+  function defaultSelection() {
+    if (isCheckout()) { const s = pageSections()[0]; return s ? { kind: 'section', sectionId: s.id } : { kind: 'theme-settings' }; }
+    return { kind: 'header' };
+  }
+  // Switch between the Online Store editor and the Checkout editor (PRD §3.5).
+  function switchSurface(target) {
+    if (target === ED.surface) { refreshTop(); return; }
+    refreshTop(); // reset the page <select> to the current surface (covers the cancel path)
+    attemptLeave(() => {
+      ED.surface = target;
+      if (target === 'checkout') ED.checkoutPage = 'checkout';
+      ED.leftMode = 'sections';
+      ED.selection = defaultSelection();
+      rerender();
+    });
   }
 
   // ==========================================================================
@@ -1222,6 +1416,23 @@
   .os-img-prev{height:80px;border-radius:8px;background-size:cover;background-position:center;margin-bottom:6px;border:1px solid var(--hair)}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .os-colsel{display:flex;flex-direction:column}
+  .os-colsel-btn{align-self:flex-start;height:32px;padding:0 16px;border:1px solid var(--ctl);border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .os-colsel-btn:hover{background:#eceef2}
+  .os-colsel-list{border:1px solid var(--ctl);border-radius:8px;overflow:hidden}
+  .os-colsel-row{display:flex;align-items:center;gap:9px;padding:8px 10px;background:#fff;border-bottom:1px solid var(--hair);font-size:13px;color:var(--ink)}
+  .os-colsel-row:last-child{border-bottom:0}
+  .os-colsel-row.os-colsel-dragging{opacity:.45}
+  .os-colsel-row.os-colsel-over{box-shadow:inset 0 2px 0 var(--brand)}
+  .os-colsel-ico{color:var(--ink-muted);display:inline-flex;flex:none}
+  .os-colsel-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:underline;text-underline-offset:2px;text-decoration-color:#cbd2db}
+  .os-colsel-grip{color:#c4cad3;display:inline-flex;flex:none;cursor:grab}
+  .os-colsel-change{align-self:stretch;margin-top:-1px;height:34px;border:1px solid var(--ctl);border-top:0;border-radius:0 0 8px 8px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .os-colsel-change:hover{background:#eceef2}
+  .os-pk-search{display:flex;align-items:center;gap:8px;margin:10px 14px 0;padding:0 10px;height:36px;border:1px solid var(--ctl);border-radius:8px;background:#fff}
+  .os-pk-search-ico{color:var(--ink-muted);display:inline-flex;flex:none}
+  .os-pk-search input{flex:1;border:0;outline:0;background:transparent;font-size:13px;color:var(--ink);font-family:inherit}
+  .os-pk-empty{padding:24px 8px;text-align:center;font-size:13px;color:var(--ink-muted)}
 
   /* settings groups */
   .os-set-grp{border:1px solid var(--hair);border-radius:8px;margin-bottom:8px;overflow:hidden}
@@ -1284,5 +1495,117 @@
   .oc-rate svg{width:13px;height:13px}.oc-rate i{color:#999;font-style:normal}
   .oc-price{font-size:14px;font-weight:600;display:flex;gap:8px;align-items:baseline;justify-content:inherit}
   .oc-price s{color:#9aa3b0;font-weight:400;font-size:13px}
+
+  /* ============================ CHECKOUT preview ============================ */
+  .os-row.locked .os-tr-lock{opacity:1}
+  .ckpage{min-height:560px;background:var(--ck-page-bg);color:var(--ck-text);font-family:var(--ck-body-font);font-size:var(--ck-base-fs);font-weight:var(--ck-fw-b)}
+  .ckwrap{margin:0 auto;display:flex;align-items:flex-start;padding:32px 20px 80px}
+  .ckwrap.mob{display:block}
+  .ckcol{min-width:0}
+  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap)}
+  .ckpage.mob .ckwrap.mob>.os-sec{margin-bottom:var(--ck-section-gap)}
+  .ckpage.mob .ckwrap.mob>.os-sec:last-child{margin-bottom:0}
+  .cksec{font-size:var(--ck-base-fs)}
+  .ck-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);color:var(--ck-text);margin:0 0 14px}
+  /* fields */
+  .ck-field{margin-bottom:12px}
+  .ck-field:last-child{margin-bottom:0}
+  .ck-input{height:var(--ck-input-h);border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:var(--ck-input-bg);color:var(--ck-input-text);padding:0 14px;font-size:var(--ck-base-fs);font-family:inherit;width:100%;outline:none;box-sizing:border-box}
+  .ck-input::placeholder{color:var(--ck-ph)}
+  .ck-input:focus{border-color:var(--ck-input-focus)}
+  .ck-select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  .ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ck-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .ckpage.mob .ck-row3{grid-template-columns:1fr 1fr}
+  .ck-link{color:var(--ck-accent);font-size:var(--ck-small-fs);cursor:pointer;text-decoration:none}
+  .ck-link:hover{text-decoration:underline}
+  .ck-contact .ck-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .ck-check{display:flex;gap:8px;align-items:center;font-size:var(--ck-small-fs);color:var(--ck-muted);cursor:pointer}
+  .ck-check input{accent-color:var(--ck-accent);width:16px;height:16px}
+  /* header */
+  .ck-header{width:100%}
+  .ck-header.divline{border-bottom:1px solid var(--ck-divider)}
+  .ck-header-in{margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:16px;box-sizing:border-box}
+  .ck-header-in.center{display:grid;grid-template-columns:1fr auto 1fr}
+  .ck-h-mid{display:flex;justify-content:center}
+  .ck-h-side.end{display:flex;justify-content:flex-end}
+  .ck-logo{font-weight:700;font-size:22px;letter-spacing:.18em}
+  .ck-trust{font-size:var(--ck-small-fs);letter-spacing:.14em;text-transform:uppercase}
+  .ck-h-contact{font-size:var(--ck-small-fs);text-align:right;line-height:1.5}
+  .ck-h-contact a{text-decoration:none}
+  .ck-h-cart{display:inline-flex;align-items:center;cursor:pointer}
+  .ck-header.off{background:var(--ck-page-bg)!important;border-bottom:1px dashed var(--ck-divider)}
+  /* express */
+  .ck-exp-h{font-size:var(--ck-small-fs);color:var(--ck-muted);text-align:center;margin-bottom:10px}
+  .ck-exp-btns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .ck-exp-btn{height:46px;border-radius:var(--ck-btn-radius);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;border:0;cursor:pointer}
+  .ck-exp-btn.shoppay{background:#5a31f4}.ck-exp-btn.paypal{background:#ffc439;color:#003087}.ck-exp-btn.gpay{background:#000}
+  .ck-or{display:flex;align-items:center;gap:14px;color:var(--ck-muted);font-size:var(--ck-small-fs);margin-top:16px;text-transform:uppercase;letter-spacing:.1em}
+  .ck-or::before,.ck-or::after{content:'';flex:1;height:1px;background:var(--ck-divider)}
+  /* shipping method */
+  .ck-radio-list{border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);overflow:hidden}
+  .ck-radio{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid var(--ck-input-border);cursor:pointer;color:var(--ck-text)}
+  .ck-radio:last-child{border-bottom:0}
+  .ck-radio.sel{box-shadow:inset 0 0 0 2px var(--ck-sel-border,var(--ck-accent))}
+  .ck-radio .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--ck-input-border);flex:none;position:relative}
+  .ck-radio.sel .dot{border-color:var(--ck-sel-border,var(--ck-accent))}
+  .ck-radio.sel .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--ck-sel-border,var(--ck-accent))}
+  .ck-radio .nm{flex:1;display:flex;flex-direction:column}
+  .ck-radio .eta{font-size:var(--ck-small-fs);color:var(--ck-muted)}
+  .ck-radio .pr{font-weight:600}
+  .ck-empty{padding:18px;border:1px dashed var(--ck-input-border);border-radius:var(--ck-input-radius);color:var(--ck-muted);font-size:var(--ck-small-fs);text-align:center;line-height:1.5}
+  /* payment */
+  .ck-pay-note{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-bottom:10px}
+  .ck-pay-list{border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);overflow:hidden}
+  .ck-pay-opt{border-bottom:1px solid var(--ck-input-border)}
+  .ck-pay-opt:last-child{border-bottom:0}
+  .ck-pay-head{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer}
+  .ck-pay-head .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--ck-input-border);flex:none;position:relative}
+  .ck-pay-opt.sel .ck-pay-head .dot{border-color:var(--ck-accent)}
+  .ck-pay-opt.sel .ck-pay-head .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--ck-accent)}
+  .ck-pay-head .nm{font-weight:500}
+  .ck-pay-body{padding:0 14px 14px;display:none;flex-direction:column;gap:12px}
+  .ck-pay-opt.sel .ck-pay-body{display:flex}
+  .ck-cardbrands{display:flex;gap:4px;margin-left:auto}
+  .ck-cardbrands span{height:20px;padding:0 5px;border-radius:3px;background:#fff;border:1px solid var(--ck-divider);font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555}
+  /* cta */
+  .ck-cta-btn{height:var(--ck-btn-h);border:0;text-transform:var(--ck-btn-tt);font-weight:700;font-size:15px;letter-spacing:.02em;cursor:pointer;font-family:inherit}
+  .ck-cta-btn:hover{filter:brightness(.92)}
+  .ck-cta-btn.loading{opacity:.7;cursor:default}
+  .ck-terms{font-size:var(--ck-small-fs);color:var(--ck-muted);text-align:center;margin-top:12px;line-height:1.5}
+  /* policy */
+  .ck-policy{display:flex;flex-wrap:wrap;gap:8px 18px;padding-top:16px;border-top:1px solid var(--ck-divider)}
+  .ck-policy a{color:var(--ck-accent);font-size:var(--ck-small-fs);text-decoration:none;cursor:pointer}
+  .ck-policy.med a{font-size:var(--ck-base-fs)}
+  .ck-policy a:hover{text-decoration:underline}
+  .ck-policy-empty{font-size:var(--ck-small-fs);color:var(--ck-muted);padding-top:16px;border-top:1px dashed var(--ck-divider)}
+  /* order summary */
+  .ck-summary{background:var(--ck-sum-bg);color:var(--ck-sum-text);border-radius:10px;padding:22px}
+  .ck-sum-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);margin:0 0 16px}
+  .ck-blk{position:relative}
+  .ck-line{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .ck-line-img{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;position:relative;flex:none;border:1px solid var(--ck-divider)}
+  .ck-line-qty{position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;border-radius:50%;background:var(--ck-sum-muted);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .ck-line-info{flex:1;min-width:0}
+  .ck-line-t{font-size:var(--ck-base-fs);font-weight:600}
+  .ck-line-v{font-size:var(--ck-small-fs);color:var(--ck-sum-muted)}
+  .ck-line-pr{font-weight:600;white-space:nowrap}
+  .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);margin-right:6px;font-weight:400}
+  .ck-coupon{display:flex;gap:10px;margin:16px 0;padding-top:16px;border-top:1px solid var(--ck-divider)}
+  .ck-coupon .ck-input{flex:1}
+  .ck-coupon-btn{height:var(--ck-input-h);padding:0 18px;border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:transparent;color:var(--ck-sum-text);font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .ck-totals{border-top:1px solid var(--ck-divider);padding-top:16px}
+  .ck-trow{display:flex;justify-content:space-between;margin-bottom:10px;font-size:var(--ck-base-fs)}
+  .ck-trow .lbl{color:var(--ck-sum-muted)}
+  .ck-trow.grand{font-size:18px;font-weight:700;margin-top:6px;padding-top:14px;border-top:1px solid var(--ck-divider);margin-bottom:0}
+  /* mobile collapsible summary */
+  .ck-summary.mob{border-radius:0;padding:0;border-bottom:1px solid var(--ck-divider)}
+  .ck-summary-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer}
+  .ck-summary-bar .lft{display:flex;align-items:center;gap:8px;color:var(--ck-accent);font-size:var(--ck-base-fs)}
+  .ck-summary-bar .ck-chev{transition:transform .15s;display:inline-block}
+  .ck-summary.mob.collapsed .ck-summary-bar .ck-chev{transform:rotate(-90deg)}
+  .ck-summary-bar .tot{font-weight:700;font-size:18px}
+  .ck-summary.mob .ck-summary-body{padding:0 18px 18px}
+  .ck-summary.mob.collapsed .ck-summary-body{display:none}
   `;
 })();

@@ -296,5 +296,132 @@
     },
   };
 
-  window.OS_DATA = { THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME };
+  // ==========================================================================
+  //  CHECKOUT THEME (V Theme-Checkout PRD) — separate editor surface
+  //  Fixed transaction skeleton + configurable styles. Distinct from the
+  //  Home/Collection/PDP theme settings above. (PRD §3, §5, §6)
+  // ==========================================================================
+
+  // Checkout editor page selector (Thank you page is out of scope this round).
+  const CHECKOUT_PAGES = [
+    { value: 'checkout', label: 'Checkout' },
+  ];
+
+  const FONT_CK = ['Default', 'Inter', 'Manrope', 'Playfair Display', 'Georgia', 'system-ui'].map((v) => ({ value: v, label: v }));
+
+  // Checkout Theme settings — 7 groups (PRD §6). Keys/defaults/ranges verbatim.
+  const CHECKOUT_SETTINGS_GROUPS = [
+    { key: 'main', name: 'Main', desc: 'Page, content & summary surfaces', open: true, fields: [
+      { key: 'page_background', label: 'Page background', control: 'color', default: '#FFFFFF', info: 'Checkout page overall background.' },
+      { key: 'content_background', label: 'Content background', control: 'color', default: '#FFFFFF' },
+      { key: 'summary_background', label: 'Summary background', control: 'color', default: '#F7F7F7' },
+      { key: 'text_color', label: 'Text color', control: 'color', default: '#1F1F1F' },
+      { key: 'muted_text_color', label: 'Muted text', control: 'color', default: '#777777' },
+      { key: 'divider_color', label: 'Divider', control: 'color', default: '#E5E5E5' },
+    ] },
+    { key: 'header', name: 'Header', desc: 'Brand bar at the top', fields: [
+      { key: 'header_background', label: 'Header background', control: 'color', default: '#FFFFFF' },
+      { key: 'header_text_color', label: 'Header text', control: 'color', default: '#1F1F1F' },
+      { key: 'header_accent_color', label: 'Header accent', control: 'color', default: '#121212', info: 'Links and the cart icon.' },
+      { key: 'header_height_pc', label: 'Header height · PC', control: 'range', min: 48, max: 120, step: 1, unit: 'px', default: 64 },
+      { key: 'header_height_mobile', label: 'Header height · Mobile', control: 'range', min: 44, max: 100, step: 1, unit: 'px', default: 56 },
+      { key: 'header_divider', label: 'Bottom divider', control: 'toggle', default: true },
+    ] },
+    { key: 'order_summary', name: 'Order Summary', desc: 'Right-hand summary surface', fields: [
+      { key: 'summary_background', label: 'Background', control: 'color', default: '#F7F7F7' },
+      { key: 'summary_text', label: 'Text', control: 'color', default: '#1F1F1F' },
+      { key: 'summary_muted_text', label: 'Muted text', control: 'color', default: '#777777', info: 'Variants, descriptions, secondary lines.' },
+    ] },
+    { key: 'accent', name: 'Accent and buttons', desc: 'Primary action & accent color', fields: [
+      { key: 'accent_color', label: 'Accent color', control: 'color', default: '#121212', info: 'Links, selected state, radio, checkbox.' },
+      { key: 'button_background', label: 'Button background', control: 'color', default: '#121212' },
+      { key: 'button_text_color', label: 'Button text', control: 'color', default: '#FFFFFF' },
+      { key: 'button_hover_background', label: 'Button hover', control: 'color', default: '#000000' },
+      { key: 'button_border_radius', label: 'Button radius', control: 'range', min: 0, max: 40, step: 1, unit: 'px', default: 6 },
+      { key: 'button_height', label: 'Button height', control: 'range', min: 40, max: 64, step: 1, unit: 'px', default: 52 },
+      { key: 'button_text_transform', label: 'Button case', control: 'select', default: 'uppercase', options: [
+        { value: 'none', label: 'None' }, { value: 'uppercase', label: 'Uppercase' }, { value: 'capitalize', label: 'Capitalize' } ] },
+    ] },
+    { key: 'input', name: 'Input fields', desc: 'Form inputs across checkout', fields: [
+      { key: 'input_background', label: 'Background', control: 'color', default: '#FFFFFF' },
+      { key: 'input_text_color', label: 'Text', control: 'color', default: '#1F1F1F' },
+      { key: 'placeholder_color', label: 'Placeholder', control: 'color', default: '#B5B5B5' },
+      { key: 'input_border_color', label: 'Border (default)', control: 'color', default: '#D9D9D9' },
+      { key: 'input_focus_border_color', label: 'Border (focused)', control: 'color', default: '#121212', info: 'Defaults to the Accent color.' },
+      { key: 'input_error_color', label: 'Error', control: 'color', default: '#D72C2C' },
+      { key: 'input_border_radius', label: 'Corner radius', control: 'range', min: 0, max: 24, step: 1, unit: 'px', default: 6 },
+      { key: 'input_height', label: 'Height', control: 'range', min: 40, max: 64, step: 1, unit: 'px', default: 48 },
+      { key: 'transparent_input', label: 'Transparent input', control: 'toggle', default: false },
+    ] },
+    { key: 'typography', name: 'Typography', desc: 'Fonts and sizes', fields: [
+      { key: 'heading_font', label: 'Heading font', control: 'select', options: FONT_CK, default: 'Default' },
+      { key: 'body_font', label: 'Body font', control: 'select', options: FONT_CK, default: 'Default' },
+      { key: 'base_font_size', label: 'Base font size', control: 'range', min: 12, max: 18, step: 1, unit: 'px', default: 14 },
+      { key: 'heading_font_size', label: 'Heading font size', control: 'range', min: 14, max: 28, step: 1, unit: 'px', default: 18 },
+      { key: 'small_font_size', label: 'Small font size', control: 'range', min: 10, max: 14, step: 1, unit: 'px', default: 12 },
+      { key: 'font_weight_heading', label: 'Heading weight', control: 'select', default: '600', options: [
+        { value: '400', label: '400' }, { value: '500', label: '500' }, { value: '600', label: '600' }, { value: '700', label: '700' } ] },
+      { key: 'font_weight_body', label: 'Body weight', control: 'select', default: '400', options: [
+        { value: '400', label: '400' }, { value: '500', label: '500' }, { value: '600', label: '600' } ] },
+    ] },
+    { key: 'layout', name: 'Layout', desc: 'Width, columns and spacing', fields: [
+      { key: 'page_max_width_pc', label: 'Max width · PC', control: 'range', min: 900, max: 1280, step: 10, unit: 'px', default: 980 },
+      { key: 'main_column_width', label: 'Form column width', control: 'range', min: 50, max: 70, step: 1, unit: '%', default: 58 },
+      { key: 'summary_column_width', label: 'Summary column width', control: 'range', min: 30, max: 50, step: 1, unit: '%', default: 42 },
+      { key: 'column_gap', label: 'Column gap', control: 'range', min: 16, max: 80, step: 1, unit: 'px', default: 40 },
+      { key: 'section_spacing', label: 'Section spacing', control: 'range', min: 12, max: 48, step: 1, unit: 'px', default: 24 },
+      { key: 'mobile_page_padding', label: 'Mobile page padding', control: 'range', min: 12, max: 24, step: 1, unit: 'px', default: 18 },
+    ] },
+  ];
+
+  // Locked checkout skeleton (PRD §3.3). Order is fixed; users can't add/remove/reorder.
+  const CHECKOUT_TEMPLATE = {
+    sections: [
+      { id: 'ck-header', kind: 'checkout-header' },
+      { id: 'ck-express', kind: 'checkout-express' },
+      { id: 'ck-contact', kind: 'checkout-contact' },
+      { id: 'ck-shipinfo', kind: 'checkout-shipping-info' },
+      { id: 'ck-shipmethod', kind: 'checkout-shipping-method' },
+      { id: 'ck-payment', kind: 'checkout-payment' },
+      { id: 'ck-cta', kind: 'checkout-cta' },
+      { id: 'ck-summary', kind: 'checkout-order-summary', blocks: [
+        { id: 'ck-blk-lines', kind: 'cart-lines' },
+        { id: 'ck-blk-coupon', kind: 'coupon' },
+        { id: 'ck-blk-subtotal', kind: 'subtotal' },
+        { id: 'ck-blk-discount', kind: 'discount' },
+        { id: 'ck-blk-shipping', kind: 'shipping' },
+        { id: 'ck-blk-tax', kind: 'tax' },
+        { id: 'ck-blk-total', kind: 'total' },
+      ] },
+      { id: 'ck-policy', kind: 'checkout-policy-links', settings: {
+        refund_policy_page: 'pg-refund', privacy_policy_page: 'pg-privacy', terms_of_service_page: 'pg-terms',
+      } },
+    ],
+  };
+
+  // Mock order used for the checkout preview (PRD §14.2). Amounts are illustrative;
+  // in production the order calculation service is the source of truth.
+  const CHECKOUT_MOCK = {
+    storeName: 'AURA',
+    country: 'United States',
+    countries: ['United States', 'Canada', 'United Kingdom', 'Australia', 'Germany', 'Japan'],
+    cart: [
+      { id: 'l1', title: 'Linen-feel wide pants', variant: 'Sand / M', qty: 1, price: 32.99, compareAt: 45.0, image: IMG.p1 },
+      { id: 'l2', title: 'Soft rib tee', variant: 'Forest / S', qty: 2, price: 18.99, compareAt: 26.0, image: IMG.p2 },
+      { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, image: IMG.p6 },
+    ],
+    shippingMethods: [
+      { id: 'std', name: 'Standard', eta: '5–8 business days', price: 0 },
+      { id: 'exp', name: 'Express', eta: '2–3 business days', price: 12.9 },
+      { id: 'pri', name: 'Priority', eta: '1–2 business days', price: 24.0 },
+    ],
+    selectedShipping: 'std',
+    coupon: { code: 'WELCOME10', amount: 10.99 },
+    tax: 7.34,
+  };
+
+  window.OS_DATA = {
+    THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
+    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK,
+  };
 })();
