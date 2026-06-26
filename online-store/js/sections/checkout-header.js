@@ -1,16 +1,13 @@
 /* Checkout · Header (PRD §5.1) — brand bar at the top of the checkout.
-   New configuration capability; no nav / search / account (focused, trustworthy
-   transaction environment). Logo falls back to store brand name (AURA). */
+   Composable model: a structural axis (Logo alignment) + independent content
+   modules (Trust message / Contact / Cart). Each module is an on/off toggle so
+   the layout is extensible — new modules slot into the start / center / end
+   regions without inventing a new fixed-combo enum. No nav / search / account
+   (focused, trustworthy transaction environment). Logo falls back to the store
+   brand name (AURA). */
 (function () {
   if (!window.OS) return;
   const { esc, icon } = OS;
-
-  const LAYOUTS = [
-    { value: 'logo', label: 'Logo only' },
-    { value: 'logo_trust', label: 'Logo + trust text' },
-    { value: 'logo_contact', label: 'Logo + contact' },
-    { value: 'logo_trust_cart', label: 'Logo + trust + cart' },
-  ];
 
   OS.register('checkout-header', {
     name: 'Header', icon: 'image',
@@ -20,17 +17,21 @@
       { key: 'logo_image', label: 'Logo image', control: 'image', default: '', info: 'JPG / PNG / WebP / SVG. Falls back to the store brand name.' },
       { key: 'logo_width', label: 'Logo width · PC', control: 'range', min: 40, max: 300, step: 1, unit: 'px', default: 120 },
       { key: 'logo_width_mobile', label: 'Logo width · Mobile', control: 'range', min: 40, max: 240, step: 1, unit: 'px', default: 100 },
-      { key: 'logo_position', label: 'Logo position', control: 'select', default: 'left', options: [
-        { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' } ] },
-      { sub: 'Layout' },
-      { key: 'header_layout', label: 'Header layout', control: 'select', default: 'logo_trust', options: LAYOUTS },
-      { key: 'show_cart_icon', label: 'Show cart icon', control: 'toggle', default: true },
-      { key: 'trust_text', label: 'Trust text', control: 'text', default: 'Secure checkout', placeholder: 'Secure checkout' },
+      { key: 'logo_position', label: 'Logo alignment', control: 'select', default: 'left', info: 'The structural axis of the header. Left / Right anchor the logo to a side; Center pins it to the middle.', options: [
+        { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' } ] },
+      { sub: 'Trust message' },
+      { key: 'show_trust_text', label: 'Show trust message', control: 'toggle', default: true, info: 'Reassures buyers the checkout is secure.' },
+      { key: 'trust_text', label: 'Text', control: 'text', default: 'Secure checkout', placeholder: 'Secure checkout', visibleWhen: (v) => v.show_trust_text !== false },
+      { sub: 'Secure badge' },
+      { key: 'show_secure_badge', label: 'Show secure badge', control: 'toggle', default: false, info: 'A small padlock chip — extra reassurance next to the cart.' },
+      { key: 'secure_text', label: 'Text', control: 'text', default: 'SSL secure', placeholder: 'SSL secure', visibleWhen: (v) => !!v.show_secure_badge },
       { sub: 'Contact' },
-      { key: 'show_contact_info', label: 'Show contact info', control: 'toggle', default: false },
-      { key: 'contact_title', label: 'Contact title', control: 'text', default: 'Contact us' },
-      { key: 'contact_email', label: 'Contact email', control: 'text', default: '', placeholder: 'support@store.com' },
-      { key: 'contact_phone', label: 'Contact phone', control: 'text', default: '', placeholder: '+1 555 000 0000' },
+      { key: 'show_contact_info', label: 'Show contact', control: 'toggle', default: false, info: 'Shows a “need help?” block (title + email / phone).' },
+      { key: 'contact_title', label: 'Title', control: 'text', default: 'Need help?', visibleWhen: (v) => !!v.show_contact_info },
+      { key: 'contact_email', label: 'Email', control: 'text', default: '', placeholder: 'support@store.com', visibleWhen: (v) => !!v.show_contact_info },
+      { key: 'contact_phone', label: 'Phone', control: 'text', default: '', placeholder: '+1 555 000 0000', visibleWhen: (v) => !!v.show_contact_info },
+      { sub: 'Cart' },
+      { key: 'show_cart_icon', label: 'Show cart icon', control: 'toggle', default: true, info: 'A cart shortcut pinned to the end of the header.' },
       { sub: 'Colors' },
       { key: 'background_color', label: 'Background color', control: 'color', default: '', info: 'Leave empty to inherit Checkout settings → Header.' },
       { key: 'text_color', label: 'Text color', control: 'color', default: '' },
@@ -41,7 +42,7 @@
     ],
     render(s, blocks, ctx) {
       if (s.show_header === false) {
-        return '<div class="ck-header off"><div class="ck-header-in" style="height:32px;justify-content:center;color:var(--ck-muted);font-size:12px">Header hidden — checkout body unaffected</div></div>';
+        return '<div class="ck-header off"><div class="ck-header-in" style="height:32px"><div class="ck-h-slot center" style="color:var(--ck-muted);font-size:12px">Header hidden — checkout body unaffected</div></div></div>';
       }
       const tk = ctx.tokens || {}; const L = tk.layout || {};
       const mob = ctx.mob;
@@ -52,45 +53,49 @@
       const height = (mob ? (tk.header && tk.header.header_height_mobile) || 56 : (tk.header && tk.header.header_height_pc) || 64);
       const lw = (mob ? s.logo_width_mobile : s.logo_width) || 110;
       const maxw = (L.page_max_width_pc || 980);
-      const layout = s.header_layout || 'logo_trust';
-      const centerLogo = s.logo_position === 'center' || mob;
+      const axis = s.logo_position || 'left'; // left | center | right
+      const center = axis === 'center';
 
       const logo = s.logo_image
         ? '<img src="' + esc(s.logo_image) + '" alt="' + esc(store) + '" style="width:' + lw + 'px;max-height:' + (height - 16) + 'px;object-fit:contain">'
         : '<span class="ck-logo" style="color:' + txt + '">' + esc(store) + '</span>';
 
-      const wantTrust = (layout === 'logo_trust' || layout === 'logo_trust_cart') && s.trust_text && !mob;
-      const trust = wantTrust ? '<div class="ck-trust" style="color:' + txt + '">' + esc(s.trust_text) + '</div>' : '';
+      // Independent content modules — hidden on mobile to protect the compact bar.
+      const trust = (s.show_trust_text !== false && s.trust_text && !mob)
+        ? '<div class="ck-trust" style="color:' + txt + '">' + esc(s.trust_text) + '</div>' : '';
 
-      const cartIcon = '<a class="ck-h-cart" style="color:' + accent + '">' + icon('cart') + '</a>';
-      const wantContact = (layout === 'logo_contact' || s.show_contact_info) && (s.contact_email || s.contact_phone) && !mob;
-      let right = '';
-      if (wantContact) {
-        right = '<div class="ck-h-contact" style="color:' + accent + '">' +
-          (s.contact_title ? '<div style="color:' + txt + ';font-size:11px;text-transform:uppercase;letter-spacing:.08em">' + esc(s.contact_title) + '</div>' : '') +
-          (s.contact_email ? '<a href="mailto:' + esc(s.contact_email) + '" style="color:' + accent + '">' + esc(s.contact_email) + '</a>' : '') +
-          (s.contact_phone ? ' <a href="tel:' + esc(s.contact_phone) + '" style="color:' + accent + '">' + esc(s.contact_phone) + '</a>' : '') +
-          '</div>';
-      } else if (s.show_cart_icon && layout !== 'logo_contact') {
-        right = cartIcon;
-      } else if (mob && s.show_cart_icon) {
-        right = cartIcon;
+      const secure = (s.show_secure_badge && s.secure_text && !mob)
+        ? '<div class="ck-h-secure" style="color:' + txt + '">' + icon('lock') + '<span>' + esc(s.secure_text) + '</span></div>' : '';
+
+      const contact = (s.show_contact_info && (s.contact_email || s.contact_phone) && !mob)
+        ? '<div class="ck-h-contact" style="color:' + accent + '">' +
+            (s.contact_title ? '<span class="ck-h-ct" style="color:' + txt + '">' + esc(s.contact_title) + '</span>' : '') +
+            (s.contact_email ? '<a href="mailto:' + esc(s.contact_email) + '" style="color:' + accent + '">' + esc(s.contact_email) + '</a>' : '') +
+            (s.contact_phone ? '<a href="tel:' + esc(s.contact_phone) + '" style="color:' + accent + '">' + esc(s.contact_phone) + '</a>' : '') +
+          '</div>' : '';
+
+      const cart = s.show_cart_icon ? '<a class="ck-h-cart" style="color:' + accent + '">' + icon('cart') + '</a>' : '';
+      const cluster = secure + contact + cart; // secondary modules travel together
+
+      // Three regions: start / center / end. Module placement depends on the axis.
+      let c1 = '', c2 = '', c3 = '';
+      if (mob) {
+        c2 = logo; c3 = cart;
+      } else if (center) {
+        c2 = logo + trust + secure + contact; c3 = cart;
+      } else if (axis === 'right') {
+        c1 = cluster; c2 = trust; c3 = logo;
+      } else {
+        c1 = logo; c2 = trust; c3 = cluster;
       }
 
       const divider = s.show_divider !== false && (tk.header ? tk.header.header_divider !== false : true);
       const inStyle = 'height:' + height + 'px;max-width:' + maxw + 'px;background:' + bg;
-      let inner;
-      if (centerLogo) {
-        inner = '<div class="ck-header-in center" style="' + inStyle + '">' +
-          '<span class="ck-h-side">' + '</span>' +
-          '<span class="ck-h-mid">' + logo + '</span>' +
-          '<span class="ck-h-side end">' + (mob && s.show_cart_icon ? cartIcon : '') + '</span>' +
-          '</div>';
-      } else {
-        inner = '<div class="ck-header-in" style="' + inStyle + '">' +
-          '<span class="ck-h-l">' + logo + '</span>' + trust + '<span class="ck-h-r">' + right + '</span>' +
-          '</div>';
-      }
+      const inner = '<div class="ck-header-in" style="' + inStyle + '">' +
+        '<div class="ck-h-slot start">' + c1 + '</div>' +
+        '<div class="ck-h-slot center">' + c2 + '</div>' +
+        '<div class="ck-h-slot end">' + c3 + '</div>' +
+        '</div>';
       const css = s.custom_css ? '<style>' + s.custom_css + '</style>' : '';
       return '<div class="ck-header' + (divider ? ' divline' : '') + '" style="background:' + bg + ';color:' + txt + '">' + inner + css + '</div>';
     },

@@ -1502,7 +1502,7 @@
   .ckwrap{margin:0 auto;display:flex;align-items:flex-start;padding:32px 20px 80px}
   .ckwrap.mob{display:block}
   .ckcol{min-width:0}
-  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);background:var(--ck-content-bg)}
+  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);background:var(--ck-content-bg);padding:28px;border-radius:10px}
   .ckpage.mob .ckwrap.mob{background:var(--ck-content-bg)}
   .ckpage.mob .ckwrap.mob>.os-sec{margin-bottom:var(--ck-section-gap)}
   .ckpage.mob .ckwrap.mob>.os-sec:last-child{margin-bottom:0}
@@ -1526,14 +1526,18 @@
   /* header */
   .ck-header{width:100%}
   .ck-header.divline{border-bottom:1px solid var(--ck-divider)}
-  .ck-header-in{margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 20px;gap:16px;box-sizing:border-box}
-  .ck-header-in.center{display:grid;grid-template-columns:1fr auto 1fr}
-  .ck-h-mid{display:flex;justify-content:center}
-  .ck-h-side.end{display:flex;justify-content:flex-end}
+  .ck-header-in{margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:0 20px;box-sizing:border-box}
+  .ck-h-slot{display:flex;align-items:center;min-width:0}
+  .ck-h-slot.start{justify-content:flex-start;gap:16px}
+  .ck-h-slot.center{justify-content:center;flex-direction:column;text-align:center;gap:3px}
+  .ck-h-slot.end{justify-content:flex-end;gap:16px}
   .ck-logo{font-weight:700;font-size:22px;letter-spacing:.18em}
   .ck-trust{font-size:var(--ck-small-fs);letter-spacing:.14em;text-transform:uppercase}
-  .ck-h-contact{font-size:var(--ck-small-fs);text-align:right;line-height:1.5}
+  .ck-h-contact{display:flex;align-items:center;gap:10px;font-size:var(--ck-small-fs);line-height:1.4}
   .ck-h-contact a{text-decoration:none}
+  .ck-h-ct{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.85}
+  .ck-h-secure{display:inline-flex;align-items:center;gap:6px;font-size:var(--ck-small-fs);letter-spacing:.04em}
+  .ck-h-secure svg{flex:none}
   .ck-h-cart{display:inline-flex;align-items:center;cursor:pointer}
   .ck-header.off{background:var(--ck-page-bg)!important;border-bottom:1px dashed var(--ck-divider)}
   /* express */
