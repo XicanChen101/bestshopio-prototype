@@ -56,9 +56,12 @@
       const axis = s.logo_position || 'left'; // left | center | right
       const center = axis === 'center';
 
+      // Width drives the logo size; height follows aspect ratio and the header row
+      // grows to fit (see min-height below). For the text fallback we map the same
+      // width slider onto the brand font-size so the control is never a no-op.
       const logo = s.logo_image
-        ? '<img src="' + esc(s.logo_image) + '" alt="' + esc(store) + '" style="width:' + lw + 'px;max-height:' + (height - 16) + 'px;object-fit:contain">'
-        : '<span class="ck-logo" style="color:' + txt + '">' + esc(store) + '</span>';
+        ? '<img src="' + esc(s.logo_image) + '" alt="' + esc(store) + '" style="width:' + lw + 'px;height:auto;display:block;object-fit:contain">'
+        : '<span class="ck-logo" style="color:' + txt + ';font-size:' + Math.max(14, Math.round(lw * 0.18)) + 'px">' + esc(store) + '</span>';
 
       // Independent content modules — hidden on mobile to protect the compact bar.
       const trust = (s.show_trust_text !== false && s.trust_text && !mob)
@@ -95,7 +98,7 @@
       }
 
       const divider = s.show_divider !== false && (tk.header ? tk.header.header_divider !== false : true);
-      const inStyle = 'height:' + height + 'px;max-width:' + maxw + 'px;background:' + bg;
+      const inStyle = 'min-height:' + height + 'px;padding-top:8px;padding-bottom:8px;max-width:' + maxw + 'px;background:' + bg;
       const inner = '<div class="ck-header-in" style="' + inStyle + '">' +
         '<div class="ck-h-slot start">' + c1 + '</div>' +
         '<div class="ck-h-slot center">' + c2 + '</div>' +
