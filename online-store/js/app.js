@@ -588,7 +588,7 @@
     set.push('--ck-btn-hover:' + (ac.button_hover_background || '#000'));
     set.push('--ck-btn-radius:' + (ac.button_border_radius == null ? 6 : ac.button_border_radius) + 'px');
     set.push('--ck-btn-h:' + (ac.button_height || 52) + 'px');
-    set.push('--ck-btn-tt:' + (ac.button_text_transform || 'uppercase'));
+    set.push('--ck-btn-tt:' + (ac.button_text_transform || 'none'));
     set.push('--ck-input-bg:' + (inp.transparent_input ? 'transparent' : (inp.input_background || '#fff')));
     set.push('--ck-input-text:' + (inp.input_text_color || '#1F1F1F'));
     set.push('--ck-ph:' + (inp.placeholder_color || '#B5B5B5'));

@@ -9,7 +9,7 @@
   OS.register('checkout-cta', {
     name: 'CTA', icon: 'lock',
     schema: [
-      { key: 'button_text', label: 'Button text', control: 'text', default: 'PAY NOW', placeholder: 'PAY NOW' },
+      { key: 'button_text', label: 'Button text', control: 'text', default: 'Pay now', placeholder: 'Pay now' },
       { key: 'button_full_width', label: 'Full width', control: 'toggle', default: true },
       { key: 'button_background', label: 'Button background', control: 'color', default: '', info: 'Leave empty to inherit Checkout settings → Button.' },
       { key: 'button_text_color', label: 'Button text color', control: 'color', default: '', info: 'Leave empty to inherit Checkout settings → Button text.' },
@@ -23,7 +23,7 @@
       const full = s.button_full_width !== false;
       const style = '--cta-bg:' + bgv + ';--cta-text:' + txv + ';--cta-radius:' + radv + ';' + (full ? 'width:100%' : 'width:auto;padding:0 40px');
       return '<div class="cksec ck-cta">' +
-        '<button class="ck-cta-btn" type="button" data-ck-cta data-label="' + esc(s.button_text || 'PAY NOW') + '" data-loading="' + esc(s.loading_text || 'Processing...') + '" style="' + style + '">' + esc(s.button_text || 'PAY NOW') + '</button>' +
+        '<button class="ck-cta-btn" type="button" data-ck-cta data-label="' + esc(s.button_text || 'Pay now') + '" data-loading="' + esc(s.loading_text || 'Processing...') + '" style="' + style + '">' + esc(s.button_text || 'Pay now') + '</button>' +
       '</div>';
     },
     hydrate(el) {
