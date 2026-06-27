@@ -372,6 +372,7 @@
   const CHECKOUT_TEMPLATE = {
     sections: [
       { id: 'ck-header', kind: 'checkout-header' },
+      { id: 'ck-summary-bar', kind: 'checkout-order-summary-bar' },
       { id: 'ck-express', kind: 'checkout-express' },
       { id: 'ck-contact', kind: 'checkout-contact' },
       { id: 'ck-shipinfo', kind: 'checkout-shipping-info' },

@@ -131,7 +131,7 @@
     if (_sectionsP) return _sectionsP;
     const kinds = ['announcement-bar', 'header', 'footer', 'collection-banner', 'collection-list', 'collection-page', 'list-collections',
       'checkout-header', 'checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method',
-      'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-policy-links'];
+      'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-order-summary-bar', 'checkout-policy-links'];
     D.CATALOG.forEach((g) => g.entries.forEach((e) => { if (e.kind && kinds.indexOf(e.kind) < 0) kinds.push(e.kind); }));
     _sectionsP = Promise.all(kinds.map((k) => loadScript(MOD_BASE + 'sections/' + k + '.js?v=' + OS_V).catch(() => { /* not yet ported — skip */ })));
     return _sectionsP;
@@ -543,17 +543,9 @@
     const header = wrap(byKind('checkout-header'), true);
     const sumSec = byKind('checkout-order-summary');
     const summary = wrap(sumSec);
-    // Mobile shows the Order Summary twice (Shopify-style): a collapsible bar at the top and
-    // the full breakdown lower down. Both are the same section (selecting either edits it).
-    const summaryVariant = (variant) => {
-      if (!sumSec || sumSec.hidden) return '';
-      const def = SECTIONS[sumSec.kind]; if (!def) return '';
-      const selBool = ED.selection.kind === 'section' && ED.selection.sectionId === sumSec.id;
-      const selBlk = (ED.selection.kind === 'block' && ED.selection.sectionId === sumSec.id) ? ED.selection.blockId : null;
-      const ctx = ctxFor('section', sumSec.id, selBool, selBlk, false); ctx.summaryVariant = variant;
-      let inner; try { inner = def.render(sumSec.settings, sumSec.blocks || [], ctx); } catch (e) { inner = '<div class="os-render-err">⚠ ' + esc(e.message) + '</div>'; }
-      return '<div class="os-sec' + (selBool ? ' active' : '') + '" data-csel="' + sumSec.id + '" data-preview-id="section:' + sumSec.id + '"><span class="os-sec-tag">' + esc(sectionLabel(sumSec)) + '</span>' + inner + '</div>';
-    };
+    // Mobile-only top bar: a separate, self-contained component (checkout-order-summary-bar)
+    // pinned full-bleed under the header. Editing it does not touch the bottom Order Summary.
+    const topBar = mob ? wrap(byKind('checkout-order-summary-bar')) : '';
     // Form sections that precede / follow the order recap on mobile.
     const preKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment'];
     const postKinds = ['checkout-cta', 'checkout-policy-links'];
@@ -564,27 +556,17 @@
     // Component-level summary background overrides the Order Summary theme setting, so the
     // full-bleed right band (driven by --ck-sum-bg) follows it too (last inline decl wins).
     const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
-    const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '');
     const L = tk.layout || {};
-    // Mobile (Shopify-style): payment → "Save my info" → order recap → Pay now → policies.
+    const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
+    // Mobile: full-bleed order-summary bar under header → form → bottom Order Summary → Pay now → policies.
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          summaryVariant('bar') + preCol + ckSaveInfoHtml() + summaryVariant('bar') + postCol + '</div>')
+          preCol + summary + postCol + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
         '</div>';
-    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + header + inner + '</div>';
-  }
-  // Shopify-style remember-me block shown on mobile just above the Pay now button.
-  function ckSaveInfoHtml() {
-    return '<div class="ck-saveinfo">' +
-      '<div class="ck-saveinfo-main">' +
-        '<div class="ck-saveinfo-t">Save my information for a faster checkout</div>' +
-        '<div class="ck-saveinfo-d">By paying, you agree to create an account subject to the store\u2019s <a>Terms</a> and <a>Privacy Policy</a>.</div>' +
-      '</div>' +
-      '<button class="ck-saveinfo-not" type="button">Not now</button>' +
-    '</div>';
+    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + header + topBar + inner + '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1738,23 +1720,28 @@
   .ck-trow.grand{font-size:15px;font-weight:600;margin-top:4px;padding-top:18px;border-top:1px solid var(--ck-divider);margin-bottom:0;align-items:baseline}
   .ck-trow.grand .amt{font-size:22px;font-weight:700}
   .ck-trow.grand .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);margin-right:5px;text-transform:uppercase;letter-spacing:.02em}
-  /* save my info (mobile, Shopify remember-me) */
-  .ck-saveinfo{display:flex;align-items:flex-start;gap:14px;padding:16px 0;border-top:1px solid var(--ck-divider)}
-  .ck-saveinfo-main{flex:1;min-width:0}
-  .ck-saveinfo-t{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
-  .ck-saveinfo-d{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:4px;line-height:1.45}
-  .ck-saveinfo-d a{color:var(--ck-muted);text-decoration:underline;cursor:pointer}
-  .ck-saveinfo-not{flex:none;background:none;border:0;color:var(--ck-text);font-size:var(--ck-base-fs);font-weight:500;cursor:pointer;font-family:inherit;padding:0;white-space:nowrap}
-  /* mobile order summary — Shopify-style collapsible bar */
-  .ck-summary.mob{border-radius:8px;padding:0 16px;border:1px solid var(--ck-divider)}
-  .ck-msum-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;cursor:pointer}
-  .ck-msum-title{display:inline-flex;align-items:center;gap:7px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text)}
-  .ck-msum-title .ck-chev{font-size:14px;color:var(--ck-muted);transition:transform .15s;display:inline-block;transform:rotate(90deg)}
-  .ck-summary.mob:not(.collapsed) .ck-msum-title .ck-chev{transform:rotate(-90deg)}
-  .ck-msum-amt{display:inline-flex;align-items:baseline;gap:10px;text-align:right}
-  .ck-msum-amt .ck-msum-cmp{font-size:var(--ck-small-fs);color:var(--ck-muted);text-decoration:line-through}
-  .ck-msum-amt .amt{font-weight:700;font-size:16px;color:var(--ck-text)}
-  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);padding:14px 0}
+  /* mobile order recap — collapsed = Shopify total bar; expanded = full summary */
+  .ck-summary.mob{border-radius:10px;padding:6px 16px 12px;border:1px solid var(--ck-divider)}
+  .ck-msum-adddisc{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--ck-divider);padding:12px 0;margin-bottom:8px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;text-align:left}
+  .ck-msum-plus{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid var(--ck-divider);border-radius:6px;font-size:14px;line-height:1}
+  .ck-summary.mob:not(.collapsed) .ck-msum-adddisc{display:none}
+  .ck-msum-bar{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer}
+  .ck-msum-thumb{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--ck-divider);flex:none}
+  .ck-summary.mob:not(.collapsed) .ck-msum-thumb{display:none}
+  .ck-msum-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .ck-msum-lbl{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
+  .ck-msum-items{font-size:var(--ck-small-fs);color:var(--ck-muted)}
+  .ck-msum-amt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+  .ck-msum-amt .amt{font-weight:700;font-size:18px;display:inline-flex;align-items:baseline;gap:5px}
+  .ck-msum-amt .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);text-transform:uppercase}
+  .ck-msum-amt .ck-chev{font-size:13px;font-weight:400;transition:transform .15s;display:inline-block}
+  .ck-summary.mob.collapsed .ck-msum-amt .ck-chev{transform:rotate(-90deg)}
+  .ck-msum-sav{display:flex;align-items:center;gap:5px;font-size:var(--ck-small-fs);color:#2e7d32}
+  .ck-when-collapsed{display:none}
+  .ck-summary.mob.collapsed .ck-when-collapsed{display:inline}
+  .ck-summary.mob.collapsed .ck-when-expanded{display:none}
+  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
+  .ck-summary.mob .ck-savings{display:none}
   `;
 })();
