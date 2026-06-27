@@ -579,7 +579,7 @@
     set.push('--ck-h-bg:' + (hd.header_background || '#fff'));
     set.push('--ck-h-text:' + (hd.header_text_color || '#1F1F1F'));
     set.push('--ck-h-accent:' + (hd.header_accent_color || '#121212'));
-    set.push('--ck-sum-bg:' + (os.summary_background || '#F7F7F7'));
+    set.push('--ck-sum-bg:' + (os.summary_background || '#F5F5F5'));
     set.push('--ck-sum-text:' + (os.summary_text || '#1F1F1F'));
     set.push('--ck-sum-muted:' + (os.summary_muted_text || '#777'));
     set.push('--ck-accent:' + (ac.accent_color || '#121212'));

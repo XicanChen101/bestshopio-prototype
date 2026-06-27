@@ -326,7 +326,7 @@
       { key: 'header_divider', label: 'Bottom divider', control: 'toggle', default: true },
     ] },
     { key: 'order_summary', name: 'Order Summary', desc: 'Right-hand summary surface', fields: [
-      { key: 'summary_background', label: 'Background', control: 'color', default: '#FAFAFA' },
+      { key: 'summary_background', label: 'Background', control: 'color', default: '#F5F5F5' },
       { key: 'summary_text', label: 'Text', control: 'color', default: '#1F1F1F' },
       { key: 'summary_muted_text', label: 'Muted text', control: 'color', default: '#777777', info: 'Variants, descriptions, secondary lines.' },
     ] },
