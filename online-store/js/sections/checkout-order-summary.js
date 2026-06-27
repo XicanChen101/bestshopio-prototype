@@ -7,6 +7,7 @@
   const { esc, money } = OS;
 
   const blk = (id, html, sel) => '<div class="ck-blk' + (sel ? ' os-block-sel' : '') + '" data-block-id="' + esc(id) + '">' + html + '</div>';
+  const TAG = '<svg class="ck-tag-i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
 
   OS.register('checkout-order-summary', {
     name: 'Order Summary', icon: 'cart',
@@ -47,6 +48,9 @@
       const discount = (mock.coupon && mock.coupon.amount) || 0;
       const tax = mock.tax || 0;
       const total = subtotal - discount + shipPrice + tax;
+      const itemCount = cart.reduce((t, l) => t + l.qty, 0);
+      const lineSavings = cart.reduce((t, l) => t + (l.compareAt && l.compareAt > l.price ? (l.compareAt - l.price) * l.qty : 0), 0);
+      const savings = lineSavings + discount;
 
       const bg = s.background_color || 'var(--ck-sum-bg)';
       const txt = s.text_color || 'var(--ck-sum-text)';
@@ -56,9 +60,11 @@
       const lb = find('cart-lines');
       const lines = cart.map((l) => {
         const cmp = l.compareAt && l.compareAt > l.price ? '<span class="ck-line-cmp">' + money(l.compareAt) + '</span>' : '';
+        const deal = (l.deal && l.compareAt && l.compareAt > l.price)
+          ? '<div class="ck-line-deal">' + TAG + '<span>' + esc(l.deal) + ' (−' + money((l.compareAt - l.price) * l.qty) + ')</span></div>' : '';
         return '<div class="ck-line">' +
           '<div class="ck-line-img" style="background-image:url(' + esc(l.image) + ')"><span class="ck-line-qty">' + l.qty + '</span></div>' +
-          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + '</div><div class="ck-line-v">' + esc(l.variant || '') + '</div></div>' +
+          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + '</div><div class="ck-line-v">' + esc(l.variant || '') + '</div>' + deal + '</div>' +
           '<div class="ck-line-pr">' + cmp + money(l.price * l.qty) + '</div>' +
         '</div>';
       }).join('');
@@ -73,24 +79,40 @@
       const row = (b, val, opts) => {
         opts = opts || {};
         const bs = (b.settings || {});
-        const lbl = esc(bs.row_label || b.kind) + (opts.info ? '<span class="ck-info" title="Calculated at the next step">?</span>' : '');
+        const lbl = esc(bs.row_label || b.kind) + (opts.suffix || '') + (opts.info ? '<span class="ck-info" title="Calculated at the next step">?</span>' : '');
         return blk(b.id, '<div class="ck-trow"><span class="lbl">' + lbl + '</span><span class="amt">' + val + '</span></div>', sel === b.id);
       };
       const sub = find('subtotal'), dis = find('discount'), shp = find('shipping'), tx = find('tax'), tot = find('total');
+      const savingsLine = savings > 0 ? '<div class="ck-savings">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
       const totals = '<div class="ck-totals">' +
-        row(sub, money(subtotal)) +
+        row(sub, money(subtotal), { suffix: ' <span class="ck-itemc">· ' + itemCount + ' items</span>' }) +
         (discount > 0 ? row(dis, '−' + money(discount)) : '') +
         row(shp, shipPrice ? money(shipPrice) : 'Free') +
         row(tx, money(tax)) +
         blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span></div>', sel === tot.id) +
+        savingsLine +
       '</div>';
 
-      // ---- mobile collapsed bar ----
+      // ---- mobile: Shopify-style recap (collapsed) / full summary (expanded) ----
       if (ctx.mob) {
         const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
-        const head = s.show_heading_mobile === false ? 'Order summary' : (s.heading || 'Order summary');
+        const head = s.heading || 'Order summary';
+        const thumb = cart[0] ? '<div class="ck-msum-thumb" style="background-image:url(' + esc(cart[0].image) + ')"></div>' : '';
+        const savLine = savings > 0 ? '<div class="ck-msum-sav">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
         return '<div class="ck-summary mob' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + '">' +
-          '<div class="ck-summary-bar" data-ck-sum-toggle><span class="lft">' + esc(head) + ' <span class="ck-chev">▾</span></span><span class="tot" style="color:' + totalColor + '">' + money(total) + '</span></div>' +
+          '<button class="ck-msum-adddisc" type="button" data-ck-sum-toggle><span class="ck-msum-plus">+</span> Add discount</button>' +
+          '<div class="ck-msum-bar" data-ck-sum-toggle>' +
+            thumb +
+            '<div class="ck-msum-meta">' +
+              '<span class="ck-msum-lbl ck-when-collapsed">Total</span>' +
+              '<span class="ck-msum-lbl ck-when-expanded">' + esc(head) + '</span>' +
+              '<span class="ck-msum-items ck-when-collapsed">' + itemCount + ' items</span>' +
+            '</div>' +
+            '<div class="ck-msum-amt">' +
+              '<span class="amt" style="color:' + totalColor + '"><span class="cur">' + esc(cur) + '</span>' + money(total) + ' <span class="ck-chev">▾</span></span>' +
+              savLine +
+            '</div>' +
+          '</div>' +
           '<div class="ck-summary-body">' + linesBlk + couponBlk + totals + '</div>' +
         '</div>';
       }
@@ -103,9 +125,10 @@
     },
 
     hydrate(el) {
-      const toggle = el.querySelector('[data-ck-sum-toggle]');
       const wrap = el.querySelector('[data-ck-summary]');
-      if (toggle && wrap) toggle.addEventListener('click', (e) => { e.stopPropagation(); wrap.classList.toggle('collapsed'); });
+      if (wrap) el.querySelectorAll('[data-ck-sum-toggle]').forEach((t) => {
+        t.addEventListener('click', (e) => { e.stopPropagation(); wrap.classList.toggle('collapsed'); });
+      });
       const apply = el.querySelector('[data-ck-apply]');
       if (apply) apply.addEventListener('click', () => { apply.textContent = 'Applying…'; setTimeout(() => { apply.textContent = 'Apply'; }, 1000); });
     },

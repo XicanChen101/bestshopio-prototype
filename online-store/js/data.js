@@ -337,8 +337,6 @@
       { key: 'button_hover_background', label: 'Button hover', control: 'color', default: '#000000' },
       { key: 'button_border_radius', label: 'Button radius', control: 'range', min: 0, max: 40, step: 1, unit: 'px', default: 6 },
       { key: 'button_height', label: 'Button height', control: 'range', min: 40, max: 64, step: 1, unit: 'px', default: 52 },
-      { key: 'button_text_transform', label: 'Button case', control: 'select', default: 'uppercase', options: [
-        { value: 'none', label: 'None' }, { value: 'uppercase', label: 'Uppercase' }, { value: 'capitalize', label: 'Capitalize' } ] },
     ] },
     { key: 'input', name: 'Input fields', desc: 'Form inputs across checkout', fields: [
       { key: 'input_background', label: 'Background', control: 'color', default: '#FFFFFF' },
@@ -364,8 +362,6 @@
     ] },
     { key: 'layout', name: 'Layout', desc: 'Width, columns and spacing', fields: [
       { key: 'page_max_width_pc', label: 'Max width · PC', control: 'range', min: 900, max: 1280, step: 10, unit: 'px', default: 980 },
-      { key: 'main_column_width', label: 'Form column width', control: 'range', min: 50, max: 70, step: 1, unit: '%', default: 58 },
-      { key: 'summary_column_width', label: 'Summary column width', control: 'range', min: 30, max: 50, step: 1, unit: '%', default: 42 },
       { key: 'column_gap', label: 'Column gap', control: 'range', min: 16, max: 80, step: 1, unit: 'px', default: 40 },
       { key: 'section_spacing', label: 'Section spacing', control: 'range', min: 12, max: 48, step: 1, unit: 'px', default: 24 },
       { key: 'mobile_page_padding', label: 'Mobile page padding', control: 'range', min: 12, max: 24, step: 1, unit: 'px', default: 18 },
@@ -402,14 +398,15 @@
   const CHECKOUT_MOCK = {
     storeName: 'AURA',
     country: 'United States',
+    currency: 'USD',
     countries: ['United States', 'Canada', 'United Kingdom', 'Australia', 'Germany', 'Japan'],
     states: ['California', 'New York', 'Texas', 'Florida', 'Illinois', 'Washington', 'Massachusetts', 'Georgia'],
     cities: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Boston', 'Atlanta', 'Miami'],
     phoneCodes: ['+1', '+44', '+61', '+49', '+81', '+86', '+33'],
     cart: [
-      { id: 'l1', title: 'Linen-feel wide pants', variant: 'Sand / M', qty: 1, price: 32.99, compareAt: 45.0, image: IMG.p1 },
-      { id: 'l2', title: 'Soft rib tee', variant: 'Forest / S', qty: 2, price: 18.99, compareAt: 26.0, image: IMG.p2 },
-      { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, image: IMG.p6 },
+      { id: 'l1', title: 'Linen-feel wide pants', variant: 'Sand / M', qty: 1, price: 32.99, compareAt: 45.0, deal: 'EXTRA SALE', image: IMG.p1 },
+      { id: 'l2', title: 'Soft rib tee', variant: 'Forest / S', qty: 2, price: 18.99, compareAt: 26.0, deal: 'BUY 2 SAVE 30%', image: IMG.p2 },
+      { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, deal: 'CLEARANCE', image: IMG.p6 },
     ],
     shippingMethods: [
       { id: 'free', name: 'Free Shipping', eta: '', price: 0 },

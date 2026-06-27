@@ -543,21 +543,37 @@
     const header = wrap(byKind('checkout-header'), true);
     const sumSec = byKind('checkout-order-summary');
     const summary = wrap(sumSec);
-    const leftKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment', 'checkout-cta', 'checkout-policy-links'];
-    const leftCol = leftKinds.map((k) => wrap(byKind(k))).join('');
+    // Form sections that precede / follow the order recap on mobile.
+    const preKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment'];
+    const postKinds = ['checkout-cta', 'checkout-policy-links'];
+    const preCol = preKinds.map((k) => wrap(byKind(k))).join('');
+    const postCol = postKinds.map((k) => wrap(byKind(k))).join('');
+    const leftCol = preCol + postCol; // desktop keeps the original single-column order
     const vars = checkoutVars(tk);
     // Component-level summary background overrides the Order Summary theme setting, so the
     // full-bleed right band (driven by --ck-sum-bg) follows it too (last inline decl wins).
     const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '');
     const L = tk.layout || {};
+    // Mobile (Shopify-style): payment → "Save my info" → order recap → Pay now → policies.
     const inner = mob
-      ? (summary + '<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' + leftCol + '</div>')
+      ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
+          preCol + ckSaveInfoHtml() + summary + postCol + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
         '</div>';
     return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + header + inner + '</div>';
+  }
+  // Shopify-style remember-me block shown on mobile just above the Pay now button.
+  function ckSaveInfoHtml() {
+    return '<div class="ck-saveinfo">' +
+      '<div class="ck-saveinfo-main">' +
+        '<div class="ck-saveinfo-t">Save my information for a faster checkout</div>' +
+        '<div class="ck-saveinfo-d">By paying, you agree to create an account subject to the store\u2019s <a>Terms</a> and <a>Privacy Policy</a>.</div>' +
+      '</div>' +
+      '<button class="ck-saveinfo-not" type="button">Not now</button>' +
+    '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1643,6 +1659,10 @@
   .ck-line-v{font-size:var(--ck-small-fs);color:var(--ck-sum-muted);margin-top:2px}
   .ck-line-pr{font-weight:500;white-space:nowrap}
   .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);margin-right:6px;font-weight:400}
+  .ck-line-deal{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:var(--ck-small-fs);color:#2e7d32}
+  .ck-line-deal .ck-tag-i{flex:none}
+  .ck-itemc{color:var(--ck-sum-muted);font-weight:400}
+  .ck-savings{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:var(--ck-small-fs);color:#2e7d32}
   .ck-coupon{display:flex;gap:8px;margin:0;padding:20px 0;border-top:1px solid var(--ck-divider)}
   .ck-coupon .ck-input{flex:1}
   .ck-coupon-btn{height:var(--ck-input-h);padding:0 17px;border:0;border-radius:var(--ck-input-radius);background:#e3e3e3;color:#8a8a8a;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .12s,color .12s}
@@ -1655,14 +1675,35 @@
   .ck-trow.grand{font-size:15px;font-weight:600;margin-top:4px;padding-top:18px;border-top:1px solid var(--ck-divider);margin-bottom:0;align-items:baseline}
   .ck-trow.grand .amt{font-size:22px;font-weight:700}
   .ck-trow.grand .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);margin-right:5px;text-transform:uppercase;letter-spacing:.02em}
-  /* mobile collapsible summary */
-  .ck-summary.mob{border-radius:0;padding:0;border-bottom:1px solid var(--ck-divider)}
-  .ck-summary-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer}
-  .ck-summary-bar .lft{display:flex;align-items:center;gap:8px;color:var(--ck-accent);font-size:var(--ck-base-fs)}
-  .ck-summary-bar .ck-chev{transition:transform .15s;display:inline-block}
-  .ck-summary.mob.collapsed .ck-summary-bar .ck-chev{transform:rotate(-90deg)}
-  .ck-summary-bar .tot{font-weight:700;font-size:18px}
-  .ck-summary.mob .ck-summary-body{padding:0 18px 18px}
+  /* save my info (mobile, Shopify remember-me) */
+  .ck-saveinfo{display:flex;align-items:flex-start;gap:14px;padding:16px 0;border-top:1px solid var(--ck-divider)}
+  .ck-saveinfo-main{flex:1;min-width:0}
+  .ck-saveinfo-t{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
+  .ck-saveinfo-d{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:4px;line-height:1.45}
+  .ck-saveinfo-d a{color:var(--ck-muted);text-decoration:underline;cursor:pointer}
+  .ck-saveinfo-not{flex:none;background:none;border:0;color:var(--ck-text);font-size:var(--ck-base-fs);font-weight:500;cursor:pointer;font-family:inherit;padding:0;white-space:nowrap}
+  /* mobile order recap — collapsed = Shopify total bar; expanded = full summary */
+  .ck-summary.mob{border-radius:10px;padding:6px 16px 12px;border:1px solid var(--ck-divider)}
+  .ck-msum-adddisc{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--ck-divider);padding:12px 0;margin-bottom:8px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;text-align:left}
+  .ck-msum-plus{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid var(--ck-divider);border-radius:6px;font-size:14px;line-height:1}
+  .ck-summary.mob:not(.collapsed) .ck-msum-adddisc{display:none}
+  .ck-msum-bar{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer}
+  .ck-msum-thumb{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--ck-divider);flex:none}
+  .ck-summary.mob:not(.collapsed) .ck-msum-thumb{display:none}
+  .ck-msum-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .ck-msum-lbl{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
+  .ck-msum-items{font-size:var(--ck-small-fs);color:var(--ck-muted)}
+  .ck-msum-amt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
+  .ck-msum-amt .amt{font-weight:700;font-size:18px;display:inline-flex;align-items:baseline;gap:5px}
+  .ck-msum-amt .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);text-transform:uppercase}
+  .ck-msum-amt .ck-chev{font-size:13px;font-weight:400;transition:transform .15s;display:inline-block}
+  .ck-summary.mob.collapsed .ck-msum-amt .ck-chev{transform:rotate(-90deg)}
+  .ck-msum-sav{display:flex;align-items:center;gap:5px;font-size:var(--ck-small-fs);color:#2e7d32}
+  .ck-when-collapsed{display:none}
+  .ck-summary.mob.collapsed .ck-when-collapsed{display:inline}
+  .ck-summary.mob.collapsed .ck-when-expanded{display:none}
+  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
+  .ck-summary.mob .ck-savings{display:none}
   `;
 })();
