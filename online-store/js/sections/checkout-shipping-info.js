@@ -52,7 +52,7 @@
           '<div class="ck-field">' + sel(s.state_placeholder || 'State/province', mock.states) + '</div>' +
           '<div class="ck-field">' + inp(s.zip_placeholder || 'ZIP code') + '</div>' +
         '</div>' +
-        '<div class="ck-field">' + phone + '</div>' +
+        '<div class="ck-field ck-field-phone">' + phone + '</div>' +
       '</div>';
     },
     hydrate(el) {
