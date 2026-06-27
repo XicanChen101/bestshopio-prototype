@@ -30,13 +30,14 @@
       'subtotal': { name: 'Subtotal', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Subtotal' } ] },
       'discount': { name: 'Discount', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Discount' } ] },
       'shipping': { name: 'Shipping', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Shipping' } ] },
-      'tax': { name: 'Tax', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Tax' } ] },
+      'tax': { name: 'Tax', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Estimated taxes' } ] },
       'total': { name: 'Total', fields: [ { key: 'row_label', label: 'Label', control: 'text', default: 'Total' } ] },
     } },
 
     render(s, blocks, ctx) {
       const mock = ctx.checkout || {};
       const cart = mock.cart || [];
+      const cur = mock.currency || 'USD';
       const find = (k) => (blocks || []).find((b) => b.kind === k) || { id: '', settings: {} };
       const sel = ctx.selectedBlockId;
 
@@ -69,17 +70,19 @@
         '<div class="ck-coupon"><input class="ck-input" placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>', sel === cb.id);
 
       // ---- totals ----
-      const row = (b, val, extraCls) => {
+      const row = (b, val, opts) => {
+        opts = opts || {};
         const bs = (b.settings || {});
-        return blk(b.id, '<div class="ck-trow' + (extraCls || '') + '"><span class="lbl">' + esc(bs.row_label || b.kind) + '</span><span class="amt">' + val + '</span></div>', sel === b.id);
+        const lbl = esc(bs.row_label || b.kind) + (opts.info ? '<span class="ck-info" title="Calculated at the next step">?</span>' : '');
+        return blk(b.id, '<div class="ck-trow"><span class="lbl">' + lbl + '</span><span class="amt">' + val + '</span></div>', sel === b.id);
       };
       const sub = find('subtotal'), dis = find('discount'), shp = find('shipping'), tx = find('tax'), tot = find('total');
       const totals = '<div class="ck-totals">' +
         row(sub, money(subtotal)) +
         (discount > 0 ? row(dis, '−' + money(discount)) : '') +
-        row(shp, shipPrice ? money(shipPrice) : 'Free') +
+        row(shp, shipPrice ? money(shipPrice) : 'Free', { info: true }) +
         row(tx, money(tax)) +
-        blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt">' + money(total) + '</span></div>', sel === tot.id) +
+        blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span></div>', sel === tot.id) +
       '</div>';
 
       // ---- mobile collapsed bar ----
@@ -92,8 +95,11 @@
         '</div>';
       }
 
+      // Desktop: the surface colour is painted as a full-bleed band behind the side column
+      // (see app.js .ckcol.side::before, driven by --ck-sum-bg), so the panel itself stays
+      // transparent here — only carry the text colour when overridden.
       const heading = s.show_heading_pc ? '<h3 class="ck-sum-h">' + esc(s.heading || 'Order summary') + '</h3>' : '';
-      return '<div class="ck-summary" style="background:' + bg + ';color:' + txt + '">' + heading + linesBlk + couponBlk + totals + '</div>';
+      return '<div class="ck-summary" style="color:' + txt + '">' + heading + linesBlk + couponBlk + totals + '</div>';
     },
 
     hydrate(el) {

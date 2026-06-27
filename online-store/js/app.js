@@ -228,6 +228,9 @@
 
   // derived
   const isCheckout = () => ED.surface === 'checkout';
+  // Single source of truth for "are we in the Theme/Checkout settings view" — the left tree,
+  // right panel and rail toggle must all agree (otherwise the tree shows while settings is open).
+  const inSettings = () => ED.leftMode === 'settings' || ED.selection.kind === 'theme-settings';
   const sGroups = () => isCheckout() ? (D.CHECKOUT_SETTINGS_GROUPS || []) : D.SETTINGS_GROUPS;
   const sExpKey = (k) => (isCheckout() ? 'ck:' : '') + k;
   const settingsObj = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
@@ -293,8 +296,8 @@
       '<div class="os-top-l">' +
         '<button class="back-btn" id="t-back" title="Back to themes">' + I.back + '</button>' +
         '<div class="os-rail">' +
-          '<button class="os-rail-b' + (ED.leftMode === 'sections' ? ' on' : '') + '" data-rail="sections" title="Sections">' + I.layers + '</button>' +
-          '<button class="os-rail-b' + (ED.leftMode === 'settings' ? ' on' : '') + '" data-rail="settings" title="Theme settings">' + I.gear + '</button>' +
+          '<button class="os-rail-b' + (!inSettings() ? ' on' : '') + '" data-rail="sections" title="Sections">' + I.layers + '</button>' +
+          '<button class="os-rail-b' + (inSettings() ? ' on' : '') + '" data-rail="settings" title="Theme settings">' + I.gear + '</button>' +
         '</div>' +
         '<span class="os-tname">' + esc(ED.theme.name) + '</span>' +
         '<span class="pill ' + pill[0] + '"><span class="dot"></span>' + pill[1] + '</span>' +
@@ -342,7 +345,7 @@
   function leftPanel() {
     const left = h('<div class="os-left"></div>');
     const ck = isCheckout();
-    if (ED.leftMode === 'settings') {
+    if (inSettings()) {
       left.innerHTML = '<div class="os-left-head">' + (ck ? 'Checkout settings' : 'Theme settings') + '</div><div class="os-left-scroll" id="os-tree">' + settingsTreeHint() + '</div>';
     } else {
       left.innerHTML = '<div class="os-left-head">' + (ck ? 'Checkout' : 'Sections') + '</div><div class="os-left-scroll" id="os-tree">' + (ck ? checkoutTreeHtml() : treeHtml()) + '</div>';
@@ -476,7 +479,7 @@
 
   function wireLeft() {
     const b = document.getElementById('os-builder'); const tree = b.querySelector('#os-tree');
-    if (ED.leftMode === 'settings') {
+    if (inSettings()) {
       tree.querySelectorAll('[data-sgrp]').forEach((r) => r.onclick = () => { const k = r.getAttribute('data-sgrp'); ED.settingsExpand[sExpKey(k)] = true; ED.selection = { kind: 'theme-settings' }; refreshRight(); setTimeout(() => { const el = document.querySelector('#os-set-' + k); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30); });
       return;
     }
@@ -538,10 +541,15 @@
     const byKind = (k) => secs.find((s) => s.kind === k);
     const wrap = (s, first) => (s && !s.hidden) ? wrapSection(s, !!first) : '';
     const header = wrap(byKind('checkout-header'), true);
-    const summary = wrap(byKind('checkout-order-summary'));
+    const sumSec = byKind('checkout-order-summary');
+    const summary = wrap(sumSec);
     const leftKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment', 'checkout-cta', 'checkout-policy-links'];
     const leftCol = leftKinds.map((k) => wrap(byKind(k))).join('');
     const vars = checkoutVars(tk);
+    // Component-level summary background overrides the Order Summary theme setting, so the
+    // full-bleed right band (driven by --ck-sum-bg) follows it too (last inline decl wins).
+    const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
+    const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '');
     const L = tk.layout || {};
     const inner = mob
       ? (summary + '<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' + leftCol + '</div>')
@@ -549,7 +557,7 @@
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
         '</div>';
-    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + vars + '">' + header + inner + '</div>';
+    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + header + inner + '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1218,8 +1226,22 @@
   }
   function applyHighlight() {
     const fr = document.getElementById('os-frame'); if (!fr) return;
+    // Section/global outlines are baked in at render time; selecting from the tree doesn't
+    // re-render the canvas, so we must move the .active outline here too (not just blocks).
+    fr.querySelectorAll('.os-sec.active').forEach((x) => x.classList.remove('active'));
     fr.querySelectorAll('.os-block-sel').forEach((x) => x.classList.remove('os-block-sel'));
-    if (ED.selection.kind === 'block') { const el = fr.querySelector('[data-block-id="' + cssesc(ED.selection.blockId) + '"]'); if (el) el.classList.add('os-block-sel'); }
+    const sel = ED.selection;
+    if (sel.kind === 'block') {
+      const el = fr.querySelector('[data-block-id="' + cssesc(sel.blockId) + '"]'); if (el) el.classList.add('os-block-sel');
+      return;
+    }
+    if (sel.kind === 'section') {
+      const el = fr.querySelector('[data-csel="' + cssesc(sel.sectionId) + '"]'); if (el) el.classList.add('active');
+      return;
+    }
+    if (sel.kind === 'header' || sel.kind === 'footer' || sel.kind === 'announcement') {
+      const el = fr.querySelector('[data-csel-global="' + cssesc(sel.kind) + '"]'); if (el) el.classList.add('active');
+    }
   }
   function cssesc(s) { return String(s).replace(/"/g, '\\"'); }
   function scrollToSelected() {
@@ -1589,25 +1611,39 @@
   .ck-policy.med a{font-size:var(--ck-base-fs)}
   .ck-policy a:hover{text-decoration:underline}
   .ck-policy-empty{font-size:var(--ck-small-fs);color:var(--ck-muted);padding-top:16px;border-top:1px dashed var(--ck-divider)}
-  /* order summary */
+  /* order summary — Shopify-style full-bleed gray right column */
   .ck-summary{background:var(--ck-sum-bg);color:var(--ck-sum-text);border-radius:10px;padding:22px}
+  /* desktop: surface is the bleed band behind .ckcol.side; the panel is transparent */
+  .ckpage:not(.mob){overflow:hidden}
+  .ckpage:not(.mob) .ckwrap{position:relative;align-items:stretch}
+  .ckpage:not(.mob) .ckcol.side{position:relative}
+  .ckpage:not(.mob) .ckcol.side::before{content:'';position:absolute;top:-32px;bottom:-80px;left:0;right:-9999px;background:var(--ck-sum-bg);border-left:1px solid var(--ck-divider);z-index:0;pointer-events:none}
+  .ckpage:not(.mob) .ckcol.side>*{position:relative;z-index:1}
+  .ckpage:not(.mob) .ck-summary{background:transparent;border-radius:0;padding:38px 8px 40px 32px;position:sticky;top:24px}
   .ck-sum-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);margin:0 0 16px}
   .ck-blk{position:relative}
-  .ck-line{display:flex;gap:12px;align-items:center;margin-bottom:14px}
-  .ck-line-img{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;position:relative;flex:none;border:1px solid var(--ck-divider)}
-  .ck-line-qty{position:absolute;top:-8px;right:-8px;min-width:20px;height:20px;border-radius:50%;background:var(--ck-sum-muted);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .ck-lines{margin-bottom:4px}
+  .ck-line{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+  .ck-line:last-child{margin-bottom:2px}
+  .ck-line-img{width:64px;height:64px;border-radius:8px;background-size:cover;background-position:center;position:relative;flex:none;border:1px solid var(--ck-divider)}
+  .ck-line-qty{position:absolute;top:-9px;right:-9px;min-width:20px;height:20px;border-radius:50%;background:#5c5f62;color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 0 0 2px var(--ck-sum-bg)}
   .ck-line-info{flex:1;min-width:0}
-  .ck-line-t{font-size:var(--ck-base-fs);font-weight:600}
-  .ck-line-v{font-size:var(--ck-small-fs);color:var(--ck-sum-muted)}
-  .ck-line-pr{font-weight:600;white-space:nowrap}
+  .ck-line-t{font-size:var(--ck-base-fs);font-weight:500;line-height:1.35}
+  .ck-line-v{font-size:var(--ck-small-fs);color:var(--ck-sum-muted);margin-top:2px}
+  .ck-line-pr{font-weight:500;white-space:nowrap}
   .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);margin-right:6px;font-weight:400}
-  .ck-coupon{display:flex;gap:10px;margin:16px 0;padding-top:16px;border-top:1px solid var(--ck-divider)}
+  .ck-coupon{display:flex;gap:8px;margin:0;padding:20px 0;border-top:1px solid var(--ck-divider)}
   .ck-coupon .ck-input{flex:1}
-  .ck-coupon-btn{height:var(--ck-input-h);padding:0 18px;border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:transparent;color:var(--ck-sum-text);font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
-  .ck-totals{border-top:1px solid var(--ck-divider);padding-top:16px}
-  .ck-trow{display:flex;justify-content:space-between;margin-bottom:10px;font-size:var(--ck-base-fs)}
-  .ck-trow .lbl{color:var(--ck-sum-muted)}
-  .ck-trow.grand{font-size:18px;font-weight:700;margin-top:6px;padding-top:14px;border-top:1px solid var(--ck-divider);margin-bottom:0}
+  .ck-coupon-btn{height:var(--ck-input-h);padding:0 17px;border:0;border-radius:var(--ck-input-radius);background:#e3e3e3;color:#8a8a8a;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .12s,color .12s}
+  .ck-coupon-btn:hover{background:#d8d8d8;color:#5b5b5b}
+  .ck-totals{border-top:1px solid var(--ck-divider);padding-top:18px}
+  .ck-trow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;font-size:var(--ck-base-fs)}
+  .ck-trow .lbl{color:var(--ck-sum-text);display:inline-flex;align-items:center;gap:6px}
+  .ck-trow .amt{color:var(--ck-sum-text)}
+  .ck-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--ck-sum-muted);color:var(--ck-sum-muted);font-size:10px;line-height:1;cursor:help}
+  .ck-trow.grand{font-size:15px;font-weight:600;margin-top:4px;padding-top:18px;border-top:1px solid var(--ck-divider);margin-bottom:0;align-items:baseline}
+  .ck-trow.grand .amt{font-size:22px;font-weight:700}
+  .ck-trow.grand .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);margin-right:5px;text-transform:uppercase;letter-spacing:.02em}
   /* mobile collapsible summary */
   .ck-summary.mob{border-radius:0;padding:0;border-bottom:1px solid var(--ck-divider)}
   .ck-summary-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer}
