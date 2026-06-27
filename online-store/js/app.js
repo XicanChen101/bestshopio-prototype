@@ -543,6 +543,17 @@
     const header = wrap(byKind('checkout-header'), true);
     const sumSec = byKind('checkout-order-summary');
     const summary = wrap(sumSec);
+    // Mobile shows the Order Summary twice (Shopify-style): a collapsible bar at the top and
+    // the full breakdown lower down. Both are the same section (selecting either edits it).
+    const summaryVariant = (variant) => {
+      if (!sumSec || sumSec.hidden) return '';
+      const def = SECTIONS[sumSec.kind]; if (!def) return '';
+      const selBool = ED.selection.kind === 'section' && ED.selection.sectionId === sumSec.id;
+      const selBlk = (ED.selection.kind === 'block' && ED.selection.sectionId === sumSec.id) ? ED.selection.blockId : null;
+      const ctx = ctxFor('section', sumSec.id, selBool, selBlk, false); ctx.summaryVariant = variant;
+      let inner; try { inner = def.render(sumSec.settings, sumSec.blocks || [], ctx); } catch (e) { inner = '<div class="os-render-err">⚠ ' + esc(e.message) + '</div>'; }
+      return '<div class="os-sec' + (selBool ? ' active' : '') + '" data-csel="' + sumSec.id + '" data-preview-id="section:' + sumSec.id + '"><span class="os-sec-tag">' + esc(sectionLabel(sumSec)) + '</span>' + inner + '</div>';
+    };
     // Form sections that precede / follow the order recap on mobile.
     const preKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment'];
     const postKinds = ['checkout-cta', 'checkout-policy-links'];
@@ -558,7 +569,7 @@
     // Mobile (Shopify-style): payment → "Save my info" → order recap → Pay now → policies.
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          preCol + ckSaveInfoHtml() + summary + postCol + '</div>')
+          summaryVariant('bar') + preCol + ckSaveInfoHtml() + summaryVariant('full') + postCol + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
@@ -1757,5 +1768,9 @@
   .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
   .ck-summary.mob .ck-savings{display:none}
+  /* bottom full summary on mobile (always expanded) */
+  .ck-summary.mob.full{border-radius:10px;padding:16px;border:1px solid var(--ck-divider)}
+  .ck-msum-fullhead{font-size:15px;font-weight:600;color:var(--ck-text);margin-bottom:14px}
+  .ck-summary.mob.full .ck-savings{display:flex}
   `;
 })();
