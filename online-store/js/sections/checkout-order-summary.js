@@ -93,12 +93,7 @@
         savingsLine +
       '</div>';
 
-      // ---- mobile: top collapsible recap bar (variant 'bar') + bottom full summary (variant 'full') ----
-      if (ctx.mob && ctx.summaryVariant === 'full') {
-        const fhead = s.show_heading_mobile === false ? '' : '<div class="ck-msum-fullhead">' + esc(s.heading || 'Order summary') + '</div>';
-        return '<div class="ck-summary mob full" style="background:' + bg + ';color:' + txt + '">' +
-          fhead + linesBlk + couponBlk + totals + '</div>';
-      }
+      // ---- mobile: Shopify-style collapsible recap bar (used identically at top and bottom) ----
       if (ctx.mob) {
         const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
         const head = s.heading || 'Order summary';

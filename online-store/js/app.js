@@ -569,7 +569,7 @@
     // Mobile (Shopify-style): payment → "Save my info" → order recap → Pay now → policies.
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          summaryVariant('bar') + preCol + ckSaveInfoHtml() + summaryVariant('full') + postCol + '</div>')
+          summaryVariant('bar') + preCol + ckSaveInfoHtml() + summaryVariant('bar') + postCol + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
@@ -1768,9 +1768,5 @@
   .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
   .ck-summary.mob .ck-savings{display:none}
-  /* bottom full summary on mobile (always expanded) */
-  .ck-summary.mob.full{border-radius:10px;padding:16px;border:1px solid var(--ck-divider)}
-  .ck-msum-fullhead{font-size:15px;font-weight:600;color:var(--ck-text);margin-bottom:14px}
-  .ck-summary.mob.full .ck-savings{display:flex}
   `;
 })();
