@@ -312,8 +312,7 @@
   // Checkout Theme settings — 7 groups (PRD §6). Keys/defaults/ranges verbatim.
   const CHECKOUT_SETTINGS_GROUPS = [
     { key: 'main', name: 'Main', desc: 'Page, content & summary surfaces', open: true, fields: [
-      { key: 'page_background', label: 'Page background', control: 'color', default: '#FFFFFF', info: 'Checkout page overall background.' },
-      { key: 'content_background', label: 'Content background', control: 'color', default: '#FFFFFF', info: 'Background behind the left-hand form column.' },
+      { key: 'page_background', label: 'Page background', control: 'color', default: '#FFFFFF', info: 'Background of the whole left-hand form area. Form components sit transparently on top.' },
       { key: 'text_color', label: 'Text color', control: 'color', default: '#1F1F1F' },
       { key: 'muted_text_color', label: 'Muted text', control: 'color', default: '#777777' },
       { key: 'divider_color', label: 'Divider', control: 'color', default: '#E5E5E5' },

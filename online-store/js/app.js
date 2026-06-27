@@ -564,7 +564,6 @@
     const m = tk.main || {}, hd = tk.header || {}, os = tk.order_summary || {}, ac = tk.accent || {}, inp = tk.input || {}, ty = tk.typography || {};
     const set = [];
     set.push('--ck-page-bg:' + (m.page_background || '#fff'));
-    set.push('--ck-content-bg:' + (m.content_background || '#fff'));
     set.push('--ck-text:' + (m.text_color || '#1F1F1F'));
     set.push('--ck-muted:' + (m.muted_text_color || '#777'));
     set.push('--ck-divider:' + (m.divider_color || '#E5E5E5'));
@@ -1524,12 +1523,9 @@
   .ckwrap{margin:0 auto;display:flex;align-items:flex-start;padding:32px 20px 80px}
   .ckwrap.mob{display:block}
   .ckcol{min-width:0}
-  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);padding:28px;position:relative}
-  /* desktop: Content background is a full-bleed band behind the form column (mirrors the
-     summary band), so components have no separate white card and follow the bg when changed */
-  .ckpage:not(.mob) .ckcol.main::before{content:'';position:absolute;top:-32px;bottom:-80px;right:0;left:-9999px;background:var(--ck-content-bg);z-index:0;pointer-events:none}
-  .ckpage:not(.mob) .ckcol.main>*{position:relative;z-index:1}
-  .ckpage.mob .ckwrap.mob{background:var(--ck-content-bg)}
+  /* the left form column is transparent: the whole left area shows Page background (.ckpage bg),
+     and form components sit on top with no surface of their own */
+  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);padding:28px}
   .ckpage.mob .ckwrap.mob>.os-sec{margin-bottom:var(--ck-section-gap)}
   .ckpage.mob .ckwrap.mob>.os-sec:last-child{margin-bottom:0}
   .cksec{font-size:var(--ck-base-fs)}
@@ -1623,8 +1619,11 @@
   .ckpage:not(.mob) .ckcol.side{position:relative;display:flex;flex-direction:column}
   .ckpage:not(.mob) .ckcol.side::before{content:'';position:absolute;top:-32px;bottom:-80px;left:0;right:-9999px;background:var(--ck-sum-bg);border-left:1px solid var(--ck-divider);z-index:0;pointer-events:none}
   .ckpage:not(.mob) .ckcol.side>*{position:relative;z-index:1}
-  /* the summary section fills the whole right column so its selection frame covers the entire area */
-  .ckpage:not(.mob) .ckcol.side>.os-sec{flex:1}
+  /* the summary section fills the whole right column; the select/hover frame is drawn on the
+     full-bleed band (not the inner column) so it covers the entire right region to the page edge */
+  .ckpage:not(.mob) .ckcol.side>.os-sec{flex:1;outline:none!important}
+  .ckpage:not(.mob) .ckcol.side:has(>.os-sec:hover)::before{outline:2px solid #b9d2ff;outline-offset:-2px}
+  .ckpage:not(.mob) .ckcol.side:has(>.os-sec.active)::before{outline:2px solid var(--brand);outline-offset:-2px}
   .ckpage:not(.mob) .ck-summary{background:transparent;border-radius:0;padding:38px 8px 40px 32px;position:sticky;top:24px}
   .ck-sum-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);margin:0 0 16px}
   .ck-blk{position:relative}
