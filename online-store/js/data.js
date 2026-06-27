@@ -403,6 +403,9 @@
     storeName: 'AURA',
     country: 'United States',
     countries: ['United States', 'Canada', 'United Kingdom', 'Australia', 'Germany', 'Japan'],
+    states: ['California', 'New York', 'Texas', 'Florida', 'Illinois', 'Washington', 'Massachusetts', 'Georgia'],
+    cities: ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Seattle', 'Boston', 'Atlanta', 'Miami'],
+    phoneCodes: ['+1', '+44', '+61', '+49', '+81', '+86', '+33'],
     cart: [
       { id: 'l1', title: 'Linen-feel wide pants', variant: 'Sand / M', qty: 1, price: 32.99, compareAt: 45.0, image: IMG.p1 },
       { id: 'l2', title: 'Soft rib tee', variant: 'Forest / S', qty: 2, price: 18.99, compareAt: 26.0, image: IMG.p2 },

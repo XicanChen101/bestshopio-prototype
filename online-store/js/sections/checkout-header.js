@@ -67,7 +67,7 @@
       const secure = (s.show_secure_badge && s.secure_text && !mob)
         ? '<div class="ck-h-secure" style="color:' + txt + '">' + icon('lock') + '<span>' + esc(s.secure_text) + '</span></div>' : '';
 
-      const contact = (s.show_contact_info && (s.contact_email || s.contact_phone) && !mob)
+      const contact = (s.show_contact_info && (s.contact_title || s.contact_email || s.contact_phone) && !mob)
         ? '<div class="ck-h-contact" style="color:' + accent + '">' +
             (s.contact_title ? '<span class="ck-h-ct" style="color:' + txt + '">' + esc(s.contact_title) + '</span>' : '') +
             (s.contact_email ? '<a href="mailto:' + esc(s.contact_email) + '" style="color:' + accent + '">' + esc(s.contact_email) + '</a>' : '') +

@@ -1537,6 +1537,9 @@
   .ck-input::placeholder{color:var(--ck-ph)}
   .ck-input:focus{border-color:var(--ck-input-focus)}
   .ck-select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+  .ck-phone{display:flex;gap:8px}
+  .ck-phone-cc{flex:0 0 92px}
+  .ck-phone>.ck-input{flex:1}
   .ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .ck-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   .ckpage.mob .ck-row3{grid-template-columns:1fr 1fr}
@@ -1549,6 +1552,9 @@
   .ck-header{width:100%}
   .ck-header.divline{border-bottom:1px solid var(--ck-divider)}
   .ck-header-in{margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding:0 20px;box-sizing:border-box}
+  /* desktop: align the logo with the left form content (wrap 20 + main 28) and the cart with
+     the summary content right edge (wrap 20 + summary 8) */
+  .ckpage:not(.mob) .ck-header-in{padding:0 28px 0 48px}
   .ck-h-slot{display:flex;align-items:center;min-width:0}
   .ck-h-slot.start{justify-content:flex-start;gap:16px}
   .ck-h-slot.center{justify-content:center;flex-direction:column;text-align:center;gap:3px}
