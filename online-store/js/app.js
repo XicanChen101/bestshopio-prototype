@@ -755,7 +755,6 @@
               '<div class="os-imgset-meta"><div class="os-imgset-name" title="' + esc(val) + '">' + esc(val) + '</div>' +
               '<div class="os-imgset-acts"><button type="button" class="os-imglink" data-img-pick>Replace</button><button type="button" class="os-imglink danger" data-img-remove>Remove</button></div></div></div>'
             : '<button type="button" class="os-imgdrop" data-img-pick><span class="os-imgdrop-ico">' + I.image + '</span><span class="os-imgdrop-t">Select image</span><span class="os-imgdrop-s">drag &amp; drop supported</span></button>') +
-          '<div class="os-imgurl" data-img-urlwrap hidden><input class="os-input" data-img-url type="text" value="' + esc(val) + '" placeholder="Paste an image URL…"><button type="button" class="os-imgurl-add" data-img-add>Add</button></div>' +
           '</div>';
       case 'collections':
         return collectionsControl(f, val, dk);
@@ -778,6 +777,8 @@
     return '<button class="os-picker" ' + dk + ' data-pick="' + f.control + '">' +
       '<span>' + esc(label) + '</span>' + I.chev + '</button>';
   }
+  // Simulated "system library" pick — drops in one sample image (no real picker in the prototype).
+  const PICK_IMG = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80';
   const I_grip = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
   const I_coll = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
   function collectionsControl(f, val, dk) {
@@ -834,13 +835,8 @@
         numEl.oninput = () => onChange(k, clamp(numEl.value, f.min == null ? -1e9 : f.min, f.max == null ? 1e9 : f.max, f.min || 0), false);
         autoBtn.onclick = () => { const on = !autoBtn.classList.contains('on'); autoBtn.classList.toggle('on', on); if (on) { numEl.value = ''; numEl.disabled = true; onChange(k, null, false); } else { numEl.disabled = false; const dv = (f.min != null ? f.min : 0); numEl.value = dv; onChange(k, dv, false); numEl.focus(); } };
       } else if (ctl === 'image') {
-        const wrap = el.querySelector('[data-img-urlwrap]'); const u = el.querySelector('[data-img-url]');
-        const reveal = () => { wrap.hidden = false; u.focus(); u.select(); };
-        const commit = () => onChange(k, u.value.trim(), true);
-        el.querySelectorAll('[data-img-pick]').forEach((b) => b.onclick = reveal);
+        el.querySelectorAll('[data-img-pick]').forEach((b) => b.onclick = () => onChange(k, PICK_IMG, true));
         const rm = el.querySelector('[data-img-remove]'); if (rm) rm.onclick = () => onChange(k, '', true);
-        const add = el.querySelector('[data-img-add]'); if (add) add.onclick = commit;
-        u.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } };
       } else if (ctl === 'collections') {
         const pick = el.querySelector('[data-cols-pick]'); if (pick) pick.onclick = () => openPickerPop(pick, ctl, target[k], (v) => onChange(k, v, true));
         const list = el.querySelector('[data-cols-list]'); if (list) wireColsReorder(list, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
@@ -942,13 +938,8 @@
         hx.onchange = () => { const v = hx.value.trim(); sw.style.background = v === 'transparent' ? '' : v; sw.classList.toggle('tsp', v === 'transparent'); change(k, v, false); };
         if (tb) tb.onclick = () => { const on = !tb.classList.contains('on'); tb.classList.toggle('on', on); sw.classList.toggle('tsp', on); if (on) { sw.style.background = ''; hx.value = 'transparent'; change(k, 'transparent', false); } else { sw.style.background = '#ffffff'; hx.value = '#FFFFFF'; change(k, '#FFFFFF', false); } };
       } else if (ctl === 'image') {
-        const wrap = el.querySelector('[data-img-urlwrap]'); const u = el.querySelector('[data-img-url]');
-        const reveal = () => { wrap.hidden = false; u.focus(); u.select(); };
-        const commit = () => change(k, u.value.trim(), true);
-        el.querySelectorAll('[data-img-pick]').forEach((b) => b.onclick = reveal);
+        el.querySelectorAll('[data-img-pick]').forEach((b) => b.onclick = () => change(k, PICK_IMG, true));
         const rm = el.querySelector('[data-img-remove]'); if (rm) rm.onclick = () => change(k, '', true);
-        const add = el.querySelector('[data-img-add]'); if (add) add.onclick = commit;
-        u.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } };
       } else if (ctl === 'product' || ctl === 'collection' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
         el.onclick = () => openPickerPop(el, ctl, target[k], (v) => change(k, v, true));
       } else if (ctl === 'collections') {
@@ -1499,11 +1490,6 @@
   .os-imgset-acts{display:flex;gap:12px;margin-top:4px}
   .os-imglink{border:0;background:none;padding:0;font-size:12px;font-weight:600;color:var(--brand);cursor:pointer;font-family:inherit}
   .os-imglink.danger{color:var(--ink-muted)}.os-imglink.danger:hover{color:#b3261e}
-  .os-imgurl{display:flex;gap:6px;margin-top:6px}
-  .os-imgurl[hidden]{display:none}
-  .os-imgurl .os-input{flex:1}
-  .os-imgurl-add{flex:none;height:34px;padding:0 14px;border:1px solid var(--ctl);border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-  .os-imgurl-add:hover{background:#eceef2}
   /* inline resource picker popover */
   .pop-layer .os-pkpop{pointer-events:auto}
   .os-pkpop{position:fixed;z-index:81;display:flex;flex-direction:column;background:#fff;border:1px solid var(--hair);border-radius:10px;box-shadow:var(--float-shadow);overflow:hidden;max-height:340px}
