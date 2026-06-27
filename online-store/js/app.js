@@ -1524,7 +1524,11 @@
   .ckwrap{margin:0 auto;display:flex;align-items:flex-start;padding:32px 20px 80px}
   .ckwrap.mob{display:block}
   .ckcol{min-width:0}
-  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);background:var(--ck-content-bg);padding:28px;border-radius:10px}
+  .ckcol.main{display:flex;flex-direction:column;gap:var(--ck-section-gap);padding:28px;position:relative}
+  /* desktop: Content background is a full-bleed band behind the form column (mirrors the
+     summary band), so components have no separate white card and follow the bg when changed */
+  .ckpage:not(.mob) .ckcol.main::before{content:'';position:absolute;top:-32px;bottom:-80px;right:0;left:-9999px;background:var(--ck-content-bg);z-index:0;pointer-events:none}
+  .ckpage:not(.mob) .ckcol.main>*{position:relative;z-index:1}
   .ckpage.mob .ckwrap.mob{background:var(--ck-content-bg)}
   .ckpage.mob .ckwrap.mob>.os-sec{margin-bottom:var(--ck-section-gap)}
   .ckpage.mob .ckwrap.mob>.os-sec:last-child{margin-bottom:0}
@@ -1616,9 +1620,11 @@
   /* desktop: surface is the bleed band behind .ckcol.side; the panel is transparent */
   .ckpage:not(.mob){overflow:hidden}
   .ckpage:not(.mob) .ckwrap{position:relative;align-items:stretch}
-  .ckpage:not(.mob) .ckcol.side{position:relative}
+  .ckpage:not(.mob) .ckcol.side{position:relative;display:flex;flex-direction:column}
   .ckpage:not(.mob) .ckcol.side::before{content:'';position:absolute;top:-32px;bottom:-80px;left:0;right:-9999px;background:var(--ck-sum-bg);border-left:1px solid var(--ck-divider);z-index:0;pointer-events:none}
   .ckpage:not(.mob) .ckcol.side>*{position:relative;z-index:1}
+  /* the summary section fills the whole right column so its selection frame covers the entire area */
+  .ckpage:not(.mob) .ckcol.side>.os-sec{flex:1}
   .ckpage:not(.mob) .ck-summary{background:transparent;border-radius:0;padding:38px 8px 40px 32px;position:sticky;top:24px}
   .ck-sum-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);margin:0 0 16px}
   .ck-blk{position:relative}

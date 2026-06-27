@@ -80,7 +80,7 @@
       const totals = '<div class="ck-totals">' +
         row(sub, money(subtotal)) +
         (discount > 0 ? row(dis, '−' + money(discount)) : '') +
-        row(shp, shipPrice ? money(shipPrice) : 'Free', { info: true }) +
+        row(shp, shipPrice ? money(shipPrice) : 'Free') +
         row(tx, money(tax)) +
         blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span></div>', sel === tot.id) +
       '</div>';
