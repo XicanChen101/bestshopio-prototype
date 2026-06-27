@@ -1745,28 +1745,16 @@
   .ck-saveinfo-d{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:4px;line-height:1.45}
   .ck-saveinfo-d a{color:var(--ck-muted);text-decoration:underline;cursor:pointer}
   .ck-saveinfo-not{flex:none;background:none;border:0;color:var(--ck-text);font-size:var(--ck-base-fs);font-weight:500;cursor:pointer;font-family:inherit;padding:0;white-space:nowrap}
-  /* mobile order recap — collapsed = Shopify total bar; expanded = full summary */
-  .ck-summary.mob{border-radius:10px;padding:6px 16px 12px;border:1px solid var(--ck-divider)}
-  .ck-msum-adddisc{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--ck-divider);padding:12px 0;margin-bottom:8px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;text-align:left}
-  .ck-msum-plus{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid var(--ck-divider);border-radius:6px;font-size:14px;line-height:1}
-  .ck-summary.mob:not(.collapsed) .ck-msum-adddisc{display:none}
-  .ck-msum-bar{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer}
-  .ck-msum-thumb{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--ck-divider);flex:none}
-  .ck-summary.mob:not(.collapsed) .ck-msum-thumb{display:none}
-  .ck-msum-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-  .ck-msum-lbl{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
-  .ck-msum-items{font-size:var(--ck-small-fs);color:var(--ck-muted)}
-  .ck-msum-amt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
-  .ck-msum-amt .amt{font-weight:700;font-size:18px;display:inline-flex;align-items:baseline;gap:5px}
-  .ck-msum-amt .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);text-transform:uppercase}
-  .ck-msum-amt .ck-chev{font-size:13px;font-weight:400;transition:transform .15s;display:inline-block}
-  .ck-summary.mob.collapsed .ck-msum-amt .ck-chev{transform:rotate(-90deg)}
-  .ck-msum-sav{display:flex;align-items:center;gap:5px;font-size:var(--ck-small-fs);color:#2e7d32}
-  .ck-when-collapsed{display:none}
-  .ck-summary.mob.collapsed .ck-when-collapsed{display:inline}
-  .ck-summary.mob.collapsed .ck-when-expanded{display:none}
-  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
+  /* mobile order summary — Shopify-style collapsible bar */
+  .ck-summary.mob{border-radius:8px;padding:0 16px;border:1px solid var(--ck-divider)}
+  .ck-msum-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;cursor:pointer}
+  .ck-msum-title{display:inline-flex;align-items:center;gap:7px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text)}
+  .ck-msum-title .ck-chev{font-size:14px;color:var(--ck-muted);transition:transform .15s;display:inline-block;transform:rotate(90deg)}
+  .ck-summary.mob:not(.collapsed) .ck-msum-title .ck-chev{transform:rotate(-90deg)}
+  .ck-msum-amt{display:inline-flex;align-items:baseline;gap:10px;text-align:right}
+  .ck-msum-amt .ck-msum-cmp{font-size:var(--ck-small-fs);color:var(--ck-muted);text-decoration:line-through}
+  .ck-msum-amt .amt{font-weight:700;font-size:16px;color:var(--ck-text)}
+  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);padding:14px 0}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
-  .ck-summary.mob .ck-savings{display:none}
   `;
 })();
