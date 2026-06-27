@@ -5,6 +5,9 @@
   if (!window.OS) return;
   const { esc } = OS;
 
+  // Dial code auto-derived from the selected country.
+  const DIAL = { 'United States': '+1', 'Canada': '+1', 'United Kingdom': '+44', 'Australia': '+61', 'Germany': '+49', 'Japan': '+81' };
+
   OS.register('checkout-shipping-info', {
     name: 'Shipping Information', icon: 'layers',
     schema: [
@@ -29,16 +32,15 @@
         '<option value="" selected>' + esc(ph) + '</option>' +
         (items || []).map((o) => '<option>' + esc(o) + '</option>').join('') +
         '</select></div>';
-      const codes = mock.phoneCodes || ['+1'];
+      // Phone: a compact dial-code prefix (auto from country) sits inline, left of the input.
+      const dial = DIAL[mock.country] || '+1';
       const phone = '<div class="ck-phone">' +
-        '<div class="ck-selwrap ck-phone-cc"><select class="ck-input ck-select">' +
-          codes.map((c) => '<option>' + esc(c) + '</option>').join('') +
-        '</select></div>' +
-        '<input class="ck-input" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '">' +
+        '<span class="ck-phone-cc" data-ck-dial>' + esc(dial) + '</span>' +
+        '<input class="ck-input ck-phone-num" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '">' +
       '</div>';
       return '<div class="cksec ck-shipinfo">' +
         '<h3 class="ck-h">' + esc(s.heading || 'Delivery') + '</h3>' +
-        '<div class="ck-field"><div class="ck-selwrap"><select class="ck-input ck-select">' + opts + '</select></div></div>' +
+        '<div class="ck-field"><div class="ck-selwrap"><select class="ck-input ck-select" data-ck-country>' + opts + '</select></div></div>' +
         '<div class="ck-row2">' +
           '<div class="ck-field">' + inp(s.first_name_placeholder || 'First name') + '</div>' +
           '<div class="ck-field">' + inp(s.last_name_placeholder || 'Last name') + '</div>' +
@@ -52,6 +54,13 @@
         '</div>' +
         '<div class="ck-field">' + phone + '</div>' +
       '</div>';
+    },
+    hydrate(el) {
+      const country = el.querySelector('[data-ck-country]');
+      const dialEl = el.querySelector('[data-ck-dial]');
+      if (country && dialEl) country.addEventListener('change', () => {
+        dialEl.textContent = DIAL[country.value] || '+1';
+      });
     },
   });
 })();

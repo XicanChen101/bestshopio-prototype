@@ -67,11 +67,16 @@
       const secure = (s.show_secure_badge && s.secure_text && !mob)
         ? '<div class="ck-h-secure" style="color:' + txt + '">' + icon('lock') + '<span>' + esc(s.secure_text) + '</span></div>' : '';
 
+      // Title stacks above the email / phone so a taller header reads as Need help? ▸ contacts.
+      const ccLinks = (s.contact_email || s.contact_phone)
+        ? '<div class="ck-h-cc-links">' +
+            (s.contact_email ? '<a href="mailto:' + esc(s.contact_email) + '" style="color:' + accent + '">' + esc(s.contact_email) + '</a>' : '') +
+            (s.contact_phone ? '<a href="tel:' + esc(s.contact_phone) + '" style="color:' + accent + '">' + esc(s.contact_phone) + '</a>' : '') +
+          '</div>' : '';
       const contact = (s.show_contact_info && (s.contact_title || s.contact_email || s.contact_phone) && !mob)
         ? '<div class="ck-h-contact" style="color:' + accent + '">' +
             (s.contact_title ? '<span class="ck-h-ct" style="color:' + txt + '">' + esc(s.contact_title) + '</span>' : '') +
-            (s.contact_email ? '<a href="mailto:' + esc(s.contact_email) + '" style="color:' + accent + '">' + esc(s.contact_email) + '</a>' : '') +
-            (s.contact_phone ? '<a href="tel:' + esc(s.contact_phone) + '" style="color:' + accent + '">' + esc(s.contact_phone) + '</a>' : '') +
+            ccLinks +
           '</div>' : '';
 
       const cart = s.show_cart_icon ? '<a class="ck-h-cart" style="color:' + accent + '">' + icon('cart') + '</a>' : '';

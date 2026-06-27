@@ -1554,8 +1554,8 @@
   .ck-input:focus{border-color:var(--ck-input-focus)}
   .ck-select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
   .ck-phone{display:flex;gap:8px}
-  .ck-phone-cc{flex:0 0 92px}
-  .ck-phone>.ck-input{flex:1}
+  .ck-phone-cc{flex:0 0 auto;min-width:58px;display:inline-flex;align-items:center;justify-content:center;height:var(--ck-input-h);padding:0 12px;border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:#f6f6f7;color:var(--ck-input-text);font-size:var(--ck-base-fs);white-space:nowrap;box-sizing:border-box}
+  .ck-phone-num{flex:1}
   .ck-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .ck-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   .ckpage.mob .ck-row3{grid-template-columns:1fr 1fr}
@@ -1577,7 +1577,8 @@
   .ck-h-slot.end{justify-content:flex-end;gap:16px}
   .ck-logo{font-weight:700;font-size:22px;letter-spacing:.18em}
   .ck-trust{font-size:var(--ck-small-fs);letter-spacing:.14em;text-transform:uppercase}
-  .ck-h-contact{display:flex;align-items:center;gap:10px;font-size:var(--ck-small-fs);line-height:1.4}
+  .ck-h-contact{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:var(--ck-small-fs);line-height:1.45}
+  .ck-h-cc-links{display:flex;align-items:center;gap:10px}
   .ck-h-contact a{text-decoration:none}
   .ck-h-ct{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.85}
   .ck-h-secure{display:inline-flex;align-items:center;gap:6px;font-size:var(--ck-small-fs);letter-spacing:.04em}
