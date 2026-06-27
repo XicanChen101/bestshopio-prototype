@@ -1702,9 +1702,9 @@
   .ck-line-info{flex:1;min-width:0}
   .ck-line-t{font-size:var(--ck-base-fs);font-weight:500;line-height:1.35}
   .ck-line-v{font-size:var(--ck-small-fs);color:var(--ck-sum-muted);margin-top:2px}
-  .ck-line-pr{font-weight:500;white-space:nowrap}
-  .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);margin-right:6px;font-weight:400}
-  .ck-line-deal{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:var(--ck-small-fs);color:#2e7d32}
+  .ck-line-pr{font-weight:500;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);font-weight:400}
+  .ck-line-deal{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:var(--ck-small-fs);color:var(--ck-sum-muted)}
   .ck-line-deal .ck-tag-i{flex:none}
   .ck-itemc{color:var(--ck-sum-muted);font-weight:400}
   .ck-savings{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:var(--ck-small-fs);color:#2e7d32}
@@ -1720,28 +1720,30 @@
   .ck-trow.grand{font-size:15px;font-weight:600;margin-top:4px;padding-top:18px;border-top:1px solid var(--ck-divider);margin-bottom:0;align-items:baseline}
   .ck-trow.grand .amt{font-size:22px;font-weight:700}
   .ck-trow.grand .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);margin-right:5px;text-transform:uppercase;letter-spacing:.02em}
-  /* mobile order recap — collapsed = Shopify total bar; expanded = full summary */
-  .ck-summary.mob{border-radius:10px;padding:6px 16px 12px;border:1px solid var(--ck-divider)}
-  .ck-msum-adddisc{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;border-bottom:1px solid var(--ck-divider);padding:12px 0;margin-bottom:8px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;text-align:left}
-  .ck-msum-plus{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid var(--ck-divider);border-radius:6px;font-size:14px;line-height:1}
+  /* mobile order recap — collapsed = Shopify "Add discount" pill + total bar; expanded = full summary */
+  .ck-summary.mob{border-radius:12px;padding:16px;border:1px solid var(--ck-divider)}
+  .ck-msum-adddisc{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid var(--ck-divider);border-radius:9px;padding:9px 13px;margin-bottom:14px;font-size:var(--ck-small-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;line-height:1}
+  .ck-msum-adddisc .ck-tag-i{color:var(--ck-sum-muted)}
   .ck-summary.mob:not(.collapsed) .ck-msum-adddisc{display:none}
-  .ck-msum-bar{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer}
-  .ck-msum-thumb{width:48px;height:48px;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--ck-divider);flex:none}
+  .ck-msum-bar{display:flex;align-items:center;gap:12px;cursor:pointer}
+  .ck-msum-thumb{width:50px;height:50px;border-radius:8px;background-size:cover;background-position:center;border:1px solid var(--ck-divider);flex:none}
   .ck-summary.mob:not(.collapsed) .ck-msum-thumb{display:none}
   .ck-msum-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .ck-msum-lbl{font-size:var(--ck-base-fs);font-weight:600;color:var(--ck-text)}
+  .ck-summary.mob:not(.collapsed) .ck-msum-lbl{font-size:16px}
   .ck-msum-items{font-size:var(--ck-small-fs);color:var(--ck-muted)}
-  .ck-msum-amt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right}
-  .ck-msum-amt .amt{font-weight:700;font-size:18px;display:inline-flex;align-items:baseline;gap:5px}
+  .ck-msum-amt{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}
+  .ck-summary.mob:not(.collapsed) .ck-msum-amt{display:none}
+  .ck-msum-amt .amt{font-weight:700;font-size:18px;display:inline-flex;align-items:baseline;gap:6px}
   .ck-msum-amt .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);text-transform:uppercase}
-  .ck-msum-amt .ck-chev{font-size:13px;font-weight:400;transition:transform .15s;display:inline-block}
-  .ck-summary.mob.collapsed .ck-msum-amt .ck-chev{transform:rotate(-90deg)}
+  .ck-msum-amt .ck-chev{font-size:12px;font-weight:400;color:var(--ck-sum-muted);display:inline-block}
   .ck-msum-sav{display:flex;align-items:center;gap:5px;font-size:var(--ck-small-fs);color:#2e7d32}
+  .ck-chev-exp{font-size:13px;color:var(--ck-sum-muted);flex:none;display:inline-block;transform:rotate(180deg)}
   .ck-when-collapsed{display:none}
   .ck-summary.mob.collapsed .ck-when-collapsed{display:inline}
   .ck-summary.mob.collapsed .ck-when-expanded{display:none}
-  .ck-summary.mob .ck-summary-body{border-top:1px solid var(--ck-divider);margin-top:4px;padding-top:14px}
+  .ck-summary.mob .ck-summary-body{margin-top:16px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
-  .ck-summary.mob .ck-savings{display:none}
+  .ck-summary.mob .ck-savings{text-transform:uppercase;font-weight:600;letter-spacing:.02em}
   `;
 })();

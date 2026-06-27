@@ -93,16 +93,27 @@
         savingsLine +
       '</div>';
 
-      // ---- mobile: Shopify-style collapsible bar (used identically at top and bottom) ----
+      // ---- mobile (Shopify-style): collapsed = "Add discount" pill + recap bar;
+      //      expanded = "Order summary" header + line items + discount code + totals ----
       if (ctx.mob) {
         const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
         const head = s.heading || 'Order summary';
-        const compareTotal = total + savings;
-        const cmp = savings > 0 ? '<span class="ck-msum-cmp">' + money(compareTotal) + '</span>' : '';
+        const thumb = cart[0] ? '<div class="ck-msum-thumb" style="background-image:url(' + esc(cart[0].image) + ')"></div>' : '';
+        const savLine = savings > 0 ? '<div class="ck-msum-sav">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
         return '<div class="ck-summary mob' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + '">' +
+          '<button class="ck-msum-adddisc" type="button" data-ck-sum-toggle>' + TAG + '<span>Add discount</span></button>' +
           '<div class="ck-msum-bar" data-ck-sum-toggle>' +
-            '<span class="ck-msum-title">' + esc(head) + '<span class="ck-chev" aria-hidden="true">›</span></span>' +
-            '<span class="ck-msum-amt">' + cmp + '<span class="amt" style="color:' + totalColor + '">' + money(total) + '</span></span>' +
+            thumb +
+            '<div class="ck-msum-meta">' +
+              '<span class="ck-msum-lbl ck-when-collapsed">Total</span>' +
+              '<span class="ck-msum-lbl ck-when-expanded">' + esc(head) + '</span>' +
+              '<span class="ck-msum-items ck-when-collapsed">' + itemCount + ' items</span>' +
+            '</div>' +
+            '<div class="ck-msum-amt">' +
+              '<span class="amt" style="color:' + totalColor + '"><span class="cur">' + esc(cur) + '</span>' + money(total) + ' <span class="ck-chev">▾</span></span>' +
+              savLine +
+            '</div>' +
+            '<span class="ck-chev-exp ck-when-expanded">▾</span>' +
           '</div>' +
           '<div class="ck-summary-body">' + linesBlk + couponBlk + totals + '</div>' +
         '</div>';
