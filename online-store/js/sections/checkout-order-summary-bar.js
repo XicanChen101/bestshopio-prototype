@@ -51,7 +51,7 @@
         trow('Subtotal', money(subtotal)) +
         (discount > 0 ? trow('Discount', '−' + money(discount)) : '') +
         trow('Shipping', shipPrice ? money(shipPrice) : 'Free') +
-        trow('Estimated taxes', money(tax)) +
+        trow('Taxes', money(tax)) +
         '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">Total</span><span class="amt">' + money(total) + '</span></div>' +
       '</div>';
 
