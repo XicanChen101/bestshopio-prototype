@@ -59,10 +59,18 @@
       } else {
         ids = all.map((p) => p.id); // prototype: a collection simply yields the sample catalog
       }
-      let items = ids.map((id) => all.find((p) => p.id === id)).filter(Boolean);
+      // PRD §7.6 — exclude products already in the checkout. The mock cart lines carry
+      // their own ids, so match on id OR title against the sample catalog.
+      const cart = (ctx.checkout && ctx.checkout.cart) || [];
+      const inCart = new Set();
+      cart.forEach((l) => { if (l.id != null) inCart.add(String(l.id)); if (l.title) inCart.add(String(l.title).toLowerCase()); });
+      const noSelection = !ids.length;
+      let items = ids.map((id) => all.find((p) => p.id === id)).filter(Boolean)
+        .filter((p) => !inCart.has(String(p.id)) && !inCart.has(String(p.title).toLowerCase()));
       if (!items.length) {
+        const msg = noSelection ? 'Select products to recommend on the checkout.' : 'No products to recommend — the selected products are already in the cart.';
         return '<div class="cksec ckup"><h3 class="ck-h">' + esc(s.heading || 'Customers Also Grabbed') + '</h3>' +
-          '<div class="ck-empty">Select products to recommend on the checkout.</div></div>';
+          '<div class="ck-empty">' + msg + '</div></div>';
       }
       items = items.slice(0, limit);
 
