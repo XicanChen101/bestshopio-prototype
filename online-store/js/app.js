@@ -118,6 +118,12 @@
     icon: ICON, sample: D.SAMPLE, data: D,
     fs, headingSize, headingFamily, bodyFamily, fontStack, btnStyle, inputStyle, layoutRadius, hexAlpha, pick, productCard,
     register: function (kind, def) { def.kind = kind; SECTIONS[kind] = def; },
+    // Checkout runtime store — buyer-side add-on selections (insurance/VIP tick,
+    // upsell checked products + qty), keyed by section id. Held in memory so the
+    // shared Order Summary can recompute live. Not a theme edit (never marks dirty).
+    ckState: {},
+    ckSet: function (id, patch) { OS.ckState[id] = Object.assign({}, OS.ckState[id], patch); },
+    ckRecalc: function () { /* assigned by the editor to re-render the canvas */ },
     css: function (id, text) { if (document.getElementById('oscss-' + id)) return; const st = document.createElement('style'); st.id = 'oscss-' + id; st.textContent = text; document.head.appendChild(st); },
     secSpace: (t, mob) => ((t && t.layout) ? (mob ? t.layout.section_spacing_mobile : t.layout.section_spacing_desktop) : (mob ? 40 : 64)),
     pagePad: (t, mob) => ((t && t.layout) ? (mob ? t.layout.page_horizontal_padding_mobile : t.layout.page_horizontal_padding_desktop) : (mob ? 16 : 40)),
@@ -184,7 +190,9 @@
     const def = defForKind(seed.kind);
     let blocks = [];
     if (def && def.blocks) blocks = seed.blocks ? seed.blocks.map((b) => matBlock(def, b)) : (def.defaultBlocks ? def.defaultBlocks() : []);
-    return { id: seed.id || uid('sec'), kind: seed.kind, hidden: !!seed.hidden, settings: Object.assign(sectionDefaults(def), seed.settings || {}), blocks };
+    const inst = { id: seed.id || uid('sec'), kind: seed.kind, hidden: !!seed.hidden, settings: Object.assign(sectionDefaults(def), seed.settings || {}), blocks };
+    if (seed.zone) inst.zone = seed.zone;
+    return inst;
   }
   function materialize() {
     const T = D.DEFAULT_THEME;
@@ -233,6 +241,30 @@
   // exception inside the otherwise-locked Checkout skeleton (Commerce PRD §3, §14.1).
   const CK_COMMERCE = (D.CHECKOUT_COMMERCE || []).map((e) => e.kind);
   const isCheckoutCommerce = (kind) => CK_COMMERCE.indexOf(kind) >= 0;
+  const ckZone = (id) => (D.CHECKOUT_ZONES || []).find((z) => z.id === id) || null;
+  // Computed once per checkout render so every Order Summary surface shares the same
+  // live add-on contributions (insurance/VIP rows + upsell line items).
+  let CK_ADDONS = { rows: [], lines: [] };
+  function computeCheckoutAddons(secs) {
+    const store = OS.ckState || {};
+    const rows = [], lines = [];
+    (secs || []).forEach((s) => {
+      if (s.hidden || !isCheckoutCommerce(s.kind)) return;
+      const st = store[s.id] || {}; const cfg = s.settings || {};
+      if (s.kind === 'checkout-shipping-insurance' || s.kind === 'checkout-vip-club') {
+        const on = ('selected' in st) ? st.selected : !!cfg.default_selected;
+        if (on) rows.push({ label: cfg.title || (s.kind === 'checkout-vip-club' ? 'VIP Club' : 'Shipping insurance'), amount: +cfg.price || 0 });
+      } else if (s.kind === 'checkout-product-upsell') {
+        const items = st.items || {};
+        Object.keys(items).forEach((pid) => {
+          const qty = items[pid]; if (!qty || qty < 1) return;
+          const p = (D.SAMPLE.products || []).find((x) => x.id === pid); if (!p) return;
+          lines.push({ id: p.id, title: p.title, variant: p.vendor || '', qty: qty, price: p.price, compareAt: p.compareAt || 0, image: p.image, addon: true });
+        });
+      }
+    });
+    return { rows: rows, lines: lines };
+  }
   // Single source of truth for "are we in the Theme/Checkout settings view" — the left tree,
   // right panel and rail toggle must all agree (otherwise the tree shows while settings is open).
   const inSettings = () => ED.leftMode === 'settings' || ED.selection.kind === 'theme-settings';
@@ -552,7 +584,7 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkout: D.CHECKOUT_MOCK }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkout: D.CHECKOUT_MOCK, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -561,6 +593,8 @@
   function checkoutCanvasHtml() {
     const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
     const secs = pageSections();
+    // Live add-on contributions, shared by every Order Summary surface this render.
+    CK_ADDONS = computeCheckoutAddons(secs);
     const byKind = (k) => secs.find((s) => s.kind === k);
     const wrap = (s, first) => (s && !s.hidden) ? wrapSection(s, !!first) : '';
     const header = wrap(byKind('checkout-header'), true);
@@ -569,11 +603,14 @@
     // Mobile-only top bar: a separate, self-contained component (checkout-order-summary-bar)
     // pinned full-bleed under the header. Editing it does not touch the bottom Order Summary.
     const topBar = mob ? wrap(byKind('checkout-order-summary-bar')) : '';
-    // Main-column sections rendered in their stored order (so commerce components sit
-    // wherever they're placed and drag-reorder reflects live). Header + both Order
-    // Summary surfaces live outside this column.
+    // Commerce components render only in their allowed zone (PRD §4.2). Zone 'summary'
+    // sits under the Order Summary; all other zones live in the main/left column at
+    // their stored position (insertion keeps array order correct).
     const SKIP = { 'checkout-header': 1, 'checkout-order-summary': 1, 'checkout-order-summary-bar': 1 };
-    const mainSecs = secs.filter((s) => !SKIP[s.kind]);
+    const isSummaryZone = (s) => isCheckoutCommerce(s.kind) && s.zone === 'summary';
+    const mainSecs = secs.filter((s) => !SKIP[s.kind] && !isSummaryZone(s));
+    const summaryZone = secs.filter((s) => isSummaryZone(s));
+    const summaryZoneHtml = summaryZone.map((s) => wrap(s)).join('');
     const leftCol = mainSecs.map((s) => wrap(s)).join(''); // desktop: single column in order
     const vars = checkoutVars(tk);
     // Component-level summary background overrides the Order Summary theme setting, so the
@@ -581,18 +618,17 @@
     const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
     const L = tk.layout || {};
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
-    // Mobile: full-bleed order-summary bar under header → form → bottom Order Summary → Pay now → policies.
-    // The bottom Order Summary is inserted right before the CTA, with all other main
-    // sections kept in their stored order.
+    // Mobile: full-bleed order-summary bar under header → form → bottom Order Summary →
+    // its 'summary' zone components → Pay now → policies.
     const ctaIdx = mainSecs.findIndex((s) => s.kind === 'checkout-cta');
     const mobBefore = (ctaIdx < 0 ? mainSecs : mainSecs.slice(0, ctaIdx)).map((s) => wrap(s)).join('');
     const mobAfter = (ctaIdx < 0 ? [] : mainSecs.slice(ctaIdx)).map((s) => wrap(s)).join('');
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          mobBefore + summary + mobAfter + '</div>')
+          mobBefore + summary + summaryZoneHtml + mobAfter + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
-          '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
+          '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
         '</div>';
     return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + header + topBar + inner + '</div>';
   }
@@ -1042,31 +1078,42 @@
   // kinds; the chosen one is appended before the CTA so it lands in a sensible region.
   function openAddCheckoutComponent(anchor) {
     closePops();
+    const meta = (k) => (D.CHECKOUT_COMMERCE || []).find((e) => e.kind === k) || { kind: k, name: k, desc: '' };
     const layer = h('<div class="pop-layer" style="z-index:250"></div>');
-    const pop = h('<div class="menu-pop" style="min-width:260px"></div>');
-    pop.innerHTML = '<div style="padding:4px">' + (D.CHECKOUT_COMMERCE || []).map((e) => {
-      const ok = !!SECTIONS[e.kind];
-      return '<div class="os-addrow' + (ok ? '' : ' soon') + '" data-add-ck="' + esc(e.kind) + '">' +
-        '<div class="os-add-ico">' + ICON(SECTIONS[e.kind] ? SECTIONS[e.kind].icon : 'layers') + '</div>' +
-        '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (ok ? '' : ' <span class="os-soon">Soon</span>') + '</div>' +
-        '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
+    const pop = h('<div class="menu-pop" style="min-width:280px;max-height:70vh;overflow:auto"></div>');
+    // Group by zone (PRD §4.2): each zone lists only the components it allows.
+    pop.innerHTML = '<div style="padding:4px">' + (D.CHECKOUT_ZONES || []).map((z) => {
+      const rows = (z.allow || []).map((k) => {
+        const e = meta(k); const ok = !!SECTIONS[k];
+        return '<div class="os-addrow' + (ok ? '' : ' soon') + '" data-add-ck="' + esc(k) + '" data-zone="' + esc(z.id) + '">' +
+          '<div class="os-add-ico">' + ICON(SECTIONS[k] ? SECTIONS[k].icon : 'layers') + '</div>' +
+          '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (ok ? '' : ' <span class="os-soon">Soon</span>') + '</div>' +
+          '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
+      }).join('');
+      return '<div class="os-add-zone">' + esc(z.label) + '</div>' + rows;
     }).join('') + '</div>';
     layer.appendChild(pop); document.body.appendChild(layer);
-    const r = anchor.getBoundingClientRect(); const w = 260;
-    pop.style.top = (r.bottom + 6) + 'px';
+    const r = anchor.getBoundingClientRect(); const w = 280;
+    pop.style.top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 40)) + 'px';
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
     pop.querySelectorAll('[data-add-ck]').forEach((o) => o.onclick = () => {
       if (o.classList.contains('soon')) return;
-      addCheckoutComponent(o.getAttribute('data-add-ck')); closePops();
+      addCheckoutComponent(o.getAttribute('data-add-ck'), o.getAttribute('data-zone')); closePops();
     });
     closeOnOutside(pop, anchor);
   }
-  function addCheckoutComponent(kind) {
+  function addCheckoutComponent(kind, zoneId) {
     const def = SECTIONS[kind]; if (!def) { toast('“' + kind + '” isn’t available yet', 'err'); return; }
-    const inst = matSection({ kind });
+    const zone = ckZone(zoneId); if (!zone || (zone.allow || []).indexOf(kind) < 0) { toast('That component can’t go there', 'err'); return; }
+    const inst = matSection({ kind, zone: zoneId });
     const arr = pageSections();
-    const ctaIdx = arr.findIndex((x) => x.kind === 'checkout-cta');
-    if (ctaIdx >= 0) arr.splice(ctaIdx, 0, inst); else arr.push(inst);
+    // Insert right after the zone anchor and after any existing members of the same zone,
+    // so multiple add-ons stack in order directly under their anchor.
+    let at = arr.findIndex((x) => x.kind === zone.after);
+    if (at < 0) { const cta = arr.findIndex((x) => x.kind === 'checkout-cta'); at = cta < 0 ? arr.length - 1 : cta - 1; }
+    let insAt = at + 1;
+    while (insAt < arr.length && isCheckoutCommerce(arr[insAt].kind) && arr[insAt].zone === zoneId) insAt++;
+    arr.splice(insAt, 0, inst);
     ED.selection = { kind: 'section', sectionId: inst.id };
     markDirty(); refreshTree(); refreshRight(); refreshCanvas();
     toast('Added ' + def.name);
@@ -1087,6 +1134,12 @@
         const isSec = row.hasAttribute('data-sel-sec');
         if (dragInfo.type === 'sec' && !isSec) return;
         if (dragInfo.type === 'blk' && (!row.hasAttribute('data-sel-blk') || row.getAttribute('data-sel-blk').split(':')[0] !== dragInfo.secId)) return;
+        // Checkout: commerce components reorder only among same-zone siblings (PRD §4.2).
+        if (dragInfo.type === 'sec' && isCheckout()) {
+          const d = pageSections().find((x) => x.id === dragInfo.id);
+          const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
+          if (!d || !o || !isCheckoutCommerce(d.kind) || !isCheckoutCommerce(o.kind) || (d.zone || '') !== (o.zone || '')) return;
+        }
         e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
         clearDrop(); row.classList.add(after ? 'drop-after' : 'drop-before');
       });
@@ -1317,6 +1370,9 @@
     ED._rightKey = rightSelKey();
   }
   function refreshCanvas() { const fr = document.getElementById('os-frame'); if (!fr) return; fr.className = 'os-frame ' + ED.device; fr.innerHTML = canvasHtml(); wireCanvas(); applyHighlight(); const bar = document.querySelector('.os-canvas-bar'); if (bar) bar.textContent = 'Live preview · ' + pageLabel() + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile'); }
+  // Buyer-side add-on toggles recompute the Order Summary by re-rendering the canvas.
+  // Deferred so the triggering click finishes bubbling (selection) before teardown.
+  OS.ckRecalc = function () { requestAnimationFrame(function () { if (isCheckout()) refreshCanvas(); }); };
   function refreshAffectedCanvas() {
     const sel = ED.selection;
     if (sel.kind === 'header' || sel.kind === 'footer' || sel.kind === 'announcement') return refreshCanvas();
@@ -1599,6 +1655,8 @@
   .os-add-ico{width:30px;height:30px;flex:none;border-radius:7px;background:var(--panel);display:grid;place-items:center;color:var(--ink-muted)}
   .os-add-name{font-size:13px;font-weight:600;color:var(--ink)}
   .os-add-desc{font-size:11.5px;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .os-add-zone{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted);padding:10px 8px 4px}
+  .os-add-zone:first-child{padding-top:4px}
   .os-soon{font-size:10px;color:#9aa3b0;border:1px solid var(--hair);border-radius:4px;padding:0 4px;margin-left:4px;font-weight:500}
   .os-addprev-art{height:120px;border-radius:8px;background:var(--panel);display:grid;place-items:center;color:#c4cad3}
   .os-addprev-art svg{width:34px;height:34px}

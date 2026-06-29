@@ -377,6 +377,18 @@
     { kind: 'checkout-vip-club', name: 'VIP Club', desc: 'Tickable membership add-on' },
   ];
 
+  // Allowed insertion zones for commerce components (PRD §4.2). Each zone sits right
+  // after an anchor (required) component; `allow` whitelists which components may live
+  // there, so placement strictly follows the matrix. `col` decides the render column:
+  // 'main' = left form column, 'summary' = under the Order Summary (right column on PC,
+  // after the bottom Order Summary on mobile).
+  const CHECKOUT_ZONES = [
+    { id: 'contact', label: 'Below Contact information', after: 'checkout-contact', col: 'main', allow: ['checkout-product-upsell'] },
+    { id: 'shipping', label: 'Below Shipping method', after: 'checkout-shipping-method', col: 'main', allow: ['checkout-shipping-insurance', 'checkout-vip-club'] },
+    { id: 'payment', label: 'Below Payment method', after: 'checkout-payment', col: 'main', allow: ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'] },
+    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'] },
+  ];
+
   // Checkout skeleton. Required components are fixed; the commerce components seeded
   // here (PRD §4.2 positions) can be added / hidden / deleted / reordered.
   const CHECKOUT_TEMPLATE = {
@@ -385,12 +397,12 @@
       { id: 'ck-summary-bar', kind: 'checkout-order-summary-bar' },
       { id: 'ck-express', kind: 'checkout-express' },
       { id: 'ck-contact', kind: 'checkout-contact' },
-      { id: 'ck-upsell', kind: 'checkout-product-upsell' },
+      { id: 'ck-upsell', kind: 'checkout-product-upsell', zone: 'contact' },
       { id: 'ck-shipinfo', kind: 'checkout-shipping-info' },
       { id: 'ck-shipmethod', kind: 'checkout-shipping-method' },
-      { id: 'ck-insurance', kind: 'checkout-shipping-insurance' },
+      { id: 'ck-insurance', kind: 'checkout-shipping-insurance', zone: 'shipping' },
       { id: 'ck-payment', kind: 'checkout-payment' },
-      { id: 'ck-vip', kind: 'checkout-vip-club' },
+      { id: 'ck-vip', kind: 'checkout-vip-club', zone: 'payment' },
       { id: 'ck-cta', kind: 'checkout-cta' },
       { id: 'ck-summary', kind: 'checkout-order-summary', blocks: [
         { id: 'ck-blk-lines', kind: 'cart-lines' },
@@ -433,6 +445,6 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE,
+    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_ZONES,
   };
 })();

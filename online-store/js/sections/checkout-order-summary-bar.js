@@ -23,14 +23,16 @@
       if (!ctx.mob) return ''; // top bar is mobile-only
 
       const mock = ctx.checkout || {};
-      const cart = mock.cart || [];
+      const add = ctx.ckAddons || { rows: [], lines: [] };
+      const cart = (mock.cart || []).concat(add.lines || []);
       const subtotal = cart.reduce((t, l) => t + l.price * l.qty, 0);
       const ship = (mock.shippingMethods || []).find((m) => m.id === mock.selectedShipping) || (mock.shippingMethods || [])[0] || { price: 0 };
       const shipPrice = ship.price || 0;
       const discount = (mock.coupon && mock.coupon.amount) || 0;
       const tax = mock.tax || 0;
-      const total = subtotal - discount + shipPrice + tax;
-      const compareTotal = cart.reduce((t, l) => t + ((l.compareAt && l.compareAt > l.price ? l.compareAt : l.price) * l.qty), 0);
+      const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
+      const total = subtotal - discount + shipPrice + tax + addonTotal;
+      const compareTotal = cart.reduce((t, l) => t + ((l.compareAt && l.compareAt > l.price ? l.compareAt : l.price) * l.qty), 0) + addonTotal;
 
       const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
       const bg = s.background_color || 'var(--ck-sum-bg)';
@@ -47,11 +49,13 @@
         '</div>';
       }).join('');
       const trow = (lbl, val) => '<div class="ck-trow"><span class="lbl">' + esc(lbl) + '</span><span class="amt">' + val + '</span></div>';
+      const addonRows = (add.rows || []).map((r) => trow(r.label, money(r.amount))).join('');
       const totals = '<div class="ck-totals">' +
         trow('Subtotal', money(subtotal)) +
         (discount > 0 ? trow('Discount', '−' + money(discount)) : '') +
         trow('Shipping', shipPrice ? money(shipPrice) : 'Free') +
         trow('Taxes', money(tax)) +
+        addonRows +
         '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">Total</span><span class="amt">' + money(total) + '</span></div>' +
       '</div>';
 

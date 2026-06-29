@@ -37,7 +37,10 @@
 
     render(s, blocks, ctx) {
       const mock = ctx.checkout || {};
-      const cart = mock.cart || [];
+      // Live add-ons: upsell picks become extra cart lines; insurance / VIP become
+      // their own summary rows (computed centrally in app.js, shared by every surface).
+      const add = ctx.ckAddons || { rows: [], lines: [] };
+      const cart = (mock.cart || []).concat(add.lines || []);
       const cur = mock.currency || 'USD';
       const find = (k) => (blocks || []).find((b) => b.kind === k) || { id: '', settings: {} };
       const sel = ctx.selectedBlockId;
@@ -47,7 +50,8 @@
       const shipPrice = ship.price || 0;
       const discount = (mock.coupon && mock.coupon.amount) || 0;
       const tax = mock.tax || 0;
-      const total = subtotal - discount + shipPrice + tax;
+      const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
+      const total = subtotal - discount + shipPrice + tax + addonTotal;
       const itemCount = cart.reduce((t, l) => t + l.qty, 0);
       const lineSavings = cart.reduce((t, l) => t + (l.compareAt && l.compareAt > l.price ? (l.compareAt - l.price) * l.qty : 0), 0);
       const savings = lineSavings + discount;
@@ -84,11 +88,13 @@
       };
       const sub = find('subtotal'), dis = find('discount'), shp = find('shipping'), tx = find('tax'), tot = find('total');
       const savingsLine = savings > 0 ? '<div class="ck-savings">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
+      const addonRows = (add.rows || []).map((r) => '<div class="ck-trow ck-addon"><span class="lbl">' + esc(r.label) + '</span><span class="amt">' + money(r.amount) + '</span></div>').join('');
       const totals = '<div class="ck-totals">' +
         row(sub, money(subtotal), { suffix: ' <span class="ck-itemc">· ' + itemCount + ' items</span>' }) +
         (discount > 0 ? row(dis, '−' + money(discount)) : '') +
         row(shp, shipPrice ? money(shipPrice) : 'Free') +
         row(tx, money(tax)) +
+        addonRows +
         blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span></div>', sel === tot.id) +
         savingsLine +
       '</div>';

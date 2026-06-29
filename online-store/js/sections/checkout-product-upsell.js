@@ -80,23 +80,27 @@
       const border = s.border_color || 'var(--ck-divider)';
       const cardBg = s.background_color || 'var(--ck-page-bg)';
       const txt = s.text_color || 'var(--ck-text)';
+      const storeItems = ((OS.ckState || {})[ctx.sectionId] || {}).items || {};
 
       const cards = items.map((p) => {
+        const qty = Math.max(0, parseInt(storeItems[p.id], 10) || 0);
+        const checked = qty > 0;
+        const dispQty = checked ? qty : 1;
         const img = s.show_image !== false ? '<div class="ckup-thumb" style="background-image:url(' + esc(p.image) + ')"></div>' : '';
         const title = s.show_title !== false ? '<div class="ckup-title">' + esc(p.title) + '</div>' : '';
         const variant = (s.show_variant !== false && p.vendor) ? '<div class="ckup-variant">' + esc(p.vendor) + '</div>' : '';
         const cmp = (s.show_compare !== false && p.compareAt && p.compareAt > p.price) ? '<s class="ckup-cmp">' + money(p.compareAt) + '</s>' : '';
         const price = s.show_price !== false ? '<div class="ckup-price"><span class="ckup-now">' + money(p.price) + '</span>' + cmp + '</div>' : '<div class="ckup-price"></div>';
         const control = (s.cta_style === 'button')
-          ? '<button class="ckup-addbtn" type="button" data-ckup-add>' + esc(s.cta_text || 'Add') + '</button>'
+          ? '<button class="ckup-addbtn' + (checked ? ' on' : '') + '" type="button" data-ckup-add>' + esc(s.cta_text || 'Add') + '</button>'
           : '<div class="ckup-step" data-ckup-step>' +
               '<button type="button" data-step="-1" aria-label="Decrease">−</button>' +
-              '<span class="ckup-qty">1</span>' +
+              '<span class="ckup-qty">' + dispQty + '</span>' +
               '<button type="button" data-step="1" aria-label="Increase">+</button>' +
             '</div>';
-        return '<div class="ckup-card" data-ckup-card style="border-color:' + border + ';border-radius:' + radius + 'px;background:' + cardBg + '">' +
+        return '<div class="ckup-card' + (checked ? ' sel' : '') + '" data-ckup-card data-pid="' + esc(p.id) + '" style="border-color:' + border + ';border-radius:' + radius + 'px;background:' + cardBg + '">' +
           '<div class="ckup-row1">' +
-            '<span class="ckup-check" data-ckup-check role="checkbox" aria-checked="false">' + CHECK + '</span>' +
+            '<span class="ckup-check' + (checked ? ' on' : '') + '" data-ckup-check role="checkbox" aria-checked="' + (checked ? 'true' : 'false') + '">' + CHECK + '</span>' +
             title +
           '</div>' +
           '<div class="ckup-row2">' + img +
@@ -119,7 +123,7 @@
         css + '</div>';
     },
 
-    hydrate(el) {
+    hydrate(el, settings, blocks, ctx) {
       const track = el.querySelector('[data-ckup-track]');
       if (track) {
         const step = () => { const c = track.querySelector('.ckup-card'); return c ? c.getBoundingClientRect().width + 14 : 260; };
@@ -127,19 +131,28 @@
         if (prev) prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
         if (next) next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
       }
+      const id = ctx && ctx.sectionId;
+      const setItem = (pid, qty) => {
+        if (!id) return;
+        const cur = ((OS.ckState[id] && OS.ckState[id].items) ? Object.assign({}, OS.ckState[id].items) : {});
+        if (qty > 0) cur[pid] = qty; else delete cur[pid];
+        OS.ckSet(id, { items: cur }); OS.ckRecalc();
+      };
       el.querySelectorAll('[data-ckup-card]').forEach((card) => {
+        const pid = card.getAttribute('data-pid');
         const chk = card.querySelector('[data-ckup-check]');
+        const qEl = card.querySelector('.ckup-qty');
         const setOn = (on) => { card.classList.toggle('sel', on); if (chk) { chk.classList.toggle('on', on); chk.setAttribute('aria-checked', on ? 'true' : 'false'); } };
-        if (chk) chk.addEventListener('click', (e) => { e.stopPropagation(); setOn(!chk.classList.contains('on')); });
+        const curQty = () => Math.max(1, parseInt(qEl ? qEl.textContent : '1', 10) || 1);
+        if (chk) chk.addEventListener('click', (e) => { e.stopPropagation(); const on = !chk.classList.contains('on'); setOn(on); setItem(pid, on ? curQty() : 0); });
         const add = card.querySelector('[data-ckup-add]');
-        if (add) add.addEventListener('click', (e) => { e.stopPropagation(); const on = !card.classList.contains('sel'); setOn(on); add.classList.toggle('on', on); });
+        if (add) add.addEventListener('click', (e) => { e.stopPropagation(); const on = !card.classList.contains('sel'); setOn(on); add.classList.toggle('on', on); setItem(pid, on ? 1 : 0); });
         const stepper = card.querySelector('[data-ckup-step]');
         if (stepper) {
-          const q = stepper.querySelector('.ckup-qty');
           stepper.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', (e) => {
             e.stopPropagation();
-            let n = parseInt(q.textContent, 10) || 1; n += parseInt(b.getAttribute('data-step'), 10);
-            if (n < 1) n = 1; q.textContent = n; setOn(true);
+            let n = parseInt(qEl.textContent, 10) || 1; n += parseInt(b.getAttribute('data-step'), 10);
+            if (n < 1) n = 1; qEl.textContent = n; setOn(true); setItem(pid, n);
           }));
         }
       });

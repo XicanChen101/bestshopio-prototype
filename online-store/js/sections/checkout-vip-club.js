@@ -36,7 +36,8 @@
     },
 
     render(s, blocks, ctx) {
-      const sel = !!s.default_selected;
+      const st = (OS.ckState || {})[ctx.sectionId] || {};
+      const sel = ('selected' in st) ? st.selected : !!s.default_selected;
       const radius = (s.border_radius == null ? 8 : s.border_radius);
       const border = s.border_color || '#DDDDDD';
       const selBorder = s.selected_border_color || 'var(--ck-accent)';
@@ -59,14 +60,16 @@
       '</div>';
     },
 
-    hydrate(el) {
+    hydrate(el, settings, blocks, ctx) {
       const card = el.querySelector('[data-ckvip-card]'); if (!card) return;
       const chk = card.querySelector('[data-ckvip-check]');
+      const id = ctx && ctx.sectionId;
       card.addEventListener('click', (e) => {
         e.preventDefault();
         const on = !card.classList.contains('sel');
         card.classList.toggle('sel', on);
         if (chk) { chk.classList.toggle('on', on); chk.setAttribute('aria-checked', on ? 'true' : 'false'); }
+        if (id) { OS.ckSet(id, { selected: on }); OS.ckRecalc(); }
       });
     },
   });
