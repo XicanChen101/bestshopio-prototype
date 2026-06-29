@@ -242,6 +242,16 @@
   const CK_COMMERCE = (D.CHECKOUT_COMMERCE || []).map((e) => e.kind);
   const isCheckoutCommerce = (kind) => CK_COMMERCE.indexOf(kind) >= 0;
   const ckZone = (id) => (D.CHECKOUT_ZONES || []).find((z) => z.id === id) || null;
+  // Which zones a component kind may live in (PRD §4.2 matrix). Placement is enforced
+  // on drag: a commerce row can only be dropped into a zone that allows its kind.
+  const allowedZonesForKind = (kind) => (D.CHECKOUT_ZONES || []).filter((z) => (z.allow || []).indexOf(kind) >= 0).map((z) => z.id);
+  // Anchor (required) section → zone it opens, used to resolve the drop target's zone.
+  // Either Order Summary surface (the mobile top bar or the bottom summary) maps to the
+  // single 'summary' zone, so dropping onto whichever the merchant sees works.
+  const ckAnchorZone = (kind) => {
+    if (kind === 'checkout-order-summary' || kind === 'checkout-order-summary-bar') return 'summary';
+    const z = (D.CHECKOUT_ZONES || []).find((zz) => zz.after === kind); return z ? z.id : null;
+  };
   // Computed once per checkout render so every Order Summary surface shares the same
   // live add-on contributions (insurance/VIP rows + upsell line items).
   let CK_ADDONS = { rows: [], lines: [] };
@@ -1078,45 +1088,65 @@
   // kinds; the chosen one is appended before the CTA so it lands in a sensible region.
   function openAddCheckoutComponent(anchor) {
     closePops();
-    const meta = (k) => (D.CHECKOUT_COMMERCE || []).find((e) => e.kind === k) || { kind: k, name: k, desc: '' };
     const layer = h('<div class="pop-layer" style="z-index:250"></div>');
     const pop = h('<div class="menu-pop" style="min-width:280px;max-height:70vh;overflow:auto"></div>');
-    // Group by zone (PRD §4.2): each zone lists only the components it allows.
-    pop.innerHTML = '<div style="padding:4px">' + (D.CHECKOUT_ZONES || []).map((z) => {
-      const rows = (z.allow || []).map((k) => {
-        const e = meta(k); const ok = !!SECTIONS[k];
-        return '<div class="os-addrow' + (ok ? '' : ' soon') + '" data-add-ck="' + esc(k) + '" data-zone="' + esc(z.id) + '">' +
-          '<div class="os-add-ico">' + ICON(SECTIONS[k] ? SECTIONS[k].icon : 'layers') + '</div>' +
-          '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (ok ? '' : ' <span class="os-soon">Soon</span>') + '</div>' +
-          '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
-      }).join('');
-      return '<div class="os-add-zone">' + esc(z.label) + '</div>' + rows;
-    }).join('') + '</div>';
+    // Flat list of the commerce components — unlimited adds. Placement is decided by
+    // dragging the row in the structure tree (constrained to allowed zones, PRD §4.2).
+    pop.innerHTML = '<div style="padding:4px">' + (D.CHECKOUT_COMMERCE || []).map((e) => {
+      const ok = !!SECTIONS[e.kind];
+      return '<div class="os-addrow' + (ok ? '' : ' soon') + '" data-add-ck="' + esc(e.kind) + '">' +
+        '<div class="os-add-ico">' + ICON(SECTIONS[e.kind] ? SECTIONS[e.kind].icon : 'layers') + '</div>' +
+        '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (ok ? '' : ' <span class="os-soon">Soon</span>') + '</div>' +
+        '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
+    }).join('') +
+      '<div class="os-tree-note" style="margin:4px 6px 2px">Drag the component in the tree to place it. Allowed spots: below Contact, Shipping method, Payment or Order Summary.</div></div>';
     layer.appendChild(pop); document.body.appendChild(layer);
     const r = anchor.getBoundingClientRect(); const w = 280;
     pop.style.top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 40)) + 'px';
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
     pop.querySelectorAll('[data-add-ck]').forEach((o) => o.onclick = () => {
       if (o.classList.contains('soon')) return;
-      addCheckoutComponent(o.getAttribute('data-add-ck'), o.getAttribute('data-zone')); closePops();
+      addCheckoutComponent(o.getAttribute('data-add-ck')); closePops();
     });
     closeOnOutside(pop, anchor);
   }
   function addCheckoutComponent(kind, zoneId) {
     const def = SECTIONS[kind]; if (!def) { toast('“' + kind + '” isn’t available yet', 'err'); return; }
-    const zone = ckZone(zoneId); if (!zone || (zone.allow || []).indexOf(kind) < 0) { toast('That component can’t go there', 'err'); return; }
-    const inst = matSection({ kind, zone: zoneId });
+    // Default to the first zone that allows this kind; the merchant can drag it elsewhere.
+    const zid = (zoneId && allowedZonesForKind(kind).indexOf(zoneId) >= 0) ? zoneId : allowedZonesForKind(kind)[0];
+    const zone = ckZone(zid); if (!zone) { toast('That component can’t be placed', 'err'); return; }
+    const inst = matSection({ kind, zone: zid });
     const arr = pageSections();
     // Insert right after the zone anchor and after any existing members of the same zone,
     // so multiple add-ons stack in order directly under their anchor.
     let at = arr.findIndex((x) => x.kind === zone.after);
     if (at < 0) { const cta = arr.findIndex((x) => x.kind === 'checkout-cta'); at = cta < 0 ? arr.length - 1 : cta - 1; }
     let insAt = at + 1;
-    while (insAt < arr.length && isCheckoutCommerce(arr[insAt].kind) && arr[insAt].zone === zoneId) insAt++;
+    while (insAt < arr.length && isCheckoutCommerce(arr[insAt].kind) && arr[insAt].zone === zid) insAt++;
     arr.splice(insAt, 0, inst);
     ED.selection = { kind: 'section', sectionId: inst.id };
     markDirty(); refreshTree(); refreshRight(); refreshCanvas();
-    toast('Added ' + def.name);
+    toast('Added ' + def.name + ' — drag it to place');
+  }
+  // Move a commerce component into a (possibly different) allowed zone via drag.
+  function moveCommerceToZone(dragId, zoneId, targetCommerceId, after) {
+    const arr = pageSections();
+    const di = arr.findIndex((x) => x.id === dragId); if (di < 0) return;
+    const zone = ckZone(zoneId); if (!zone) return;
+    const sec = arr.splice(di, 1)[0];
+    sec.zone = zoneId;
+    let at = arr.findIndex((x) => x.kind === zone.after);
+    if (at < 0) at = arr.length - 1;
+    let insAt;
+    if (targetCommerceId && targetCommerceId !== dragId) {
+      const ti = arr.findIndex((x) => x.id === targetCommerceId);
+      insAt = ti < 0 ? at + 1 : (after ? ti + 1 : ti);
+    } else {
+      insAt = at + 1;
+      while (insAt < arr.length && isCheckoutCommerce(arr[insAt].kind) && arr[insAt].zone === zoneId) insAt++;
+    }
+    arr.splice(insAt, 0, sec);
+    markDirty(); refreshTree(); refreshCanvas();
   }
 
   // -------------------------------------------------------------- drag reorder
@@ -1134,11 +1164,15 @@
         const isSec = row.hasAttribute('data-sel-sec');
         if (dragInfo.type === 'sec' && !isSec) return;
         if (dragInfo.type === 'blk' && (!row.hasAttribute('data-sel-blk') || row.getAttribute('data-sel-blk').split(':')[0] !== dragInfo.secId)) return;
-        // Checkout: commerce components reorder only among same-zone siblings (PRD §4.2).
+        // Checkout: a commerce row may drop onto a zone anchor (Contact / Shipping method /
+        // Payment / Order Summary) or another commerce row, but only where its kind is
+        // allowed (PRD §4.2). The drop then re-homes it into that zone.
         if (dragInfo.type === 'sec' && isCheckout()) {
           const d = pageSections().find((x) => x.id === dragInfo.id);
           const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
-          if (!d || !o || !isCheckoutCommerce(d.kind) || !isCheckoutCommerce(o.kind) || (d.zone || '') !== (o.zone || '')) return;
+          if (!d || !o || !isCheckoutCommerce(d.kind)) return;
+          const zoneId = isCheckoutCommerce(o.kind) ? o.zone : ckAnchorZone(o.kind);
+          if (!zoneId || allowedZonesForKind(d.kind).indexOf(zoneId) < 0) return;
         }
         e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
         clearDrop(); row.classList.add(after ? 'drop-after' : 'drop-before');
@@ -1146,6 +1180,17 @@
       row.addEventListener('drop', (e) => {
         if (!dragInfo) return; e.preventDefault();
         const after = row.classList.contains('drop-after');
+        if (dragInfo.type === 'sec' && isCheckout() && row.hasAttribute('data-sel-sec')) {
+          const d = pageSections().find((x) => x.id === dragInfo.id);
+          const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
+          if (d && o && isCheckoutCommerce(d.kind)) {
+            const zoneId = isCheckoutCommerce(o.kind) ? o.zone : ckAnchorZone(o.kind);
+            if (zoneId && allowedZonesForKind(d.kind).indexOf(zoneId) >= 0) {
+              moveCommerceToZone(dragInfo.id, zoneId, isCheckoutCommerce(o.kind) ? o.id : null, after);
+            }
+          }
+          clearDrop(); return;
+        }
         if (dragInfo.type === 'sec' && row.hasAttribute('data-sel-sec')) reorderSection(dragInfo.id, row.getAttribute('data-sel-sec'), after);
         else if (dragInfo.type === 'blk' && row.hasAttribute('data-sel-blk')) { const tp = row.getAttribute('data-sel-blk').split(':'); if (tp[0] === dragInfo.secId) reorderBlock(dragInfo.secId, dragInfo.id, tp[1], after); }
         clearDrop();
