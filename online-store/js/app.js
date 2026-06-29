@@ -131,7 +131,8 @@
     if (_sectionsP) return _sectionsP;
     const kinds = ['announcement-bar', 'header', 'footer', 'collection-banner', 'collection-list', 'collection-page', 'list-collections',
       'checkout-header', 'checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method',
-      'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-order-summary-bar', 'checkout-policy-links'];
+      'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-order-summary-bar', 'checkout-policy-links',
+      'checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'];
     D.CATALOG.forEach((g) => g.entries.forEach((e) => { if (e.kind && kinds.indexOf(e.kind) < 0) kinds.push(e.kind); }));
     _sectionsP = Promise.all(kinds.map((k) => loadScript(MOD_BASE + 'sections/' + k + '.js?v=' + OS_V).catch(() => { /* not yet ported — skip */ })));
     return _sectionsP;
@@ -228,6 +229,10 @@
 
   // derived
   const isCheckout = () => ED.surface === 'checkout';
+  // Commerce (transaction-enhancement) components are the addable / draggable / deletable
+  // exception inside the otherwise-locked Checkout skeleton (Commerce PRD §3, §14.1).
+  const CK_COMMERCE = (D.CHECKOUT_COMMERCE || []).map((e) => e.kind);
+  const isCheckoutCommerce = (kind) => CK_COMMERCE.indexOf(kind) >= 0;
   // Single source of truth for "are we in the Theme/Checkout settings view" — the left tree,
   // right panel and rail toggle must all agree (otherwise the tree shows while settings is open).
   const inSettings = () => ED.leftMode === 'settings' || ED.selection.kind === 'theme-settings';
@@ -359,17 +364,29 @@
     return '<div class="os-tree-note">' + esc(note) + '</div>' +
       sGroups().map((g) => '<div class="os-tree-row" data-sgrp="' + g.key + '"><span class="os-tr-ico">' + I.gear + '</span><span class="os-tr-name">' + esc(g.name) + '</span></div>').join('');
   }
-  // Locked Checkout skeleton tree — no add / remove / hide / reorder (PRD §14.1).
+  // Checkout tree — required components are locked; commerce components (PRD §14.1)
+  // can be added / hidden / deleted / reordered.
   function checkoutTreeHtml() {
     let html = '<div class="os-grp-head" style="cursor:default">Checkout Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
-    html += '<div class="os-tree-note" style="margin-top:10px">Checkout components are required for the transaction flow, so they can\u2019t be added, removed or reordered.</div>';
+    html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add component <span class="os-add-n">(' + (D.CHECKOUT_COMMERCE || []).length + ')</span></div>';
+    html += '<div class="os-tree-note" style="margin-top:10px">Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce components (upsell, insurance, club) can be added, hidden, deleted and reordered.</div>';
     return html;
   }
   function checkoutRow(s) {
     const sel = ED.selection; const def = SECTIONS[s.kind];
     const active = sel.kind === 'section' && sel.sectionId === s.id;
     const hasBlocks = def && def.blocks; const open = ED.sectionExpand[s.id] !== false;
+    const commerce = isCheckoutCommerce(s.kind);
+    if (commerce) {
+      // Draggable, with hide / delete actions — mirrors the online-store section row.
+      let h2 = '<div class="os-row sec' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '" draggable="true" data-sel-sec="' + s.id + '">' +
+        '<span class="os-row-caret ghost"></span>' +
+        '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
+        '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
+        rowActions(s.hidden, true) + '<span class="os-tr-grip">' + I.grip + '</span></div>';
+      return h2;
+    }
     let html = '<div class="os-row sec locked' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '" data-sel-sec="' + s.id + '">' +
       (hasBlocks ? '<span class="os-row-caret' + (open ? ' open' : '') + '" data-tog-sec="' + s.id + '">' + I.chevR + '</span>' : '<span class="os-row-caret ghost"></span>') +
       '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
@@ -485,8 +502,14 @@
     }
     if (isCheckout()) {
       tree.querySelectorAll('[data-tog-sec]').forEach((c) => c.onclick = (e) => { e.stopPropagation(); const id = c.getAttribute('data-tog-sec'); ED.sectionExpand[id] = ED.sectionExpand[id] === false ? true : false; refreshTree(); });
-      tree.querySelectorAll('[data-sel-sec]').forEach((r) => r.onclick = (e) => { if (e.target.closest('[data-tog-sec]')) return; select({ kind: 'section', sectionId: r.getAttribute('data-sel-sec') }); });
+      // Required rows: plain select. Commerce rows carry hide / delete actions (bindRow).
+      tree.querySelectorAll('[data-sel-sec]').forEach((r) => {
+        if (r.querySelector('[data-vis],[data-del]')) bindRow(r, () => select({ kind: 'section', sectionId: r.getAttribute('data-sel-sec') }));
+        else r.onclick = (e) => { if (e.target.closest('[data-tog-sec]')) return; select({ kind: 'section', sectionId: r.getAttribute('data-sel-sec') }); };
+      });
       tree.querySelectorAll('[data-sel-blk]').forEach((r) => r.onclick = () => { const p = r.getAttribute('data-sel-blk').split(':'); select({ kind: 'block', sectionId: p[0], blockId: p[1] }); });
+      const addC = tree.querySelector('[data-add-ckcomp]'); if (addC) addC.onclick = (e) => openAddCheckoutComponent(e.currentTarget);
+      wireDrag(tree);
       return;
     }
     tree.querySelectorAll('[data-grp]').forEach((g) => g.onclick = () => { const k = g.getAttribute('data-grp'); ED.expand[k] = !ED.expand[k]; refreshTree(); });
@@ -546,12 +569,12 @@
     // Mobile-only top bar: a separate, self-contained component (checkout-order-summary-bar)
     // pinned full-bleed under the header. Editing it does not touch the bottom Order Summary.
     const topBar = mob ? wrap(byKind('checkout-order-summary-bar')) : '';
-    // Form sections that precede / follow the order recap on mobile.
-    const preKinds = ['checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method', 'checkout-payment'];
-    const postKinds = ['checkout-cta', 'checkout-policy-links'];
-    const preCol = preKinds.map((k) => wrap(byKind(k))).join('');
-    const postCol = postKinds.map((k) => wrap(byKind(k))).join('');
-    const leftCol = preCol + postCol; // desktop keeps the original single-column order
+    // Main-column sections rendered in their stored order (so commerce components sit
+    // wherever they're placed and drag-reorder reflects live). Header + both Order
+    // Summary surfaces live outside this column.
+    const SKIP = { 'checkout-header': 1, 'checkout-order-summary': 1, 'checkout-order-summary-bar': 1 };
+    const mainSecs = secs.filter((s) => !SKIP[s.kind]);
+    const leftCol = mainSecs.map((s) => wrap(s)).join(''); // desktop: single column in order
     const vars = checkoutVars(tk);
     // Component-level summary background overrides the Order Summary theme setting, so the
     // full-bleed right band (driven by --ck-sum-bg) follows it too (last inline decl wins).
@@ -559,9 +582,14 @@
     const L = tk.layout || {};
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
     // Mobile: full-bleed order-summary bar under header → form → bottom Order Summary → Pay now → policies.
+    // The bottom Order Summary is inserted right before the CTA, with all other main
+    // sections kept in their stored order.
+    const ctaIdx = mainSecs.findIndex((s) => s.kind === 'checkout-cta');
+    const mobBefore = (ctaIdx < 0 ? mainSecs : mainSecs.slice(0, ctaIdx)).map((s) => wrap(s)).join('');
+    const mobAfter = (ctaIdx < 0 ? [] : mainSecs.slice(ctaIdx)).map((s) => wrap(s)).join('');
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          preCol + summary + postCol + '</div>')
+          mobBefore + summary + mobAfter + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + '</div>' +
@@ -1007,6 +1035,40 @@
     pageSections().push(inst); ED.selection = { kind: 'section', sectionId: inst.id }; ED.expand.template = true;
     markDirty(); refreshTree(); refreshRight(); refreshCanvas();
     const sc = document.getElementById('os-cscroll'); if (sc) sc.scrollTop = sc.scrollHeight;
+    toast('Added ' + def.name);
+  }
+
+  // Add a Checkout commerce component (PRD §14.2). A compact menu of the commerce
+  // kinds; the chosen one is appended before the CTA so it lands in a sensible region.
+  function openAddCheckoutComponent(anchor) {
+    closePops();
+    const layer = h('<div class="pop-layer" style="z-index:250"></div>');
+    const pop = h('<div class="menu-pop" style="min-width:260px"></div>');
+    pop.innerHTML = '<div style="padding:4px">' + (D.CHECKOUT_COMMERCE || []).map((e) => {
+      const ok = !!SECTIONS[e.kind];
+      return '<div class="os-addrow' + (ok ? '' : ' soon') + '" data-add-ck="' + esc(e.kind) + '">' +
+        '<div class="os-add-ico">' + ICON(SECTIONS[e.kind] ? SECTIONS[e.kind].icon : 'layers') + '</div>' +
+        '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (ok ? '' : ' <span class="os-soon">Soon</span>') + '</div>' +
+        '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
+    }).join('') + '</div>';
+    layer.appendChild(pop); document.body.appendChild(layer);
+    const r = anchor.getBoundingClientRect(); const w = 260;
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
+    pop.querySelectorAll('[data-add-ck]').forEach((o) => o.onclick = () => {
+      if (o.classList.contains('soon')) return;
+      addCheckoutComponent(o.getAttribute('data-add-ck')); closePops();
+    });
+    closeOnOutside(pop, anchor);
+  }
+  function addCheckoutComponent(kind) {
+    const def = SECTIONS[kind]; if (!def) { toast('“' + kind + '” isn’t available yet', 'err'); return; }
+    const inst = matSection({ kind });
+    const arr = pageSections();
+    const ctaIdx = arr.findIndex((x) => x.kind === 'checkout-cta');
+    if (ctaIdx >= 0) arr.splice(ctaIdx, 0, inst); else arr.push(inst);
+    ED.selection = { kind: 'section', sectionId: inst.id };
+    markDirty(); refreshTree(); refreshRight(); refreshCanvas();
     toast('Added ' + def.name);
   }
 

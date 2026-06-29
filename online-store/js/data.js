@@ -368,16 +368,29 @@
     ] },
   ];
 
-  // Locked checkout skeleton (PRD §3.3). Order is fixed; users can't add/remove/reorder.
+  // Checkout commerce components (Commerce PRD §14.1) — the addable "transaction
+  // enhancement" group. Unlike the required skeleton, these can be added / hidden /
+  // deleted / reordered in the editor.
+  const CHECKOUT_COMMERCE = [
+    { kind: 'checkout-product-upsell', name: 'Product upsell', desc: 'Recommend extra products with one-tap add' },
+    { kind: 'checkout-shipping-insurance', name: 'Shipping Insurance', desc: 'Tickable delivery-protection service' },
+    { kind: 'checkout-vip-club', name: 'VIP Club', desc: 'Tickable membership add-on' },
+  ];
+
+  // Checkout skeleton. Required components are fixed; the commerce components seeded
+  // here (PRD §4.2 positions) can be added / hidden / deleted / reordered.
   const CHECKOUT_TEMPLATE = {
     sections: [
       { id: 'ck-header', kind: 'checkout-header' },
       { id: 'ck-summary-bar', kind: 'checkout-order-summary-bar' },
       { id: 'ck-express', kind: 'checkout-express' },
       { id: 'ck-contact', kind: 'checkout-contact' },
+      { id: 'ck-upsell', kind: 'checkout-product-upsell' },
       { id: 'ck-shipinfo', kind: 'checkout-shipping-info' },
       { id: 'ck-shipmethod', kind: 'checkout-shipping-method' },
+      { id: 'ck-insurance', kind: 'checkout-shipping-insurance' },
       { id: 'ck-payment', kind: 'checkout-payment' },
+      { id: 'ck-vip', kind: 'checkout-vip-club' },
       { id: 'ck-cta', kind: 'checkout-cta' },
       { id: 'ck-summary', kind: 'checkout-order-summary', blocks: [
         { id: 'ck-blk-lines', kind: 'cart-lines' },
@@ -420,6 +433,6 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK,
+    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE,
   };
 })();
