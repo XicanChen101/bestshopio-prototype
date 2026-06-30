@@ -27,6 +27,8 @@
     av3: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80',
     blog1: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=800&q=80',
     blog2: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=800&q=80',
+    svcShip: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=300&q=80',
+    svcVip: 'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?auto=format&fit=crop&w=300&q=80',
   };
 
   // ---------- theme list ("My theme" tab) ----------
@@ -204,10 +206,27 @@
     products: [
       { id: 'p1', title: 'Linen-feel wide pants', vendor: 'Aura Studio', price: 32.99, compareAt: 45.0, rating: 4.8, reviews: 214, image: IMG.p1, swatches: ['#2b2f36', '#c8b6a6', '#d9d2c5'] },
       { id: 'p2', title: 'Soft rib tee', vendor: 'Aura Studio', price: 18.99, compareAt: 26.0, rating: 4.6, reviews: 98, image: IMG.p2, swatches: ['#1b3a2b', '#eae3d6'] },
-      { id: 'p3', title: 'Editorial shell dress', vendor: 'Aura Studio', price: 41.5, compareAt: 58.0, rating: 4.9, reviews: 176, image: IMG.p3, swatches: ['#3a3f4a', '#9fb0a0', '#d8c3a5'] },
-      { id: 'p4', title: 'Street denim jacket', vendor: 'Aura Studio', price: 54.0, compareAt: 72.0, rating: 4.7, reviews: 132, image: IMG.p4, swatches: ['#33415c', '#1b1f24'] },
+      { id: 'p3', title: 'Editorial shell dress', vendor: 'Aura Studio', price: 41.5, compareAt: 58.0, rating: 4.9, reviews: 176, image: IMG.p3, swatches: ['#3a3f4a', '#9fb0a0', '#d8c3a5'],
+        variants: [
+          { id: 'p3-blk-m', title: 'Black / M', price: 41.5, compareAt: 58.0 },
+          { id: 'p3-blk-s', title: 'Black / S', price: 41.5, compareAt: 58.0 },
+          { id: 'p3-snd-m', title: 'Sand / M', price: 44.0, compareAt: 60.0 },
+          { id: 'p3-grn-l', title: 'Sage / L', price: 44.0, compareAt: 60.0 },
+        ] },
+      { id: 'p4', title: 'Street denim jacket', vendor: 'Aura Studio', price: 54.0, compareAt: 72.0, rating: 4.7, reviews: 132, image: IMG.p4, swatches: ['#33415c', '#1b1f24'],
+        variants: [
+          { id: 'p4-ind-m', title: 'Indigo / M', price: 54.0, compareAt: 72.0 },
+          { id: 'p4-ind-l', title: 'Indigo / L', price: 56.0, compareAt: 74.0 },
+          { id: 'p4-blk-m', title: 'Black / M', price: 58.0, compareAt: 76.0 },
+        ] },
       { id: 'p5', title: 'Crewneck sweater', vendor: 'Aura Studio', price: 44.0, compareAt: 0, rating: 4.5, reviews: 64, image: IMG.p5, swatches: ['#6b705c', '#cb997e'] },
       { id: 'p6', title: 'Pleated midi skirt', vendor: 'Aura Studio', price: 38.0, compareAt: 49.0, rating: 4.4, reviews: 51, image: IMG.p6, swatches: ['#1b1f24', '#b08968'] },
+    ],
+    // Service / membership products bound by the Shipping Insurance & VIP Club components.
+    // They carry their own price and show up in the Order Summary like a normal line item.
+    services: [
+      { id: 'svc-ship', title: 'Shipping Protection', vendor: 'Service', price: 3.95, compareAt: 0, image: IMG.svcShip },
+      { id: 'svc-vip', title: 'VIP Club Membership', vendor: 'Membership', price: 29.99, compareAt: 0, image: IMG.svcVip },
     ],
     collections: [
       { id: 'best-sellers', title: 'Best sellers', image: IMG.cat1, count: 48 },
@@ -377,16 +396,18 @@
     { kind: 'checkout-vip-club', name: 'VIP Club', desc: 'Tickable membership add-on' },
   ];
 
-  // Allowed insertion zones for commerce components (PRD §4.2). Each zone sits right
-  // after an anchor (required) component; `allow` whitelists which components may live
-  // there, so placement strictly follows the matrix. `col` decides the render column:
-  // 'main' = left form column, 'summary' = under the Order Summary (right column on PC,
-  // after the bottom Order Summary on mobile).
+  // Allowed insertion zones for commerce components. Each zone sits right after an anchor
+  // (required) component. To keep merchant configuration simple, every commerce component
+  // may live in any of the five zones (no per-component matrix). `col` decides the render
+  // column: 'main' = left form column, 'summary' = under the Order Summary (right column on
+  // PC, after the bottom Order Summary on mobile).
+  const CK_COMMERCE_KINDS = ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'];
   const CHECKOUT_ZONES = [
-    { id: 'contact', label: 'Below Contact information', after: 'checkout-contact', col: 'main', allow: ['checkout-product-upsell'] },
-    { id: 'shipping', label: 'Below Shipping method', after: 'checkout-shipping-method', col: 'main', allow: ['checkout-shipping-insurance', 'checkout-vip-club'] },
-    { id: 'payment', label: 'Below Payment method', after: 'checkout-payment', col: 'main', allow: ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'] },
-    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'] },
+    { id: 'contact', label: 'Below Contact information', after: 'checkout-contact', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
+    { id: 'shipping', label: 'Below Shipping method', after: 'checkout-shipping-method', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
+    { id: 'payment', label: 'Below Payment method', after: 'checkout-payment', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
+    { id: 'cta', label: 'Below CTA', after: 'checkout-cta', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
+    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: CK_COMMERCE_KINDS.slice() },
   ];
 
   // Checkout skeleton. Required components are fixed; the commerce components seeded

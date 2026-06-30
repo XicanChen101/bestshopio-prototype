@@ -252,6 +252,25 @@
     if (kind === 'checkout-order-summary' || kind === 'checkout-order-summary-bar') return 'summary';
     const z = (D.CHECKOUT_ZONES || []).find((zz) => zz.after === kind); return z ? z.id : null;
   };
+  // Resolve which zone a tree row represents as a drop target for a commerce component.
+  // A row can be a section anchor (Contact / Shipping method / Payment / Order Summary),
+  // another commerce component, OR an Order-Summary block (Cart Lines … Total / Policy
+  // Links) — dropping onto any summary block lands the component in the 'summary' zone,
+  // so "below Total" behaves the same as "below Order Summary".
+  function ckDropZoneForRow(row) {
+    if (row.hasAttribute('data-sel-sec')) {
+      const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
+      if (!o) return null;
+      const zoneId = isCheckoutCommerce(o.kind) ? o.zone : ckAnchorZone(o.kind);
+      return zoneId ? { zoneId: zoneId, refCommerceId: isCheckoutCommerce(o.kind) ? o.id : null } : null;
+    }
+    if (row.hasAttribute('data-sel-blk')) {
+      const secId = row.getAttribute('data-sel-blk').split(':')[0];
+      const s = pageSections().find((x) => x.id === secId);
+      if (s && s.kind === 'checkout-order-summary') return { zoneId: 'summary', refCommerceId: null };
+    }
+    return null;
+  }
   // Computed once per checkout render so every Order Summary surface shares the same
   // live add-on contributions (insurance/VIP rows + upsell line items).
   let CK_ADDONS = { rows: [], lines: [] };
@@ -263,13 +282,21 @@
       const st = store[s.id] || {}; const cfg = s.settings || {};
       if (s.kind === 'checkout-shipping-insurance' || s.kind === 'checkout-vip-club') {
         const on = ('selected' in st) ? st.selected : !!cfg.default_selected;
-        if (on) rows.push({ label: cfg.title || (s.kind === 'checkout-vip-club' ? 'VIP Club' : 'Shipping insurance'), amount: +cfg.price || 0 });
+        if (!on) return;
+        const pid = s.kind === 'checkout-vip-club' ? cfg.vip_product : cfg.insurance_product;
+        const p = (D.SAMPLE.services || []).concat(D.SAMPLE.products || []).find((x) => x.id === pid);
+        if (p) lines.push({ id: p.id + ':' + s.id, title: p.title, variant: '', qty: 1, price: p.price, compareAt: p.compareAt || 0, image: p.image, addon: true });
       } else if (s.kind === 'checkout-product-upsell') {
         const items = st.items || {};
+        const vmap = st.variants || {};
         Object.keys(items).forEach((pid) => {
           const qty = items[pid]; if (!qty || qty < 1) return;
           const p = (D.SAMPLE.products || []).find((x) => x.id === pid); if (!p) return;
-          lines.push({ id: p.id, title: p.title, variant: p.vendor || '', qty: qty, price: p.price, compareAt: p.compareAt || 0, image: p.image, addon: true });
+          // The buyer-selected variant (or the first, for multi-variant products) flows into
+          // the order line; single-/no-variant products use the product price.
+          const variants = Array.isArray(p.variants) ? p.variants : [];
+          const v = variants.length ? (variants.find((x) => x.id === vmap[pid]) || variants[0]) : null;
+          lines.push({ id: p.id, title: p.title, variant: v ? v.title : (p.vendor || ''), qty: qty, price: v ? v.price : p.price, compareAt: v ? (v.compareAt || 0) : (p.compareAt || 0), image: p.image, addon: true });
         });
       }
     });
@@ -620,7 +647,8 @@
     const isSummaryZone = (s) => isCheckoutCommerce(s.kind) && s.zone === 'summary';
     const mainSecs = secs.filter((s) => !SKIP[s.kind] && !isSummaryZone(s));
     const summaryZone = secs.filter((s) => isSummaryZone(s));
-    const summaryZoneHtml = summaryZone.map((s) => wrap(s)).join('');
+    const summaryZoneInner = summaryZone.map((s) => wrap(s)).join('');
+    const summaryZoneHtml = summaryZoneInner ? '<div class="cksz">' + summaryZoneInner + '</div>' : '';
     const leftCol = mainSecs.map((s) => wrap(s)).join(''); // desktop: single column in order
     const vars = checkoutVars(tk);
     // Component-level summary background overrides the Order Summary theme setting, so the
@@ -840,8 +868,8 @@
       (f.allowTransparent ? '<button class="os-tbtn' + (isT ? ' on' : '') + '" data-tsp title="Transparent">T</button>' : '') + '</div>';
   }
   function pickerControl(f, val, dk) {
-    const label = pickerLabel(f.control, val);
-    return '<button class="os-picker" ' + dk + ' data-pick="' + f.control + '">' +
+    const label = pickerLabel(f.control, val, f.pickFrom);
+    return '<button class="os-picker" ' + dk + ' data-pick="' + f.control + '"' + (f.single ? ' data-single="1"' : '') + (f.pickFrom ? ' data-pickfrom="' + esc(f.pickFrom) + '"' : '') + '>' +
       '<span>' + esc(label) + '</span>' + I.chev + '</button>';
   }
   // Simulated "system library" pick — drops in one sample image (no real picker in the prototype).
@@ -863,9 +891,13 @@
       '<div class="os-colsel-list" data-cols-list>' + rows + '</div>' +
       '<button class="os-colsel-change" data-cols-pick>Change</button></div>';
   }
-  function pickerLabel(kind, val) {
+  function pickerLabel(kind, val, pickFrom) {
     const S = D.SAMPLE;
-    if (kind === 'product') { if (Array.isArray(val)) return val.length ? val.length + ' products selected' : 'Select products'; const p = S.products.find((x) => x.id === val); return p ? p.title : 'Select a product'; }
+    if (kind === 'product') {
+      const pool = pickFrom === 'services' ? (S.services || []) : S.products;
+      if (Array.isArray(val)) return val.length ? val.length + ' products selected' : 'Select products';
+      const p = pool.find((x) => x.id === val); return p ? p.title : 'Select a product';
+    }
     if (kind === 'collection') { const c = S.collections.find((x) => x.id === val); return c ? c.title : 'Select a collection'; }
     if (kind === 'collections') { const arr = Array.isArray(val) ? val : []; return arr.length ? arr.length + ' collection' + (arr.length > 1 ? 's' : '') + ' selected' : 'All active collections'; }
     if (kind === 'menu') { const m = S.menus.find((x) => x.id === val); return m ? m.name : 'Select a menu'; }
@@ -908,7 +940,7 @@
         const pick = el.querySelector('[data-cols-pick]'); if (pick) pick.onclick = () => openPickerPop(pick, ctl, target[k], (v) => onChange(k, v, true));
         const list = el.querySelector('[data-cols-list]'); if (list) wireColsReorder(list, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
       } else if (ctl === 'product' || ctl === 'collection' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
-        el.onclick = () => openPickerPop(el, ctl, target[k], (v) => onChange(k, v, true));
+        el.onclick = () => openPickerPop(el, ctl, target[k], (v) => onChange(k, v, true), el.getAttribute('data-single') === '1', el.getAttribute('data-pickfrom'));
       }
     });
     wireRemove(form);
@@ -1008,7 +1040,7 @@
         el.querySelectorAll('[data-img-pick]').forEach((b) => b.onclick = () => change(k, PICK_IMG, true));
         const rm = el.querySelector('[data-img-remove]'); if (rm) rm.onclick = () => change(k, '', true);
       } else if (ctl === 'product' || ctl === 'collection' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
-        el.onclick = () => openPickerPop(el, ctl, target[k], (v) => change(k, v, true));
+        el.onclick = () => openPickerPop(el, ctl, target[k], (v) => change(k, v, true), el.getAttribute('data-single') === '1', el.getAttribute('data-pickfrom'));
       } else if (ctl === 'collections') {
         const pick = el.querySelector('[data-cols-pick]'); if (pick) pick.onclick = () => openPickerPop(pick, ctl, target[k], (v) => change(k, v, true));
         const list = el.querySelector('[data-cols-list]'); if (list) wireColsReorder(list, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => change(k, arr, true));
@@ -1162,31 +1194,29 @@
       row.addEventListener('dragover', (e) => {
         if (!dragInfo) return;
         const isSec = row.hasAttribute('data-sel-sec');
-        if (dragInfo.type === 'sec' && !isSec) return;
-        if (dragInfo.type === 'blk' && (!row.hasAttribute('data-sel-blk') || row.getAttribute('data-sel-blk').split(':')[0] !== dragInfo.secId)) return;
-        // Checkout: a commerce row may drop onto a zone anchor (Contact / Shipping method /
-        // Payment / Order Summary) or another commerce row, but only where its kind is
-        // allowed (PRD §4.2). The drop then re-homes it into that zone.
-        if (dragInfo.type === 'sec' && isCheckout()) {
+        if (dragInfo.type === 'blk') {
+          if (!row.hasAttribute('data-sel-blk') || row.getAttribute('data-sel-blk').split(':')[0] !== dragInfo.secId) return;
+        } else if (isCheckout()) {
+          // Checkout: a commerce row may drop onto a zone anchor (Contact / Shipping method /
+          // Payment / Order Summary), another commerce row, or an Order-Summary block (e.g.
+          // Total) — but only where its kind is allowed. The drop then re-homes it.
           const d = pageSections().find((x) => x.id === dragInfo.id);
-          const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
-          if (!d || !o || !isCheckoutCommerce(d.kind)) return;
-          const zoneId = isCheckoutCommerce(o.kind) ? o.zone : ckAnchorZone(o.kind);
-          if (!zoneId || allowedZonesForKind(d.kind).indexOf(zoneId) < 0) return;
-        }
+          if (!d || !isCheckoutCommerce(d.kind)) return;
+          const dz = ckDropZoneForRow(row);
+          if (!dz || allowedZonesForKind(d.kind).indexOf(dz.zoneId) < 0) return;
+        } else if (!isSec) return;
         e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
         clearDrop(); row.classList.add(after ? 'drop-after' : 'drop-before');
       });
       row.addEventListener('drop', (e) => {
         if (!dragInfo) return; e.preventDefault();
         const after = row.classList.contains('drop-after');
-        if (dragInfo.type === 'sec' && isCheckout() && row.hasAttribute('data-sel-sec')) {
+        if (dragInfo.type === 'sec' && isCheckout()) {
           const d = pageSections().find((x) => x.id === dragInfo.id);
-          const o = pageSections().find((x) => x.id === row.getAttribute('data-sel-sec'));
-          if (d && o && isCheckoutCommerce(d.kind)) {
-            const zoneId = isCheckoutCommerce(o.kind) ? o.zone : ckAnchorZone(o.kind);
-            if (zoneId && allowedZonesForKind(d.kind).indexOf(zoneId) >= 0) {
-              moveCommerceToZone(dragInfo.id, zoneId, isCheckoutCommerce(o.kind) ? o.id : null, after);
+          if (d && isCheckoutCommerce(d.kind)) {
+            const dz = ckDropZoneForRow(row);
+            if (dz && allowedZonesForKind(d.kind).indexOf(dz.zoneId) >= 0) {
+              moveCommerceToZone(dragInfo.id, dz.zoneId, dz.refCommerceId, after);
             }
           }
           clearDrop(); return;
@@ -1255,10 +1285,10 @@
   function catalogTotal() { let n = 0; D.CATALOG.forEach((g) => n += g.entries.length); return n; }
 
   // -------------------------------------------------------------- inline resource picker (popover under the control)
-  function openPickerPop(anchor, kind, current, onPick) {
+  function openPickerPop(anchor, kind, current, onPick, single, pickFrom) {
     closePops();
-    const S = D.SAMPLE; const multi = kind === 'product' || kind === 'collections';
-    const items = kind === 'product' ? S.products : (kind === 'collection' || kind === 'collections') ? S.collections : kind === 'menu' ? S.menus : kind === 'blog' ? S.blogs : S.pages;
+    const S = D.SAMPLE; const multi = (kind === 'product' || kind === 'collections') && !single;
+    const items = kind === 'product' ? (pickFrom === 'services' ? (S.services || []) : S.products) : (kind === 'collection' || kind === 'collections') ? S.collections : kind === 'menu' ? S.menus : kind === 'blog' ? S.blogs : S.pages;
     const nameOf = (it) => it.title || it.name;
     const sel = new Set(multi ? (Array.isArray(current) ? current : []) : (current ? [current] : []));
     const layer = h('<div class="pop-layer" style="z-index:250"></div>');
@@ -1854,10 +1884,18 @@
   .ckpage:not(.mob) .ckcol.side>*{position:relative;z-index:1}
   /* the summary section fills the whole right column; the select/hover frame is drawn on the
      full-bleed band (not the inner column) so it covers the entire right region to the page edge */
-  .ckpage:not(.mob) .ckcol.side>.os-sec{flex:1;outline:none!important}
+  .ckpage:not(.mob) .ckcol.side>.os-sec{flex:none;outline:none!important}
   .ckpage:not(.mob) .ckcol.side:has(>.os-sec:hover)::before{outline:2px solid #b9d2ff;outline-offset:-2px}
   .ckpage:not(.mob) .ckcol.side:has(>.os-sec.active)::before{outline:2px solid var(--brand);outline-offset:-2px}
   .ckpage:not(.mob) .ck-summary{background:transparent;border-radius:0;padding:38px 8px 40px 32px;position:sticky;top:24px}
+  /* commerce components dropped into the Order Summary zone — keep them aligned with the
+     summary content and sized for the narrower gray right column (instead of inheriting the
+     wide left-column layout). */
+  .cksz{display:flex;flex-direction:column;gap:var(--ck-section-gap)}
+  .ckpage:not(.mob) .cksz{padding:4px 8px 8px 32px}
+  .ckpage:not(.mob) .cksz .ckup-track:not(.grid) .ckup-card{flex:0 0 86%}
+  .ckpage:not(.mob) .cksz .ckup-card{padding:12px}
+  .ckpage.mob .cksz{margin-top:var(--ck-section-gap)}
   .ck-sum-h{font-family:var(--ck-heading-font);font-size:var(--ck-heading-fs);font-weight:var(--ck-fw-h);margin:0 0 16px}
   .ck-blk{position:relative}
   .ck-lines{margin-bottom:4px}

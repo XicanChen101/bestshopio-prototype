@@ -13,8 +13,7 @@
     name: 'VIP Club', icon: 'badgePercent',
     schema: [
       { info: 'Offers a membership the buyer can tick to join. Binds a real membership product.' },
-      { key: 'vip_product', label: 'VIP product', control: 'product', default: '', required: true, info: 'Required — binds a real membership product.' },
-      { key: 'price', label: 'Membership price', control: 'number', default: 29.99, min: 0, step: 0.01, info: 'Prototype: stands in for the bound product price.' },
+      { key: 'vip_product', label: 'VIP product', control: 'product', single: true, pickFrom: 'services', default: 'svc-vip', required: true, info: 'Required — binds a real membership product. Its price is used in the Order Summary.' },
       { sub: 'Content' },
       { key: 'title', label: 'Title', control: 'text', default: 'Welcome to the VIP Club!', placeholder: 'Welcome to the VIP Club!' },
       { key: 'description', label: 'Description', control: 'richtext', default: '', info: 'Membership perks. Basic HTML allowed.' },

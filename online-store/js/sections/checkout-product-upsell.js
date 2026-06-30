@@ -7,6 +7,8 @@
 (function () {
   if (!window.OS) return;
   const { esc, money } = OS;
+  // Per-section slider scroll offset, preserved across canvas re-renders (see hydrate).
+  const scrollMem = {};
 
   const ARROW = (d) => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
     (d === 'prev' ? '<path d="M15 18l-6-6 6-6"/>' : '<path d="M9 18l6-6-6-6"/>') + '</svg>';
@@ -80,17 +82,32 @@
       const border = s.border_color || 'var(--ck-divider)';
       const cardBg = s.background_color || 'var(--ck-page-bg)';
       const txt = s.text_color || 'var(--ck-text)';
-      const storeItems = ((OS.ckState || {})[ctx.sectionId] || {}).items || {};
+      const store = (OS.ckState || {})[ctx.sectionId] || {};
+      const storeItems = store.items || {};
+      const storeVars = store.variants || {};
 
       const cards = items.map((p) => {
+        // Multi-variant products get an on-card variant selector (the buyer picks). Single-
+        // /no-variant products use their own price with no selector. The chosen variant
+        // drives the card price and the order-summary line.
+        const variants = Array.isArray(p.variants) ? p.variants : [];
+        const hasChoice = variants.length > 1;
+        const chosen = variants.length ? (variants.find((v) => v.id === storeVars[p.id]) || variants[0]) : null;
+        const vPrice = chosen ? chosen.price : p.price;
+        const vCompare = chosen ? (chosen.compareAt || 0) : (p.compareAt || 0);
+        const vLabel = chosen ? chosen.title : (p.vendor || '');
         const qty = Math.max(0, parseInt(storeItems[p.id], 10) || 0);
         const checked = qty > 0;
         const dispQty = checked ? qty : 1;
         const img = s.show_image !== false ? '<div class="ckup-thumb" style="background-image:url(' + esc(p.image) + ')"></div>' : '';
         const title = s.show_title !== false ? '<div class="ckup-title">' + esc(p.title) + '</div>' : '';
-        const variant = (s.show_variant !== false && p.vendor) ? '<div class="ckup-variant">' + esc(p.vendor) + '</div>' : '';
-        const cmp = (s.show_compare !== false && p.compareAt && p.compareAt > p.price) ? '<s class="ckup-cmp">' + money(p.compareAt) + '</s>' : '';
-        const price = s.show_price !== false ? '<div class="ckup-price"><span class="ckup-now">' + money(p.price) + '</span>' + cmp + '</div>' : '<div class="ckup-price"></div>';
+        const variant = hasChoice
+          ? '<div class="ckup-vwrap"><select class="ckup-vsel" data-ckup-vsel data-pid="' + esc(p.id) + '" aria-label="Choose variant">' +
+              variants.map((v) => '<option value="' + esc(v.id) + '"' + (chosen && v.id === chosen.id ? ' selected' : '') + '>' + esc(v.title) + '</option>').join('') +
+            '</select></div>'
+          : ((s.show_variant !== false && vLabel) ? '<div class="ckup-variant">' + esc(vLabel) + '</div>' : '');
+        const cmp = (s.show_compare !== false && vCompare && vCompare > vPrice) ? '<s class="ckup-cmp">' + money(vCompare) + '</s>' : '';
+        const price = s.show_price !== false ? '<div class="ckup-price"><span class="ckup-now">' + money(vPrice) + '</span>' + cmp + '</div>' : '<div class="ckup-price"></div>';
         const control = (s.cta_style === 'button')
           ? '<button class="ckup-addbtn' + (checked ? ' on' : '') + '" type="button" data-ckup-add>' + esc(s.cta_text || 'Add') + '</button>'
           : '<div class="ckup-step" data-ckup-step>' +
@@ -124,20 +141,38 @@
     },
 
     hydrate(el, settings, blocks, ctx) {
+      const id = ctx && ctx.sectionId;
       const track = el.querySelector('[data-ckup-track]');
       if (track) {
+        // Toggling a product re-renders the whole checkout canvas, which would reset the
+        // slider to the first card. Remember the scroll offset per section and restore it
+        // so selecting the last card no longer snaps the slider back to the start.
+        if (id && scrollMem[id] != null) {
+          track.scrollLeft = scrollMem[id];
+          requestAnimationFrame(() => { track.scrollLeft = scrollMem[id]; });
+        }
+        if (id) track.addEventListener('scroll', () => { scrollMem[id] = track.scrollLeft; }, { passive: true });
         const step = () => { const c = track.querySelector('.ckup-card'); return c ? c.getBoundingClientRect().width + 14 : 260; };
         const prev = el.querySelector('[data-ckup-prev]'); const next = el.querySelector('[data-ckup-next]');
         if (prev) prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
         if (next) next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
       }
-      const id = ctx && ctx.sectionId;
       const setItem = (pid, qty) => {
         if (!id) return;
         const cur = ((OS.ckState[id] && OS.ckState[id].items) ? Object.assign({}, OS.ckState[id].items) : {});
         if (qty > 0) cur[pid] = qty; else delete cur[pid];
         OS.ckSet(id, { items: cur }); OS.ckRecalc();
       };
+      const setVar = (pid, vid) => {
+        if (!id) return;
+        const cur = ((OS.ckState[id] && OS.ckState[id].variants) ? Object.assign({}, OS.ckState[id].variants) : {});
+        cur[pid] = vid;
+        OS.ckSet(id, { variants: cur }); OS.ckRecalc();
+      };
+      el.querySelectorAll('[data-ckup-vsel]').forEach((sel) => {
+        sel.addEventListener('click', (e) => e.stopPropagation());
+        sel.addEventListener('change', (e) => { e.stopPropagation(); setVar(sel.getAttribute('data-pid'), sel.value); });
+      });
       el.querySelectorAll('[data-ckup-card]').forEach((card) => {
         const pid = card.getAttribute('data-pid');
         const chk = card.querySelector('[data-ckup-check]');
@@ -186,6 +221,11 @@
   .ckup-thumb{flex:none;width:76px;height:76px;border-radius:8px;background-size:cover;background-position:center;background-color:#f1f1f1}
   .ckup-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
   .ckup-variant{font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.4}
+  .ckup-vwrap{position:relative}
+  .ckup-vsel{width:100%;max-width:100%;box-sizing:border-box;appearance:none;-webkit-appearance:none;font-family:inherit;font-size:var(--ck-small-fs);color:var(--ck-text);
+    background:var(--ck-input-bg,#fff);border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius,6px);padding:6px 26px 6px 10px;cursor:pointer;line-height:1.3}
+  .ckup-vwrap::after{content:'';position:absolute;right:10px;top:50%;width:7px;height:7px;border-right:1.5px solid var(--ck-muted);border-bottom:1.5px solid var(--ck-muted);transform:translateY(-65%) rotate(45deg);pointer-events:none}
+  .ckup-vsel:focus{outline:none;border-color:var(--ck-input-focus,var(--ck-accent))}
   .ckup-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .ckup-price{display:flex;align-items:baseline;gap:8px;min-height:20px}
   .ckup-now{font-size:var(--ck-base-fs);font-weight:700}

@@ -14,8 +14,7 @@
     schema: [
       { info: 'Offers delivery protection as a tickable add-on. Binds a real service product.' },
       { key: 'heading', label: 'Heading', control: 'text', default: 'Shipping Insurance', placeholder: 'Shipping Insurance', info: 'Leave empty to show only the card.' },
-      { key: 'insurance_product', label: 'Insurance product', control: 'product', default: '', required: true, info: 'Required — binds a real service product.' },
-      { key: 'price', label: 'Service price', control: 'number', default: 3.95, min: 0, step: 0.01, info: 'Prototype: stands in for the bound product price.' },
+      { key: 'insurance_product', label: 'Insurance product', control: 'product', single: true, pickFrom: 'services', default: 'svc-ship', required: true, info: 'Required — binds a real service product. Its price is used in the Order Summary.' },
       { sub: 'Content' },
       { key: 'title', label: 'Title', control: 'text', default: 'Shipping insurance', placeholder: 'Shipping insurance' },
       { key: 'description', label: 'Description', control: 'text', default: 'Receive your order faster for just $3.95', info: 'Supports a price variable.' },
@@ -23,7 +22,6 @@
       { key: 'icon', label: 'Icon', control: 'image', default: '', info: 'SVG / PNG. Falls back to a shield icon.' },
       { sub: 'Behavior' },
       { key: 'default_selected', label: 'Default selected', control: 'toggle', default: false, info: 'Add to the order on page load.' },
-      { key: 'show_price', label: 'Show price', control: 'toggle', default: true },
       { sub: 'Style' },
       { key: 'card_style', label: 'Card style', control: 'select', default: 'border', options: [
         { value: 'border', label: 'Border card' }, { value: 'dashed', label: 'Dashed card' } ] },
@@ -49,7 +47,10 @@
       const icon = s.icon
         ? '<img class="ckins-iconimg" src="' + esc(s.icon) + '" alt="">'
         : SHIELD;
-      const desc = (s.description || '').replace(/\$[\d.,]+/g, (s.show_price !== false ? '$' + Number(s.price || 0).toFixed(2) : '')).trim();
+      const pool = ctx.sample ? (ctx.sample.services || []).concat(ctx.sample.products || []) : [];
+      const prod = pool.find((x) => x.id === s.insurance_product);
+      const price = prod ? prod.price : 0;
+      const desc = (s.description || '').replace(/\$[\d.,]+/g, '$' + Number(price).toFixed(2)).trim();
       const descHtml = desc ? '<div class="ckins-desc">' + esc(desc) + '</div>' : '';
       const proof = s.social_proof ? '<div class="ckins-proof">' + esc(s.social_proof) + '</div>' : '';
       const title = s.title ? '<div class="ckins-title">' + esc(s.title) + '</div>' : '';
