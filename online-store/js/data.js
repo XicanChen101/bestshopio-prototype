@@ -402,12 +402,42 @@
   // column: 'main' = left form column, 'summary' = under the Order Summary (right column on
   // PC, after the bottom Order Summary on mobile).
   const CK_COMMERCE_KINDS = ['checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club'];
+
+  // Checkout content & trust components (Content PRD §2) — the third, "content & trust
+  // enhancement" group. Static-only: never touches order / amount / shipping / tax /
+  // payment data. Addable / hideable / deletable / draggable like the commerce group,
+  // but most are Section + Block components with their own block lists.
+  const CHECKOUT_CONTENT = [
+    { kind: 'announcement-bar', name: 'Announcement Bar', desc: 'Top promo / free-shipping bar (reused from Online Store)' },
+    { kind: 'checkout-countdown', name: 'Countdown', desc: 'Static urgency / reservation timer' },
+    { kind: 'checkout-payment-icons', name: 'Payment Icons', desc: 'Accepted-payment brand badges' },
+    { kind: 'checkout-trust-badges', name: 'Trust badges', desc: 'Guarantee / security / shipping badges' },
+    { kind: 'checkout-trustpilot', name: 'Trustpilot Review', desc: 'Trustpilot-style rating & reviews (static)' },
+    { kind: 'checkout-review-card', name: 'Review card', desc: 'Expert / media endorsement cards' },
+    { kind: 'checkout-testimonials', name: 'Testimonials', desc: 'Customer reviews (bottom area only)' },
+    { kind: 'checkout-fb-comments', name: 'Facebook-style Comments', desc: 'Social-proof comment thread' },
+    { kind: 'checkout-static-content', name: 'Static content', desc: 'Notice / card / rich-text block' },
+    { kind: 'checkout-footer', name: 'Footer', desc: 'Checkout footer (bottom of page only)' },
+  ];
+  // The 7 content components that may live in any of the standard insertion zones
+  // (Header / Contact / Shipping / Payment / CTA / Order Summary), per PRD §5.1.
+  const CK_CONTENT_FLEX = ['checkout-countdown', 'checkout-trust-badges', 'checkout-static-content',
+    'checkout-payment-icons', 'checkout-trustpilot', 'checkout-review-card', 'checkout-fb-comments'];
+  const CK_FLEX = CK_COMMERCE_KINDS.concat(CK_CONTENT_FLEX);
+
+  // Insertion zones. `col` decides the render region: 'announce' = full-bleed top (above
+  // header), 'main' = left form column, 'summary' = under the Order Summary, 'bottom' =
+  // full-bleed bottom band (Testimonials → Footer). Announcement Bar is locked to the
+  // top; Testimonials/Footer to the bottom (PRD §5.3).
   const CHECKOUT_ZONES = [
-    { id: 'contact', label: 'Below Contact information', after: 'checkout-contact', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
-    { id: 'shipping', label: 'Below Shipping method', after: 'checkout-shipping-method', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
-    { id: 'payment', label: 'Below Payment method', after: 'checkout-payment', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
-    { id: 'cta', label: 'Below CTA', after: 'checkout-cta', col: 'main', allow: CK_COMMERCE_KINDS.slice() },
-    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: CK_COMMERCE_KINDS.slice() },
+    { id: 'announce', label: 'Above header', after: null, col: 'announce', allow: ['announcement-bar'] },
+    { id: 'header', label: 'Below header', after: 'checkout-header', col: 'main', allow: CK_CONTENT_FLEX.slice() },
+    { id: 'contact', label: 'Below Contact information', after: 'checkout-contact', col: 'main', allow: CK_FLEX.slice() },
+    { id: 'shipping', label: 'Below Shipping method', after: 'checkout-shipping-method', col: 'main', allow: CK_FLEX.slice() },
+    { id: 'payment', label: 'Below Payment method', after: 'checkout-payment', col: 'main', allow: CK_FLEX.slice() },
+    { id: 'cta', label: 'Below CTA', after: 'checkout-cta', col: 'main', allow: CK_FLEX.slice() },
+    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: CK_FLEX.slice() },
+    { id: 'bottom', label: 'Page bottom', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-testimonials', 'checkout-footer'] },
   ];
 
   // Checkout skeleton. Required components are fixed; the commerce components seeded
@@ -466,6 +496,6 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_ZONES,
+    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES,
   };
 })();
