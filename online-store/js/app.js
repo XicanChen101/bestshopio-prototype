@@ -1196,7 +1196,9 @@
   }
   function openAddCheckoutComponent(anchor) {
     closePops();
-    const layer = h('<div class="pop-layer"></div>'); const pop = h('<div class="os-addpop"></div>');
+    // z-index 250 lifts the layer above the editor chrome (.os-builder is z-index 140); the
+    // modal is centered over the canvas, so without this it renders behind the preview column.
+    const layer = h('<div class="pop-layer" style="z-index:250"></div>'); const pop = h('<div class="os-addpop"></div>');
     pop.innerHTML =
       '<div class="os-addpop-search"><input class="os-input" id="os-ckaddsearch" placeholder="Search components"></div>' +
       '<div class="os-addpop-body"><div class="os-addpop-list" id="os-ckaddlist"></div>' +
@@ -1209,6 +1211,7 @@
     pop.style.width = W + 'px';
     pop.style.left = Math.max(12, Math.round((window.innerWidth - W) / 2)) + 'px';
     pop.style.top = Math.max(12, Math.round((window.innerHeight - Hm) / 2)) + 'px';
+    pop.style.zIndex = '251';
     const cat = D.CHECKOUT_CATALOG || [];
     const showPrev = (rw) => {
       pop.querySelectorAll('.os-addrow').forEach((x) => x.classList.remove('hover')); rw.classList.add('hover');
