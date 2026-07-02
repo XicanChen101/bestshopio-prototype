@@ -20,6 +20,9 @@
   OS.register('checkout-footer', {
     name: 'Footer', icon: 'footer',
     fixedBottom: true, singleton: true,
+    // Footer renders blocks grouped into fixed regions (see render() `parts` order), not raw array
+    // order. The tree lists blocks in this same region order so it matches the preview.
+    blockTreeOrder: ['policy', 'contact', 'social', 'text', 'payment'],
     schema: [
       { key: 'logo_image', label: 'Logo image', control: 'image', default: '' },
       { key: 'brand_name', label: 'Brand name', control: 'text', default: 'Store name' },

@@ -485,7 +485,14 @@
         '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
         rowActions(s.hidden, true) + (pinned ? '<span class="os-tr-lock" title="' + lockTitle + '">' + I.lock + '</span>' : '<span class="os-tr-grip">' + I.grip + '</span>') + '</div>';
       if (hasBlocks && open) {
-        (s.blocks || []).forEach((bl) => {
+        // Some sections (e.g. Footer) render blocks grouped by kind into fixed regions rather than
+        // in raw array order. Sort the tree display by that region order so it matches the preview.
+        let blist = s.blocks || [];
+        if (def.blockTreeOrder) {
+          const rank = (k) => { const i = def.blockTreeOrder.indexOf(k); return i < 0 ? 999 : i; };
+          blist = blist.slice().sort((a, b) => rank(a.kind) - rank(b.kind));
+        }
+        blist.forEach((bl) => {
           const bActive = sel.kind === 'block' && sel.sectionId === s.id && sel.blockId === bl.id;
           h2 += '<div class="os-row blk' + (bActive ? ' active' : '') + (bl.hidden ? ' hid' : '') + '" draggable="true" data-sel-blk="' + s.id + ':' + bl.id + '">' +
             '<span class="os-tr-ico sm">' + ICON('layers') + '</span><span class="os-tr-name">' + esc(blockLabel(s, bl)) + '</span>' +
@@ -1555,7 +1562,15 @@
   // ==========================================================================
   function rerender() { renderBuilder(ED.meta.handle); }
   function refreshTop() { const b = document.getElementById('os-builder'); if (!b) return; const old = b.querySelector('.os-top'); const nw = topBar(); old.replaceWith(nw); wireTop(); }
-  function refreshTree() { const b = document.getElementById('os-builder'); if (!b) return; const old = b.querySelector('.os-left'); const nw = leftPanel(); old.replaceWith(nw); wireLeft(); }
+  function refreshTree() {
+    const b = document.getElementById('os-builder'); if (!b) return;
+    const old = b.querySelector('.os-left');
+    // Preserve the tree scroll position across the rebuild (mirrors refreshRight). Without this,
+    // selecting a block near the bottom (e.g. a Footer block) snaps the tree back to the top.
+    const oldSc = old.querySelector('.os-left-scroll'); const sy = oldSc ? oldSc.scrollTop : 0;
+    const nw = leftPanel(); old.replaceWith(nw); wireLeft();
+    const newSc = nw.querySelector('.os-left-scroll'); if (newSc) newSc.scrollTop = sy;
+  }
   function rightSelKey() { const s = ED.selection; if (ED.leftMode === 'settings' || s.kind === 'theme-settings') return 'settings'; return [s.kind, s.sectionId || '', s.blockId || ''].join(':'); }
   function refreshRight() {
     const b = document.getElementById('os-builder'); if (!b) return;
