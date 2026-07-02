@@ -29,7 +29,7 @@
       { key: 'sticky', control: 'toggle', label: 'Enable sticky bar', default: false },
       { key: 'navigation', control: 'select', label: 'Multiple message navigation', default: 'arrows', options: [{ value: 'arrows', label: 'Arrows' }, { value: 'auto', label: 'Auto-scrolling' }] },
       { key: 'auto_rotate', control: 'toggle', label: 'Auto rotate between messages', default: true, visibleWhen: (s) => s.navigation !== 'auto' },
-      { key: 'rotate_seconds', control: 'range', label: 'Change messages every', min: 4, max: 20, step: 1, unit: 's', default: 4, visibleWhen: (s) => s.navigation === 'auto' || s.auto_rotate },
+      { key: 'rotate_seconds', control: 'range', label: 'Change messages every', min: 4, max: 20, step: 1, unit: 's', default: 4, visibleWhen: (s) => s.navigation !== 'auto' && s.auto_rotate },
       { key: 'text_size', control: 'select', label: 'Text size', default: 'large', options: [{ value: 'xsmall', label: 'X-Small' }, { value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }] },
       { sub: 'Colors' },
       { key: 'background', control: 'color', label: 'Background', default: '', allowTransparent: true, info: 'Defaults to your theme Primary color.' },
