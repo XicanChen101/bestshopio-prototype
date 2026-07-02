@@ -494,8 +494,38 @@
     tax: 7.34,
   };
 
+  // Add-component catalog for the Checkout editor, grouped into MECE categories by
+  // function / use-case. Powers the "Add component" modal (same UX as the Online Store
+  // "Add section" modal). Every addable checkout component belongs to exactly one group,
+  // and together the groups cover all addable components (mutually exclusive + exhaustive).
+  const CHECKOUT_CATALOG = [
+    { label: '转化提升 · Commerce boosters', entries: [
+      { kind: 'checkout-product-upsell', name: 'Product upsell', desc: 'Recommend extra products with one-tap add' },
+      { kind: 'checkout-shipping-insurance', name: 'Shipping Insurance', desc: 'Tickable delivery-protection service' },
+      { kind: 'checkout-vip-club', name: 'VIP Club', desc: 'Tickable membership add-on' },
+    ] },
+    { label: '评价与口碑 · Reviews & social proof', entries: [
+      { kind: 'checkout-trustpilot', name: 'Trustpilot Review', desc: 'Trustpilot-style rating & reviews (static)' },
+      { kind: 'checkout-review-card', name: 'Review card', desc: 'Expert / media endorsement cards' },
+      { kind: 'checkout-testimonials', name: 'Testimonials', desc: 'Customer reviews (bottom area only)' },
+      { kind: 'checkout-fb-comments', name: 'Facebook-style Comments', desc: 'Social-proof comment thread' },
+    ] },
+    { label: '信任与保障 · Trust & security', entries: [
+      { kind: 'checkout-trust-badges', name: 'Trust badges', desc: 'Guarantee / security / shipping badges' },
+      { kind: 'checkout-payment-icons', name: 'Payment Icons', desc: 'Accepted-payment brand badges' },
+    ] },
+    { label: '促销与紧迫感 · Promotion & urgency', entries: [
+      { kind: 'announcement-bar', name: 'Announcement Bar', desc: 'Top promo / free-shipping bar' },
+      { kind: 'checkout-countdown', name: 'Countdown', desc: 'Static urgency / reservation timer' },
+    ] },
+    { label: '内容与结构 · Content & structure', entries: [
+      { kind: 'checkout-static-content', name: 'Static content', desc: 'Notice / rich-text content block' },
+      { kind: 'checkout-footer', name: 'Footer', desc: 'Checkout footer (bottom of page only)' },
+    ] },
+  ];
+
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES,
+    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
   };
 })();

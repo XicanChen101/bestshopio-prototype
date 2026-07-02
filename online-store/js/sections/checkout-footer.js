@@ -59,10 +59,10 @@
           { key: 'alt_text', label: 'Alt text', control: 'text', default: '' },
         ], defaults: () => ({ icon_source: 'builtin', built_in: 'visa' }) },
         text: { name: 'Text line', fields: [
-          { key: 'text_content', label: 'Text content', control: 'textarea', default: '' },
+          { key: 'text_content', label: 'Text content', control: 'richtext', default: '', maxlength: 300 },
           { key: 'text_alignment', label: 'Text alignment', control: 'segmented', default: 'center', options: [
             { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' } ] },
-        ], defaults: () => ({}) },
+        ], defaults: () => ({ text_alignment: 'center' }) },
         social: { name: 'Social link', fields: [
           { key: 'platform', label: 'Platform', control: 'select', default: 'facebook', options: [
             { value: 'facebook', label: 'Facebook' }, { value: 'instagram', label: 'Instagram' }, { value: 'twitter', label: 'Twitter' }, { value: 'youtube', label: 'YouTube' }, { value: 'tiktok', label: 'TikTok' } ] },
@@ -114,7 +114,7 @@
         wrap(b.id, '<a class="ckft-soc" href="' + esc(b.settings.profile_url) + '"' + (b.settings.open_new_tab ? ' target="_blank" rel="noopener"' : '') + ' style="color:' + link + '">' + (SOC[b.settings.platform] || '•') + '</a>')).join('');
 
       const texts = byKind('text').filter((b) => b.settings.text_content).map((b) =>
-        wrap(b.id, '<div class="ckft-textline" style="text-align:' + (b.settings.text_alignment || align) + '">' + esc(b.settings.text_content) + '</div>')).join('');
+        wrap(b.id, '<div class="ckft-textline" style="text-align:' + (b.settings.text_alignment || align) + '">' + b.settings.text_content + '</div>')).join('');
 
       const pay = s.show_payment_icons ? byKind('payment').filter((b) => b.settings.icon_source !== 'image' || b.settings.custom_image).map((b) => {
         const node = (b.settings.icon_source === 'image' && b.settings.custom_image)

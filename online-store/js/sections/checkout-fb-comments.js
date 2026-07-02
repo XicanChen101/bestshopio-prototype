@@ -143,7 +143,7 @@
   .ckfc-react-emos{display:inline-flex;align-items:center}
   .ckfc-emo{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px #fff, 0 1px 2px rgba(0,0,0,.18);font-size:10px;line-height:1}
   .ckfc-replies{display:flex;align-items:center;gap:8px;margin:9px 0 0 6px;font-size:12px;color:var(--ck-muted)}
-  .ckfc-brand-av{flex:none;width:24px;height:24px;border-radius:50%;background-size:cover;background-position:center;background:#243b2f}
+  .ckfc-brand-av{flex:none;display:inline-block;width:24px;height:24px;border-radius:50%;background-size:cover;background-position:center;background-color:#243b2f}
   .ckfc-brand-ph{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:10px}
   .ckfc-replies-t b{font-weight:700;color:var(--ck-text)}
   .ckpage.mob .ckfc-text,.ckpage.mob .ckfc-name{font-size:var(--ck-small-fs)}

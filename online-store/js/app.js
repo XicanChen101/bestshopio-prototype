@@ -476,12 +476,14 @@
       // content components that carry blocks — expandable with its block list + Add block.
       // Footer is pinned to the page bottom (PRD §5.3): selectable/hideable but not draggable.
       const fixed = !!(def && def.fixedBottom);
-      const pinned = fixed || !!(def && def.pinned);
+      const pinnedTop = !!(def && def.pinnedTop);
+      const pinned = fixed || pinnedTop || !!(def && def.pinned);
+      const lockTitle = fixed ? 'Pinned to page bottom' : (pinnedTop ? 'Top area only \u2014 can\u2019t be moved' : 'Bottom area only \u2014 can\u2019t be moved');
       let h2 = '<div class="os-row sec' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '"' + (pinned ? '' : ' draggable="true"') + ' data-sel-sec="' + s.id + '">' +
         (hasBlocks ? '<span class="os-row-caret' + (open ? ' open' : '') + '" data-tog-sec="' + s.id + '">' + I.chevR + '</span>' : '<span class="os-row-caret ghost"></span>') +
         '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
         '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
-        rowActions(s.hidden, true) + (pinned ? '<span class="os-tr-lock" title="' + (fixed ? 'Pinned to page bottom' : 'Bottom area only \u2014 can\u2019t be moved') + '">' + I.lock + '</span>' : '<span class="os-tr-grip">' + I.grip + '</span>') + '</div>';
+        rowActions(s.hidden, true) + (pinned ? '<span class="os-tr-lock" title="' + lockTitle + '">' + I.lock + '</span>' : '<span class="os-tr-grip">' + I.grip + '</span>') + '</div>';
       if (hasBlocks && open) {
         (s.blocks || []).forEach((bl) => {
           const bActive = sel.kind === 'block' && sel.sectionId === s.id && sel.blockId === bl.id;
@@ -589,6 +591,9 @@
   }
   function sectionLabel(s) {
     const def = SECTIONS[s.kind];
+    // Mobile-only top recap bar: fixed tree/panel label so it's distinguishable from the
+    // full itemized Order summary below (and independent of the buyer-facing heading text).
+    if (s.kind === 'checkout-order-summary-bar') return 'Order summary (Mobile)';
     const head = s.settings && (s.settings.heading || s.settings.logoText || s.settings.title);
     if (head && String(head).trim()) return String(head).trim();
     return def ? def.name : s.kind;
@@ -875,9 +880,9 @@
     const dk = 'data-fkey="' + esc(f.key) + '" data-control="' + f.control + '"';
     switch (f.control) {
       case 'text': case 'url':
-        return '<input class="os-input" ' + dk + ' type="text" value="' + esc(val) + '" placeholder="' + esc(f.placeholder || '') + '">';
+        return '<input class="os-input" ' + dk + (f.maxlength ? ' maxlength="' + f.maxlength + '"' : '') + ' type="text" value="' + esc(val) + '" placeholder="' + esc(f.placeholder || '') + '">';
       case 'textarea': case 'custom_css': case 'richtext':
-        return '<textarea class="os-input os-ta' + (f.control === 'custom_css' ? ' mono' : '') + '" ' + dk + ' rows="' + (f.control === 'custom_css' ? 4 : 3) + '" placeholder="' + esc(f.placeholder || '') + '">' + esc(val) + '</textarea>' + (f.control === 'richtext' ? '<div class="os-fhint">Rich text — basic HTML allowed.</div>' : '');
+        return '<textarea class="os-input os-ta' + (f.control === 'custom_css' ? ' mono' : '') + '" ' + dk + (f.maxlength ? ' maxlength="' + f.maxlength + '"' : '') + ' rows="' + (f.control === 'custom_css' ? 4 : 3) + '" placeholder="' + esc(f.placeholder || '') + '">' + esc(val) + '</textarea>' + (f.control === 'richtext' ? '<div class="os-fhint">Rich text — basic HTML allowed.' + (f.maxlength ? ' Max ' + f.maxlength + ' characters.' : '') + '</div>' : (f.maxlength ? '<div class="os-fhint">Max ' + f.maxlength + ' characters.</div>' : ''));
       case 'select':
         return '<select class="os-select" ' + dk + '>' + (f.options || []).map((o) => '<option value="' + esc(o.value) + '"' + (String(o.value) === String(val) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select>';
       case 'segmented':
@@ -1152,7 +1157,17 @@
     closePops(); const layer = h('<div class="pop-layer"></div>'); const pop = h('<div class="menu-pop" style="min-width:200px"></div>');
     pop.innerHTML = Object.keys(def.blocks.kinds).map((bk) => '<div class="opt" data-bk="' + bk + '">' + esc(def.blocks.kinds[bk].name) + '</div>').join('');
     layer.appendChild(pop); document.body.appendChild(layer);
-    const r = anchor.getBoundingClientRect(); pop.style.top = (r.bottom + 6) + 'px'; pop.style.left = r.left + 'px';
+    // Keep the menu on-screen: the anchor (e.g. Footer's "Add block") often sits at the very
+    // bottom of a long tree, so flip the menu above the anchor when it wouldn't fit below.
+    const r = anchor.getBoundingClientRect(); const w = 200;
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
+    pop.style.maxHeight = Math.max(160, window.innerHeight - 16) + 'px';
+    const ph = pop.offsetHeight || 200;
+    let top;
+    if (r.bottom + 6 + ph <= window.innerHeight - 8) top = r.bottom + 6;      // below the anchor
+    else if (r.top - 6 - ph >= 8) top = r.top - 6 - ph;                       // flip above
+    else top = Math.max(8, window.innerHeight - ph - 8);                      // clamp to bottom
+    pop.style.top = top + 'px';
     pop.querySelectorAll('[data-bk]').forEach((o) => o.onclick = () => {
       const bk = o.getAttribute('data-bk'); const bd = def.blocks.kinds[bk];
       const max = def.blocks.max || 99; if (s.blocks.length >= max) { toast('Max ' + max + ' blocks', 'err'); closePops(); return; }
@@ -1170,38 +1185,71 @@
     toast('Added ' + def.name);
   }
 
-  // Add a Checkout component. Two groups: Commerce (transaction enhancement, PRD §14) and
-  // Content & trust (Content PRD §2). Unlimited adds; the chosen one lands in its first
-  // allowed zone and can be dragged elsewhere (placement constrained by the zone matrix).
+  // Add a Checkout component. Full modal (same UX as the Online Store "Add section" modal):
+  // search + MECE category list + live preview + Add button. Components are grouped by
+  // function/use-case via D.CHECKOUT_CATALOG. Singletons already on the page show as "Added".
+  // The chosen component lands in its first allowed zone and can be dragged elsewhere.
+  function ckComponentStatus(kind) {
+    if (!SECTIONS[kind]) return 'soon';
+    if (isSingletonKind(kind) && pageSections().some((s) => s.kind === kind)) return 'added';
+    return 'ok';
+  }
   function openAddCheckoutComponent(anchor) {
     closePops();
-    const layer = h('<div class="pop-layer" style="z-index:250"></div>');
-    const pop = h('<div class="menu-pop" style="min-width:300px;overflow:auto"></div>');
-    const rowFor = (e) => {
-      const ok = !!SECTIONS[e.kind];
-      const exists = isSingletonKind(e.kind) && pageSections().some((s) => s.kind === e.kind);
-      return '<div class="os-addrow' + (ok && !exists ? '' : ' soon') + '" data-add-ck="' + esc(e.kind) + '">' +
-        '<div class="os-add-ico">' + ICON(SECTIONS[e.kind] ? SECTIONS[e.kind].icon : 'layers') + '</div>' +
-        '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + (exists ? ' <span class="os-soon">Added</span>' : (ok ? '' : ' <span class="os-soon">Soon</span>')) + '</div>' +
-        '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
-    };
-    const grp = (label) => '<div class="os-grp-head" style="cursor:default;padding:8px 8px 4px">' + esc(label) + '</div>';
-    pop.innerHTML = '<div style="padding:4px">' +
-      grp('Commerce') + (D.CHECKOUT_COMMERCE || []).map(rowFor).join('') +
-      grp('Content & trust') + (D.CHECKOUT_CONTENT || []).map(rowFor).join('') +
-      '<div class="os-tree-note" style="margin:6px 6px 2px">Drag the component in the tree to place it. Each component only drops into its allowed zones (PRD §5.1).</div></div>';
+    const layer = h('<div class="pop-layer"></div>'); const pop = h('<div class="os-addpop"></div>');
+    pop.innerHTML =
+      '<div class="os-addpop-search"><input class="os-input" id="os-ckaddsearch" placeholder="Search components"></div>' +
+      '<div class="os-addpop-body"><div class="os-addpop-list" id="os-ckaddlist"></div>' +
+      '<div class="os-addpop-prev" id="os-ckaddprev"></div></div>' +
+      '<div class="os-addpop-foot"><span id="os-ckaddcount"></span><span>Esc to close</span></div>';
     layer.appendChild(pop); document.body.appendChild(layer);
-    const r = anchor.getBoundingClientRect(); const w = 280;
-    // Cap height to the space left below the anchor so the whole list stays on-screen
-    // and scrolls internally (previously the tail fell below the viewport, unreachable).
-    const top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 120));
-    pop.style.top = top + 'px';
-    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
-    pop.style.maxHeight = Math.max(160, window.innerHeight - top - 12) + 'px';
-    pop.querySelectorAll('[data-add-ck]').forEach((o) => o.onclick = () => {
-      if (o.classList.contains('soon')) return;
-      addCheckoutComponent(o.getAttribute('data-add-ck')); closePops();
-    });
+    // Center in the viewport: the "Add component" anchor sits at the bottom of a long tree,
+    // so anchoring the modal to it would push it off-screen. Centering keeps it fully visible.
+    const W = Math.min(640, window.innerWidth - 24); const Hm = Math.min(470, window.innerHeight - 24);
+    pop.style.width = W + 'px';
+    pop.style.left = Math.max(12, Math.round((window.innerWidth - W) / 2)) + 'px';
+    pop.style.top = Math.max(12, Math.round((window.innerHeight - Hm) / 2)) + 'px';
+    const cat = D.CHECKOUT_CATALOG || [];
+    const showPrev = (rw) => {
+      pop.querySelectorAll('.os-addrow').forEach((x) => x.classList.remove('hover')); rw.classList.add('hover');
+      const kind = rw.getAttribute('data-add-kind'); const st = rw.getAttribute('data-status'); const name = rw.getAttribute('data-name');
+      let cta;
+      if (st === 'added') cta = '<div class="os-soon-note">Only one allowed — already added.</div>';
+      else if (st === 'soon') cta = '<div class="os-soon-note">Coming in a later release.</div>';
+      else cta = '<button class="btn btn-primary" data-add-go="' + esc(kind) + '">Add ' + esc(name) + '</button>';
+      pop.querySelector('#os-ckaddprev').innerHTML = '<div class="os-addprev-art">' + ICON(SECTIONS[kind] ? SECTIONS[kind].icon : 'image') + '</div>' +
+        '<div class="os-addprev-name">' + esc(name) + '</div>' +
+        '<div class="os-addprev-desc">' + esc(rw.getAttribute('data-desc')) + '</div>' + cta +
+        '<div class="os-addprev-hint">Lands in its allowed zone — drag it in the tree to move it (PRD §5.1).</div>';
+      const go = pop.querySelector('[data-add-go]'); if (go) go.onclick = () => { addCheckoutComponent(go.getAttribute('data-add-go')); closePops(); };
+    };
+    const renderAdd = (q) => {
+      q = (q || '').toLowerCase();
+      let html = '';
+      cat.forEach((g) => {
+        const ents = g.entries.filter((e) => !q || (e.name + ' ' + e.desc).toLowerCase().indexOf(q) >= 0);
+        if (!ents.length) return;
+        html += '<div class="os-addgrp">' + esc(g.label) + '</div>';
+        ents.forEach((e) => {
+          const st = ckComponentStatus(e.kind); const dis = st !== 'ok';
+          const badge = st === 'added' ? ' <span class="os-soon">Added</span>' : (st === 'soon' ? ' <span class="os-soon">Soon</span>' : '');
+          html += '<div class="os-addrow' + (dis ? ' soon' : '') + '" data-add-kind="' + esc(e.kind) + '" data-name="' + esc(e.name) + '" data-desc="' + esc(e.desc) + '" data-status="' + st + '">' +
+            '<div class="os-add-ico">' + ICON(SECTIONS[e.kind] ? SECTIONS[e.kind].icon : 'layers') + '</div>' +
+            '<div style="min-width:0"><div class="os-add-name">' + esc(e.name) + badge + '</div>' +
+            '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
+        });
+      });
+      const list = pop.querySelector('#os-ckaddlist'); list.innerHTML = html || '<div class="os-info" style="padding:12px">No components match.</div>';
+      let total = 0, avail = 0; cat.forEach((g) => g.entries.forEach((e) => { total++; if (SECTIONS[e.kind]) avail++; }));
+      pop.querySelector('#os-ckaddcount').textContent = avail + ' of ' + total + ' component types available · more coming soon';
+      list.querySelectorAll('.os-addrow').forEach((rw) => {
+        rw.onmouseenter = () => showPrev(rw);
+        rw.onclick = () => { if (rw.classList.contains('soon')) return; addCheckoutComponent(rw.getAttribute('data-add-kind')); closePops(); };
+      });
+      const first = list.querySelector('.os-addrow'); if (first) showPrev(first);
+    };
+    renderAdd('');
+    const si = pop.querySelector('#os-ckaddsearch'); si.oninput = () => renderAdd(si.value); setTimeout(() => si.focus(), 20);
     closeOnOutside(pop, anchor);
   }
   function addCheckoutComponent(kind, zoneId) {
@@ -1823,6 +1871,7 @@
   .os-addprev-name{font-size:15px;font-weight:600;color:var(--ink)}
   .os-addprev-desc{font-size:12.5px;color:var(--ink-body);line-height:1.5}
   .os-soon-note{font-size:12px;color:var(--ink-muted)}
+  .os-addprev-hint{margin-top:auto;font-size:11px;color:var(--ink-muted);line-height:1.5;border-top:1px dashed var(--hair);padding-top:10px}
   .os-addpop-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--hair);font-size:11.5px;color:var(--ink-muted)}
 
   /* resource picker rows */
