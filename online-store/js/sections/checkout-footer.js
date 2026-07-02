@@ -22,14 +22,14 @@
     fixedBottom: true, singleton: true,
     // Footer renders blocks grouped into fixed regions (see render() `parts` order), not raw array
     // order. The tree lists blocks in this same region order so it matches the preview.
-    blockTreeOrder: ['policy', 'contact', 'social', 'text', 'payment'],
+    blockTreeOrder: ['policy', 'social', 'text', 'payment'],
     schema: [
       { key: 'logo_image', label: 'Logo image', control: 'image', default: '' },
       { key: 'brand_name', label: 'Brand name', control: 'text', default: 'Store name' },
       { key: 'disclaimer', label: 'Disclaimer', control: 'richtext', default: '' },
       { key: 'show_policy_links', label: 'Show policy links', control: 'toggle', default: true },
       { key: 'show_contact_info', label: 'Show contact info', control: 'toggle', default: true },
-      { key: 'contact_email', label: 'Contact email', control: 'text', default: '' },
+      { key: 'contact_email', label: 'Contact email', control: 'text', default: 'support@store.com' },
       { key: 'contact_phone', label: 'Contact phone', control: 'text', default: '' },
       { key: 'copyright_text', label: 'Copyright text', control: 'text', default: 'Copyright {{ year }}' },
       { key: 'show_payment_icons', label: 'Show payment icons', control: 'toggle', default: true },
@@ -63,21 +63,13 @@
         ], defaults: () => ({ icon_source: 'builtin', built_in: 'visa' }) },
         text: { name: 'Text line', fields: [
           { key: 'text_content', label: 'Text content', control: 'richtext', default: '', maxlength: 300 },
-          { key: 'text_alignment', label: 'Text alignment', control: 'segmented', default: 'center', options: [
-            { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' } ] },
-        ], defaults: () => ({ text_alignment: 'center' }) },
+        ], defaults: () => ({}) },
         social: { name: 'Social link', fields: [
           { key: 'platform', label: 'Platform', control: 'select', default: 'facebook', options: [
             { value: 'facebook', label: 'Facebook' }, { value: 'instagram', label: 'Instagram' }, { value: 'twitter', label: 'Twitter' }, { value: 'youtube', label: 'YouTube' }, { value: 'tiktok', label: 'TikTok' } ] },
           { key: 'profile_url', label: 'Profile URL', control: 'url', default: '' },
           { key: 'open_new_tab', label: 'Open in new tab', control: 'toggle', default: true },
         ], defaults: () => ({ platform: 'facebook', open_new_tab: true }) },
-        contact: { name: 'Contact item', fields: [
-          { key: 'contact_type', label: 'Contact type', control: 'select', default: 'email', options: [
-            { value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'address', label: 'Address' } ] },
-          { key: 'label', label: 'Label', control: 'text', default: 'Contact us' },
-          { key: 'value', label: 'Value', control: 'text', default: '' },
-        ], defaults: () => ({ contact_type: 'email', label: 'Contact us' }) },
       },
     },
     defaultBlocks: () => ([
@@ -88,7 +80,6 @@
       { id: OS.uid('ckf'), kind: 'payment', hidden: false, settings: { icon_source: 'builtin', built_in: 'mastercard' } },
       { id: OS.uid('ckf'), kind: 'payment', hidden: false, settings: { icon_source: 'builtin', built_in: 'amex' } },
       { id: OS.uid('ckf'), kind: 'payment', hidden: false, settings: { icon_source: 'builtin', built_in: 'paypal' } },
-      { id: OS.uid('ckf'), kind: 'contact', hidden: false, settings: { contact_type: 'email', label: 'Email', value: 'support@store.com' } },
     ]),
 
     render(s, blocks) {
@@ -108,16 +99,16 @@
         return wrap(b.id, '<a class="ckft-link" href="' + esc(href) + '"' + (b.settings.open_new_tab ? ' target="_blank" rel="noopener"' : '') + ' style="color:' + link + '">' + esc(b.settings.link_text) + '</a>');
       }).join('<span class="ckft-sep">·</span>') : '';
 
-      const contact = s.show_contact_info ? byKind('contact').filter((b) => b.settings.value).map((b) =>
-        wrap(b.id, '<span class="ckft-contact">' + (b.settings.label ? '<b>' + esc(b.settings.label) + ':</b> ' : '') + esc(b.settings.value) + '</span>')).join('') : '';
-      const baseContact = (s.show_contact_info && !byKind('contact').some((b) => b.settings.value))
-        ? [s.contact_email ? '<span class="ckft-contact">' + esc(s.contact_email) + '</span>' : '', s.contact_phone ? '<span class="ckft-contact">' + esc(s.contact_phone) + '</span>' : ''].join('') : '';
+      const contact = s.show_contact_info ? [
+        s.contact_email ? '<span class="ckft-contact">' + esc(s.contact_email) + '</span>' : '',
+        s.contact_phone ? '<span class="ckft-contact">' + esc(s.contact_phone) + '</span>' : '',
+      ].filter(Boolean).join('') : '';
 
       const social = byKind('social').filter((b) => b.settings.profile_url).map((b) =>
         wrap(b.id, '<a class="ckft-soc" href="' + esc(b.settings.profile_url) + '"' + (b.settings.open_new_tab ? ' target="_blank" rel="noopener"' : '') + ' style="color:' + link + '">' + (SOC[b.settings.platform] || '•') + '</a>')).join('');
 
       const texts = byKind('text').filter((b) => b.settings.text_content).map((b) =>
-        wrap(b.id, '<div class="ckft-textline" style="text-align:' + (b.settings.text_alignment || align) + '">' + b.settings.text_content + '</div>')).join('');
+        wrap(b.id, '<div class="ckft-textline" style="text-align:' + align + '">' + b.settings.text_content + '</div>')).join('');
 
       const pay = s.show_payment_icons ? byKind('payment').filter((b) => b.settings.icon_source !== 'image' || b.settings.custom_image).map((b) => {
         const node = (b.settings.icon_source === 'image' && b.settings.custom_image)
@@ -132,7 +123,7 @@
         logo ? '<div class="ckft-row ckft-logo">' + logo + '</div>' : '',
         s.disclaimer ? '<div class="ckft-disclaimer">' + s.disclaimer + '</div>' : '',
         policy ? '<div class="ckft-row ckft-policies">' + policy + '</div>' : '',
-        (contact || baseContact) ? '<div class="ckft-row ckft-contacts">' + (contact || baseContact) + '</div>' : '',
+        contact ? '<div class="ckft-row ckft-contacts">' + contact + '</div>' : '',
         social ? '<div class="ckft-row ckft-socials">' + social + '</div>' : '',
         texts,
         pay ? '<div class="ckft-row ckft-pays">' + pay + '</div>' : '',
