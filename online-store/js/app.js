@@ -462,7 +462,7 @@
     let html = '<div class="os-grp-head" style="cursor:default">Checkout Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
     const nAdd = (D.CHECKOUT_COMMERCE || []).length + (D.CHECKOUT_CONTENT || []).length;
-    html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add component <span class="os-add-n">(' + nAdd + ')</span></div>';
+    html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add section <span class="os-add-n">(' + nAdd + ')</span></div>';
     html += '<div class="os-tree-note" style="margin-top:10px">Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce and content & trust components can be added, hidden, deleted and reordered within their allowed zones.</div>';
     return html;
   }
@@ -1200,18 +1200,15 @@
     // modal is centered over the canvas, so without this it renders behind the preview column.
     const layer = h('<div class="pop-layer" style="z-index:250"></div>'); const pop = h('<div class="os-addpop"></div>');
     pop.innerHTML =
-      '<div class="os-addpop-search"><input class="os-input" id="os-ckaddsearch" placeholder="Search components"></div>' +
+      '<div class="os-addpop-search"><input class="os-input" id="os-ckaddsearch" placeholder="Search sections"></div>' +
       '<div class="os-addpop-body"><div class="os-addpop-list" id="os-ckaddlist"></div>' +
       '<div class="os-addpop-prev" id="os-ckaddprev"></div></div>' +
       '<div class="os-addpop-foot"><span id="os-ckaddcount"></span><span>Esc to close</span></div>';
     layer.appendChild(pop); document.body.appendChild(layer);
-    // Center in the viewport: the "Add component" anchor sits at the bottom of a long tree,
-    // so anchoring the modal to it would push it off-screen. Centering keeps it fully visible.
-    const W = Math.min(640, window.innerWidth - 24); const Hm = Math.min(470, window.innerHeight - 24);
-    pop.style.width = W + 'px';
-    pop.style.left = Math.max(12, Math.round((window.innerWidth - W) / 2)) + 'px';
-    pop.style.top = Math.max(12, Math.round((window.innerHeight - Hm) / 2)) + 'px';
-    pop.style.zIndex = '251';
+    // Anchor next to the "Add section" button (same UX as the Online Store modal). positionPop
+    // clamps the top so the whole modal stays on-screen even when the button sits low.
+    positionPop(pop, anchor, 640, 470);
+    pop.style.zIndex = '251'; // above the editor chrome (.os-builder z-index 140)
     const cat = D.CHECKOUT_CATALOG || [];
     const showPrev = (rw) => {
       pop.querySelectorAll('.os-addrow').forEach((x) => x.classList.remove('hover')); rw.classList.add('hover');
@@ -1222,8 +1219,7 @@
       else cta = '<button class="btn btn-primary" data-add-go="' + esc(kind) + '">Add ' + esc(name) + '</button>';
       pop.querySelector('#os-ckaddprev').innerHTML = '<div class="os-addprev-art">' + ICON(SECTIONS[kind] ? SECTIONS[kind].icon : 'image') + '</div>' +
         '<div class="os-addprev-name">' + esc(name) + '</div>' +
-        '<div class="os-addprev-desc">' + esc(rw.getAttribute('data-desc')) + '</div>' + cta +
-        '<div class="os-addprev-hint">Lands in its allowed zone — drag it in the tree to move it (PRD §5.1).</div>';
+        '<div class="os-addprev-desc">' + esc(rw.getAttribute('data-desc')) + '</div>' + cta;
       const go = pop.querySelector('[data-add-go]'); if (go) go.onclick = () => { addCheckoutComponent(go.getAttribute('data-add-go')); closePops(); };
     };
     const renderAdd = (q) => {
@@ -1242,9 +1238,9 @@
             '<div class="os-add-desc">' + esc(e.desc) + '</div></div></div>';
         });
       });
-      const list = pop.querySelector('#os-ckaddlist'); list.innerHTML = html || '<div class="os-info" style="padding:12px">No components match.</div>';
+      const list = pop.querySelector('#os-ckaddlist'); list.innerHTML = html || '<div class="os-info" style="padding:12px">No sections match.</div>';
       let total = 0, avail = 0; cat.forEach((g) => g.entries.forEach((e) => { total++; if (SECTIONS[e.kind]) avail++; }));
-      pop.querySelector('#os-ckaddcount').textContent = avail + ' of ' + total + ' component types available · more coming soon';
+      pop.querySelector('#os-ckaddcount').textContent = avail + ' of ' + total + ' section types available · more coming soon';
       list.querySelectorAll('.os-addrow').forEach((rw) => {
         rw.onmouseenter = () => showPrev(rw);
         rw.onclick = () => { if (rw.classList.contains('soon')) return; addCheckoutComponent(rw.getAttribute('data-add-kind')); closePops(); };
