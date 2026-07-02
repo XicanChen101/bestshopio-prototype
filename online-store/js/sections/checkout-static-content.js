@@ -16,9 +16,10 @@
     name: 'Static content', icon: 'layers',
     schema: [
       { key: 'content_style', label: 'Content style', control: 'select', default: 'notice', options: [
-        { value: 'notice', label: 'Notice bar' }, { value: 'card', label: 'Card' }, { value: 'plain', label: 'Plain text' } ] },
+        { value: 'notice', label: 'Notice bar' }, { value: 'plain', label: 'Plain text' } ] },
       { key: 'icon', label: 'Icon', control: 'select', default: 'check', options: [
-        { value: 'none', label: 'No icon' }, { value: 'check', label: 'Check' }, { value: 'info', label: 'Info' }, { value: 'truck', label: 'Truck' }, { value: 'shield', label: 'Shield' }, { value: 'gift', label: 'Gift' } ] },
+        { value: 'none', label: 'No icon' }, { value: 'check', label: 'Check' }, { value: 'info', label: 'Info' }, { value: 'truck', label: 'Truck' }, { value: 'shield', label: 'Shield' }, { value: 'gift', label: 'Gift' }, { value: 'custom', label: 'Custom icon' } ] },
+      { key: 'icon_image', label: 'Custom icon image', control: 'image', default: '', visibleWhen: (s) => s.icon === 'custom' },
       { key: 'heading', label: 'Heading', control: 'text', default: '', placeholder: 'Optional heading' },
       { key: 'content', label: 'Content', control: 'richtext', default: '' },
       { sub: 'Link (optional)' },
@@ -36,9 +37,16 @@
     defaults() { return { content: 'Your order is reserved while you complete checkout. Need help? Our support team replies within 24 hours.' }; },
 
     render(s) {
-      const style = s.content_style || 'notice';
+      // Back-compat: 'card' style was removed — fall back to 'notice' for saved data.
+      let style = s.content_style || 'notice';
+      if (style === 'card') style = 'notice';
       if (!s.heading && !s.content) return '<div class="cksec" style="display:none"></div>';
-      const ico = (s.icon && s.icon !== 'none' && style !== 'plain') ? '<span class="cksc-ico">' + (ICONS[s.icon] || ICONS.check) + '</span>' : '';
+      let ico = '';
+      if (s.icon === 'custom') {
+        if (s.icon_image) ico = '<span class="cksc-ico cksc-ico-img"><img src="' + esc(s.icon_image) + '" alt=""></span>';
+      } else if (s.icon && s.icon !== 'none') {
+        ico = '<span class="cksc-ico">' + (ICONS[s.icon] || ICONS.check) + '</span>';
+      }
       const link = (s.link_text && s.link_url)
         ? '<a class="cksc-link" href="' + esc(s.link_url) + '"' + (s.open_new_tab ? ' target="_blank" rel="noopener"' : '') + '>' + esc(s.link_text) + ' ›</a>'
         : '';
@@ -47,7 +55,7 @@
         (s.content ? '<div class="cksc-text">' + s.content + '</div>' : '') + link + '</div>';
       const boxed = style !== 'plain';
       const boxStyle = boxed
-        ? 'background:' + (OS.bgOrTransparent(s.background_color) || '#F0F9EB') + ';border:1px solid ' + (OS.bgOrTransparent(s.border_color) || '#CDEBC8') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px;padding:' + (style === 'card' ? '18px 20px' : '14px 16px') + ';'
+        ? 'background:' + (OS.bgOrTransparent(s.background_color) || '#F0F9EB') + ';border:1px solid ' + (OS.bgOrTransparent(s.border_color) || '#CDEBC8') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px;padding:14px 16px;'
         : '';
       return '<div class="cksec cksc cksc-' + style + '" style="color:' + (s.text_color || '#1F1F1F') + '">' +
         '<div class="cksc-box" style="' + boxStyle + '">' + ico + body + '</div>' +
@@ -58,8 +66,8 @@
 
   OS.css('cksc', `
   .cksc-box{display:flex;gap:12px;align-items:flex-start}
-  .cksc-plain .cksc-box{gap:0}
   .cksc-ico{flex:none;display:inline-flex;margin-top:1px}
+  .cksc-ico-img img{width:22px;height:22px;object-fit:cover;border-radius:6px;display:block}
   .cksc-body{min-width:0}
   .cksc-head{font-weight:700;font-size:var(--ck-base-fs);line-height:1.4;margin-bottom:3px}
   .cksc-text{font-size:var(--ck-small-fs);line-height:1.6;opacity:.92}
