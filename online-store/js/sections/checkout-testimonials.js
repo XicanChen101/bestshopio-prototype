@@ -11,12 +11,14 @@
 
   OS.register('checkout-testimonials', {
     name: 'Testimonials', icon: 'layers',
+    // Bottom-area only (above Footer) — like the Footer it can't be reordered out of the
+    // page-bottom band, so the tree shows a lock instead of a drag grip.
+    pinned: true,
     schema: [
       { key: 'subheading', label: 'Subheading', control: 'text', default: '' },
       { key: 'heading', label: 'Heading', control: 'text', default: 'What our customers say' },
       { key: 'desktop_columns', control: 'range', label: 'Desktop columns', min: 1, max: 4, step: 1, default: 3 },
       { key: 'mobile_columns', control: 'range', label: 'Mobile columns', min: 1, max: 2, step: 1, default: 1 },
-      { key: 'content_alignment', control: 'segmented', label: 'Content alignment', default: 'left', options: [{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }] },
       { sub: 'Colors' },
       { key: 'background', control: 'color', label: 'Background', default: 'transparent', allowTransparent: true },
       { key: 'card_background', control: 'color', label: 'Card background', default: '#FFFFFF', allowTransparent: true },
@@ -54,7 +56,7 @@
       if (!items.length) return '<div class="cksec" style="display:none"></div>';
       const cards = items.map((b0) => {
         const b = b0.settings;
-        return '<div class="cktm-card" data-block-id="' + esc(b0.id) + '" style="background:' + cardBg + ';text-align:' + (s.content_alignment || 'left') + '">' +
+        return '<div class="cktm-card" data-block-id="' + esc(b0.id) + '" style="background:' + cardBg + ';text-align:left">' +
           (b.show_rating ? stars(b.rating, s.star_color || '#f5b301') : '') +
           (b.heading ? '<div class="cktm-h">' + esc(b.heading) + '</div>' : '') +
           '<div class="cktm-q">' + (b.content || '') + '</div>' +

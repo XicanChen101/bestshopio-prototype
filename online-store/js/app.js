@@ -476,11 +476,12 @@
       // content components that carry blocks — expandable with its block list + Add block.
       // Footer is pinned to the page bottom (PRD §5.3): selectable/hideable but not draggable.
       const fixed = !!(def && def.fixedBottom);
-      let h2 = '<div class="os-row sec' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '"' + (fixed ? '' : ' draggable="true"') + ' data-sel-sec="' + s.id + '">' +
+      const pinned = fixed || !!(def && def.pinned);
+      let h2 = '<div class="os-row sec' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '"' + (pinned ? '' : ' draggable="true"') + ' data-sel-sec="' + s.id + '">' +
         (hasBlocks ? '<span class="os-row-caret' + (open ? ' open' : '') + '" data-tog-sec="' + s.id + '">' + I.chevR + '</span>' : '<span class="os-row-caret ghost"></span>') +
         '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
         '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
-        rowActions(s.hidden, true) + (fixed ? '<span class="os-tr-lock" title="Pinned to page bottom">' + I.lock + '</span>' : '<span class="os-tr-grip">' + I.grip + '</span>') + '</div>';
+        rowActions(s.hidden, true) + (pinned ? '<span class="os-tr-lock" title="' + (fixed ? 'Pinned to page bottom' : 'Bottom area only \u2014 can\u2019t be moved') + '">' + I.lock + '</span>' : '<span class="os-tr-grip">' + I.grip + '</span>') + '</div>';
       if (hasBlocks && open) {
         (s.blocks || []).forEach((bl) => {
           const bActive = sel.kind === 'block' && sel.sectionId === s.id && sel.blockId === bl.id;
