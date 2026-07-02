@@ -1683,6 +1683,10 @@
 
   /* builder shell */
   .os-builder{position:fixed;inset:0;z-index:140;background:var(--page);display:flex;flex-direction:column;font-size:14px;color:var(--ink)}
+  /* Popovers (block-kind menu, resource pickers, add-section, page menu) must sit above the
+     full-screen editor chrome (.os-builder is z-index 140); the shared .pop-layer defaults to
+     80, which hid menus behind the tree / preview canvas. Keep below modal backdrops (240). */
+  .pop-layer{z-index:200}
   .os-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--hair);background:#fff;flex-shrink:0}
   .os-top-l{display:flex;align-items:center;gap:12px;min-width:0}
   .os-top-c{display:flex;align-items:center;gap:10px;justify-content:center}
