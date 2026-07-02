@@ -18,7 +18,7 @@
     schema: [
       { info: 'Static urgency timer. The countdown does not reflect real stock — avoid misleading scarcity claims.' },
       { key: 'style', label: 'Countdown style', control: 'select', default: 'alert', options: [
-        { value: 'inline', label: 'Inline' }, { value: 'alert', label: 'Alert bar' }, { value: 'success', label: 'Success bar' } ] },
+        { value: 'inline', label: 'Inline' }, { value: 'alert', label: 'Alert bar' } ] },
       { key: 'icon', label: 'Icon', control: 'select', default: 'warning', options: [
         { value: 'none', label: 'No icon' }, { value: 'warning', label: 'Warning' }, { value: 'clock', label: 'Clock' }, { value: 'fire', label: 'High demand' }, { value: 'truck', label: 'Truck' }, { value: 'check', label: 'Check' } ] },
       { key: 'prefix_text', label: 'Prefix text', control: 'text', default: 'We will reserve your order for', placeholder: 'We will reserve your order for' },

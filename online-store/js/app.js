@@ -337,6 +337,7 @@
         '<div class="os-theme-cards">' + D.THEMES.map(themeCard).join('') + '</div>' +
       '</div>';
     root.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => goEdit(b.getAttribute('data-edit')));
+    root.querySelectorAll('[data-edit-ck]').forEach((b) => b.onclick = () => goCheckout(b.getAttribute('data-edit-ck')));
   }
   function themeCard(t) {
     return '<section class="os-theme-card">' +
@@ -346,15 +347,26 @@
       '</div>' +
       '<div class="os-theme-meta"><div><div class="os-theme-name">' + esc(t.title) + '</div>' +
       '<div class="os-theme-saved">Last saved: ' + esc(t.updated_time) + '</div></div>' +
-      '<button class="btn btn-primary" data-edit="' + esc(t.handle) + '">Customize</button></div></section>';
+      '<div class="os-theme-actions">' +
+        '<button class="btn btn-default" data-edit-ck="' + esc(t.handle) + '">Edit checkout</button>' +
+        '<button class="btn btn-primary" data-edit="' + esc(t.handle) + '">Customize</button>' +
+      '</div></div></section>';
   }
   function goEdit(handle) { location.hash = '#/online-store/edit/' + encodeURIComponent(handle); }
+  function goCheckout(handle) { location.hash = '#/checkout/' + encodeURIComponent(handle); }
 
   // ==========================================================================
   //  BUILDER  (#/online-store/edit/:handle)
   // ==========================================================================
-  function renderBuilder(handle) {
+  function renderBuilder(handle, surface) {
     if (!ED || ED.meta.handle !== handle) startEditor(handle);
+    // Entered via a route that pins a surface (e.g. #/checkout) — align the editor to it.
+    if (surface && ED.surface !== surface) {
+      ED.surface = surface;
+      if (surface === 'checkout') ED.checkoutPage = 'checkout';
+      ED.leftMode = 'sections';
+      ED.selection = defaultSelection();
+    }
     closeBuilder(); ensureStyles();
     const b = h('<div class="os-builder" id="os-builder"></div>');
     b.appendChild(topBar());
@@ -1163,7 +1175,7 @@
   function openAddCheckoutComponent(anchor) {
     closePops();
     const layer = h('<div class="pop-layer" style="z-index:250"></div>');
-    const pop = h('<div class="menu-pop" style="min-width:300px;max-height:74vh;overflow:auto"></div>');
+    const pop = h('<div class="menu-pop" style="min-width:300px;overflow:auto"></div>');
     const rowFor = (e) => {
       const ok = !!SECTIONS[e.kind];
       const exists = isSingletonKind(e.kind) && pageSections().some((s) => s.kind === e.kind);
@@ -1179,8 +1191,12 @@
       '<div class="os-tree-note" style="margin:6px 6px 2px">Drag the component in the tree to place it. Each component only drops into its allowed zones (PRD §5.1).</div></div>';
     layer.appendChild(pop); document.body.appendChild(layer);
     const r = anchor.getBoundingClientRect(); const w = 280;
-    pop.style.top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 40)) + 'px';
+    // Cap height to the space left below the anchor so the whole list stays on-screen
+    // and scrolls internally (previously the tail fell below the viewport, unreachable).
+    const top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 120));
+    pop.style.top = top + 'px';
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
+    pop.style.maxHeight = Math.max(160, window.innerHeight - top - 12) + 'px';
     pop.querySelectorAll('[data-add-ck]').forEach((o) => o.onclick = () => {
       if (o.classList.contains('soon')) return;
       addCheckoutComponent(o.getAttribute('data-add-ck')); closePops();
@@ -1406,8 +1422,16 @@
       if (target === 'checkout') ED.checkoutPage = 'checkout';
       ED.leftMode = 'sections';
       ED.selection = defaultSelection();
+      syncSurfaceHash();
       rerender();
     });
+  }
+  // Keep the URL canonical for the current surface without re-dispatching the router
+  // (replaceState doesn't fire hashchange), so the Checkout editor stays bookmarkable.
+  function syncSurfaceHash() {
+    const handle = ED.meta.handle;
+    const want = isCheckout() ? '#/checkout/' + encodeURIComponent(handle) : '#/online-store/edit/' + encodeURIComponent(handle);
+    if (location.hash !== want) { try { history.replaceState(null, '', want); } catch (e) {} }
   }
 
   // ==========================================================================
@@ -1565,8 +1589,16 @@
   // ==========================================================================
   function route(rest) {
     closePops();
+    // Dedicated Checkout editor route: #/checkout or #/checkout/:handle (bookmarkable —
+    // opens the builder straight on the Checkout surface, no Online-store detour).
+    const first = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
+    if (first === 'checkout') {
+      const handle = (rest || '').split('/').filter(Boolean)[0] || (D.THEMES[0] && D.THEMES[0].handle) || 'aura';
+      ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout'));
+      return;
+    }
     const m = (rest || '').match(/^edit\/(.+)$/);
-    if (m) { ensureSections().then(() => renderBuilder(decodeURIComponent(m[1]))); }
+    if (m) { ensureSections().then(() => renderBuilder(decodeURIComponent(m[1]), 'online-store')); }
     else renderList();
   }
   window.VIEWS = window.VIEWS || {};
@@ -1599,6 +1631,7 @@
   .os-theme-meta{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px}
   .os-theme-name{font-size:16px;font-weight:600;color:var(--ink)}
   .os-theme-saved{font-size:13px;color:var(--ink-muted);margin-top:6px}
+  .os-theme-actions{display:flex;align-items:center;gap:10px;flex:none}
 
   /* builder shell */
   .os-builder{position:fixed;inset:0;z-index:140;background:var(--page);display:flex;flex-direction:column;font-size:14px;color:var(--ink)}

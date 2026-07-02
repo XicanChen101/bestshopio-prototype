@@ -30,8 +30,8 @@
       { sub: 'Layout', visibleWhen: (s) => s.content_mode !== 'image' },
       { key: 'layout', label: 'Layout', control: 'select', default: 'vertical', options: [
         { value: 'vertical', label: 'Vertical list' }, { value: 'horizontal', label: 'Horizontal' }, { value: 'grid', label: 'Grid' } ], visibleWhen: (s) => s.content_mode !== 'image' },
-      { key: 'per_row_desktop', label: 'Badges per row (desktop)', control: 'number', default: 3, min: 1, max: 4, visibleWhen: (s) => s.content_mode !== 'image' && s.layout !== 'vertical' },
-      { key: 'per_row_mobile', label: 'Badges per row (mobile)', control: 'number', default: 1, min: 1, max: 2, visibleWhen: (s) => s.content_mode !== 'image' && s.layout !== 'vertical' },
+      { key: 'per_row_desktop', label: 'Badges per row (desktop)', control: 'number', default: 3, min: 1, max: 4, visibleWhen: (s) => s.content_mode !== 'image' && s.layout === 'grid' },
+      { key: 'per_row_mobile', label: 'Badges per row (mobile)', control: 'number', default: 1, min: 1, max: 2, visibleWhen: (s) => s.content_mode !== 'image' && s.layout === 'grid' },
       { key: 'icon_size', label: 'Icon size', control: 'number', default: 48, min: 24, max: 120, visibleWhen: (s) => s.content_mode !== 'image' },
       { sub: 'Style' },
       { key: 'background_color', label: 'Background color', control: 'color', default: 'transparent', allowTransparent: true },
@@ -79,13 +79,15 @@
           const ic = (b.icon_source === 'image' && b.custom_image)
             ? '<img src="' + esc(b.custom_image) + '" style="width:' + size + 'px;height:' + size + 'px;object-fit:contain">'
             : '<span class="cktb-ico" style="width:' + size + 'px;height:' + size + 'px">' + svg(b.built_in || 'shield', Math.round(size * 0.6)) + '</span>';
+          const descStyle = s.text_color ? ' style="color:' + s.text_color + '"' : '';
           return '<div class="cktb-badge" data-block-id="' + esc(b0.id) + '">' + ic +
             '<div class="cktb-meta">' + (b.title ? '<div class="cktb-title">' + esc(b.title) + '</div>' : '') +
-            (b.description ? '<div class="cktb-desc">' + esc(b.description) + '</div>' : '') + '</div></div>';
+            (b.description ? '<div class="cktb-desc"' + descStyle + '>' + esc(b.description) + '</div>' : '') + '</div></div>';
         }).join('');
         const layout = s.layout || 'vertical';
-        const cols = layout === 'vertical' ? 1 : OS.clamp(Number(s.per_row_desktop) || 3, 1, 4, 3);
-        const colsM = OS.clamp(Number(s.per_row_mobile) || 1, 1, 2, 1);
+        // Vertical = 1 col; Horizontal = all badges in a single auto row; Grid = configurable.
+        const cols = layout === 'vertical' ? 1 : layout === 'horizontal' ? (vis.length || 1) : OS.clamp(Number(s.per_row_desktop) || 3, 1, 4, 3);
+        const colsM = layout === 'horizontal' ? (vis.length || 1) : OS.clamp(Number(s.per_row_mobile) || 1, 1, 2, 1);
         inner = '<div class="cktb-grid cktb-' + layout + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr));--cktb-cols-mob:' + colsM + '">' + cards + '</div>';
       }
       return '<div class="cksec cktb" style="color:' + txt + '">' +
@@ -103,8 +105,9 @@
   .cktb-badge{display:flex;gap:14px;align-items:center}
   .cktb-horizontal .cktb-badge,.cktb-grid:not(.cktb-vertical) .cktb-badge{flex-direction:column;text-align:center;align-items:center}
   .cktb-ico{flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--ck-accent)}
-  .cktb-title{font-weight:700;font-size:var(--ck-base-fs);line-height:1.35}
-  .cktb-desc{font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.5;margin-top:3px}
+  .cktb-meta{min-width:0}
+  .cktb-title{font-weight:700;font-size:var(--ck-base-fs);line-height:1.35;overflow-wrap:anywhere;word-break:break-word}
+  .cktb-desc{font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.5;margin-top:3px;overflow-wrap:anywhere;word-break:break-word}
   .ckpage.mob .cktb-grid{grid-template-columns:repeat(var(--cktb-cols-mob,1),minmax(0,1fr))!important}
   `);
 })();

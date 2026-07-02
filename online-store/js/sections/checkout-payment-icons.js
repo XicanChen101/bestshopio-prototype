@@ -9,7 +9,7 @@
     visa: { label: 'VISA', bg: '#1A1F71', fg: '#fff', style: 'font-style:italic;font-weight:800;letter-spacing:.04em' },
     mastercard: { label: 'mastercard', bg: '#fff', fg: '#222', dots: true },
     amex: { label: 'AMEX', bg: '#2E77BC', fg: '#fff', style: 'font-weight:800' },
-    discover: { label: 'DISCOVER', bg: '#fff', fg: '#222', accent: '#F76B1C' },
+    discover: { label: 'DISCOVER', bg: '#fff', fg: '#1A1A1A', discover: true },
     paypal: { label: 'PayPal', bg: '#fff', fg: '#003087', style: 'font-style:italic;font-weight:800' },
     applepay: { label: 'Pay', bg: '#000', fg: '#fff', apple: true },
     googlepay: { label: 'Pay', bg: '#fff', fg: '#5F6368', google: true },
@@ -18,15 +18,19 @@
   const BRANDS = [
     { value: 'visa', label: 'Visa' }, { value: 'mastercard', label: 'Mastercard' }, { value: 'amex', label: 'American Express' },
     { value: 'discover', label: 'Discover' }, { value: 'paypal', label: 'PayPal' }, { value: 'applepay', label: 'Apple Pay' },
-    { value: 'googlepay', label: 'Google Pay' }, { value: 'shoppay', label: 'Shop Pay' },
+    { value: 'googlepay', label: 'Google Pay' },
   ];
+
+  // Apple logo mark (renders everywhere, unlike the  Private-Use glyph which needs Apple fonts).
+  const APPLE_LOGO = (px) => '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '" fill="currentColor" aria-hidden="true" style="display:block"><path d="M17.05 12.54c-.03-2.43 1.98-3.6 2.07-3.65-1.13-1.65-2.89-1.88-3.51-1.9-1.49-.16-2.92.88-3.68.88-.76 0-1.92-.86-3.16-.83-1.63.02-3.13.95-3.97 2.4-1.69 2.94-.43 7.29 1.21 9.67.81 1.17 1.77 2.48 3.03 2.43 1.22-.05 1.68-.79 3.15-.79 1.47 0 1.88.79 3.17.76 1.31-.02 2.14-1.19 2.94-2.36.93-1.35 1.31-2.66 1.33-2.73-.03-.01-2.56-.98-2.58-3.89zM14.62 5.18c.67-.81 1.12-1.94 1-3.07-.97.04-2.14.64-2.83 1.46-.62.72-1.16 1.87-1.02 2.97 1.08.09 2.18-.55 2.85-1.36z"/></svg>';
 
   function chip(brand, size) {
     const p = PAY[brand] || PAY.visa;
     const h = Math.round(size * 0.64);
     let inner;
-    if (p.apple) inner = '<span style="font-weight:600"></span><span style="font-weight:600;margin-left:1px">Pay</span>';
+    if (p.apple) inner = '<span style="display:inline-flex;align-items:center;gap:2px">' + APPLE_LOGO(Math.round(size * 0.34)) + '<span style="font-weight:600">Pay</span></span>';
     else if (p.google) inner = '<span style="color:#4285F4;font-weight:700">G</span><span style="color:#5F6368;font-weight:600;margin-left:2px">Pay</span>';
+    else if (p.discover) { const fs = Math.max(7, Math.round(size * 0.19)); inner = '<span style="display:inline-flex;align-items:center;font-weight:800;font-size:' + fs + 'px;letter-spacing:-.03em;color:#1A1A1A">DISC<span style="color:#F76B1C">O</span>VER</span>'; }
     else if (p.dots) inner = '<span style="display:inline-flex;align-items:center"><i style="width:' + h + 'px;height:' + h + 'px;border-radius:50%;background:#EB001B;display:inline-block"></i><i style="width:' + h + 'px;height:' + h + 'px;border-radius:50%;background:#F79E1B;display:inline-block;margin-left:-' + Math.round(h / 2.4) + 'px;mix-blend-mode:multiply"></i></span>';
     else inner = '<span style="' + (p.style || 'font-weight:800') + (p.accent ? ';color:' + p.fg : '') + '">' + esc(p.label) + (p.accent ? '<span style="color:' + p.accent + '">·</span>' : '') + '</span>';
     return '<span class="ckpi-chip" style="width:' + size + 'px;height:' + Math.round(size * 0.66) + 'px;background:' + p.bg + ';color:' + p.fg + ';font-size:' + Math.max(8, Math.round(size * 0.26)) + 'px">' + inner + '</span>';

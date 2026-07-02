@@ -5,18 +5,21 @@
   if (!window.OS) return;
   const { esc } = OS;
 
-  const STAR = '<svg viewBox="0 0 24 24" width="13" height="13" fill="#fff" stroke="none"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>';
   const GREEN = '#00B67A';
+  const EMPTY = '#DCDCE6';
+  const STAR = (color, size) => '<svg viewBox="0 0 24 24" width="' + (size || 18) + '" height="' + (size || 18) + '" fill="' + color + '" stroke="none"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/></svg>';
 
-  function stars(n, style) {
-    const green = style !== 'default';
-    const fullColor = green ? GREEN : '#F5B301';
-    let h = '';
-    for (let i = 1; i <= 5; i++) {
-      const on = n >= i - 0.25;
-      h += '<span class="cktp-star" style="background:' + (on ? fullColor : '#DCDCE6') + '">' + STAR + '</span>';
-    }
-    return '<span class="cktp-stars">' + h + '</span>';
+  // Official Trustpilot rating style: green squares with a white star. Fractional ratings
+  // (e.g. 4.4) split the last square green/grey via a green row clipped to the % width,
+  // overlaid on a grey base row — the white star stays continuous across the seam.
+  function stars(n) {
+    n = Math.max(0, Math.min(5, Number(n) || 0));
+    const pct = (n / 5) * 100;
+    const row = (bg) => { let h = ''; for (let i = 0; i < 5; i++) h += '<span class="cktp-star" style="background:' + bg + '">' + STAR('#fff', 14) + '</span>'; return h; };
+    return '<span class="cktp-stars">' +
+      '<span class="cktp-stars-row">' + row(EMPTY) + '</span>' +
+      '<span class="cktp-stars-row cktp-stars-fill" style="width:' + pct + '%">' + row(GREEN) + '</span>' +
+    '</span>';
   }
 
   OS.register('checkout-trustpilot', {
@@ -27,10 +30,6 @@
       { key: 'overall_rating', label: 'Overall rating', control: 'number', default: 5, min: 0, max: 5, step: 0.1 },
       { key: 'show_trustpilot', label: 'Show Trustpilot text', control: 'toggle', default: true },
       { key: 'trustpilot_text', label: 'Trustpilot logo / text', control: 'text', default: 'Trustpilot', visibleWhen: (s) => s.show_trustpilot },
-      { key: 'star_style', label: 'Star style', control: 'select', default: 'green', options: [
-        { value: 'green', label: 'Green stars' }, { value: 'default', label: 'Default stars' } ] },
-      { key: 'layout', label: 'Layout', control: 'select', default: 'card', options: [
-        { value: 'card', label: 'Card' }, { value: 'compact', label: 'Compact' } ] },
       { sub: 'Style' },
       { key: 'background_color', label: 'Background color', control: 'color', default: '#FFFFFF', allowTransparent: true },
       { key: 'border_color', label: 'Border color', control: 'color', default: '#E5E5E5', allowTransparent: true },
@@ -57,18 +56,17 @@
     ]),
 
     render(s, blocks) {
-      const style = s.star_style || 'green';
+      const rating = s.overall_rating == null ? 5 : Number(s.overall_rating);
       const summary = '<div class="cktp-summary">' +
         (s.rating_label ? '<span class="cktp-label">' + esc(s.rating_label) + '</span>' : '') +
-        stars(Number(s.overall_rating) || 5, style) +
-        (s.show_trustpilot && s.trustpilot_text ? '<span class="cktp-brand"><span class="cktp-star cktp-brand-star" style="background:' + GREEN + '">' + STAR + '</span>' + esc(s.trustpilot_text) + '</span>' : '') +
+        stars(rating) +
+        (s.show_trustpilot && s.trustpilot_text ? '<span class="cktp-brand"><span class="cktp-brand-star">' + STAR(GREEN, 16) + '</span>' + esc(s.trustpilot_text) + '</span>' : '') +
       '</div>';
-      const compact = s.layout === 'compact';
       const vis = (blocks || []).filter((b) => !b.hidden && b.settings.review_content);
       const cards = vis.map((b0) => {
         const b = b0.settings;
         return '<div class="cktp-card" data-block-id="' + esc(b0.id) + '" style="border-color:' + (OS.bgOrTransparent(s.border_color) || '#E5E5E5') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px">' +
-          stars(Number(b.star_rating) || 5, style) +
+          stars(Number(b.star_rating) || 5) +
           (b.review_title ? '<div class="cktp-rt">' + esc(b.review_title) + '</div>' : '') +
           '<div class="cktp-rc">' + esc(b.review_content) + '</div>' +
           '<div class="cktp-rmeta">' +
@@ -79,7 +77,7 @@
         '</div>';
       }).join('');
       if (!vis.length && !s.rating_label && !s.overall_rating) return '<div class="cksec" style="display:none"></div>';
-      return '<div class="cksec cktp' + (compact ? ' cktp-compact' : '') + '" style="background:' + (OS.bgOrTransparent(s.background_color) || '#fff') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px">' +
+      return '<div class="cksec cktp" style="background:' + (OS.bgOrTransparent(s.background_color) || '#fff') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px">' +
         summary +
         (cards ? '<div class="cktp-list">' + cards + '</div>' : '') +
         (s.custom_css ? '<style>' + s.custom_css + '</style>' : '') +
@@ -91,10 +89,12 @@
   .cktp{padding:18px}
   .cktp-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
   .cktp-label{font-weight:800;font-size:calc(var(--ck-base-fs) + 1px);color:var(--ck-text)}
-  .cktp-stars{display:inline-flex;gap:3px}
-  .cktp-star{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:3px}
+  .cktp-stars{position:relative;display:inline-flex;line-height:0;vertical-align:middle}
+  .cktp-stars-row{display:inline-flex;gap:3px}
+  .cktp-stars-fill{position:absolute;top:0;left:0;overflow:hidden;white-space:nowrap;pointer-events:none}
+  .cktp-star{width:20px;height:20px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center}
   .cktp-brand{display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:var(--ck-small-fs);color:var(--ck-text)}
-  .cktp-brand-star{width:16px;height:16px}
+  .cktp-brand-star{display:inline-flex;align-items:center}
   .cktp-list{display:flex;flex-direction:column;gap:12px}
   .cktp-card{border:1px solid #E5E5E5;padding:14px;background:#fff}
   .cktp-card .cktp-stars{margin-bottom:8px}
@@ -103,7 +103,5 @@
   .cktp-rmeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:var(--ck-small-fs);color:var(--ck-muted)}
   .cktp-rn{font-weight:600;color:var(--ck-text)}
   .cktp-verified{color:#00B67A;font-weight:600}
-  .cktp-compact .cktp-card{padding:10px 0;border-left:0;border-right:0;border-top:0}
-  .cktp-compact .cktp-list{gap:0}
   `);
 })();
