@@ -21,6 +21,7 @@
 
   OS.register('checkout-trust-badges', {
     name: 'Trust badges', icon: 'layers',
+    defaultZone: 'summary',
     schema: [
       { info: 'Only use badges or certifications your store is authorized to display.' },
       { key: 'content_mode', label: 'Content mode', control: 'select', default: 'structured', options: [

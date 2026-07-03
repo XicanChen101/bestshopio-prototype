@@ -24,6 +24,7 @@
 
   OS.register('checkout-trustpilot', {
     name: 'Trustpilot Review', icon: 'star',
+    defaultZone: 'summary',
     schema: [
       { info: 'Static reviews only. Make sure you have the right to display this review and rating.' },
       { key: 'rating_label', label: 'Rating label', control: 'text', default: 'Excellent' },

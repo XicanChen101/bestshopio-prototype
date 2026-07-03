@@ -38,6 +38,7 @@
 
   OS.register('checkout-payment-icons', {
     name: 'Payment Icons', icon: 'layers',
+    defaultZone: 'summary',
     schema: [
       { key: 'heading', label: 'Heading', control: 'text', default: '', placeholder: 'Optional title' },
       { key: 'layout', label: 'Layout', control: 'select', default: 'inline', options: [

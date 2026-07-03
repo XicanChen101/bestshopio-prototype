@@ -298,10 +298,16 @@
         const p = (D.SAMPLE.services || []).concat(D.SAMPLE.products || []).find((x) => x.id === pid);
         if (p) lines.push({ id: p.id + ':' + s.id, title: p.title, variant: '', qty: 1, price: p.price, compareAt: p.compareAt || 0, image: p.image, addon: true });
       } else if (s.kind === 'checkout-product-upsell') {
-        const items = st.items || {};
+        const explicit = st.items || {};
         const vmap = st.variants || {};
-        Object.keys(items).forEach((pid) => {
-          const qty = items[pid]; if (!qty || qty < 1) return;
+        // Effective selection = default-checked products, overridden by the buyer's explicit
+        // choices (an explicit 0 means unticked). Keeps the Order Summary in sync with the card UI.
+        const defSel = Array.isArray(cfg.default_selected) ? cfg.default_selected : (cfg.default_selected ? [cfg.default_selected] : []);
+        const eff = {};
+        defSel.forEach((pid) => { eff[pid] = 1; });
+        Object.keys(explicit).forEach((pid) => { eff[pid] = explicit[pid]; });
+        Object.keys(eff).forEach((pid) => {
+          const qty = eff[pid]; if (!qty || qty < 1) return;
           const p = (D.SAMPLE.products || []).find((x) => x.id === pid); if (!p) return;
           // The buyer-selected variant (or the first, for multi-variant products) flows into
           // the order line; single-/no-variant products use the product price.
@@ -1261,8 +1267,12 @@
   function addCheckoutComponent(kind, zoneId) {
     const def = SECTIONS[kind]; if (!def) { toast('“' + kind + '” isn’t available yet', 'err'); return; }
     if (isSingletonKind(kind) && pageSections().some((s) => s.kind === kind)) { toast('Only one ' + def.name + ' allowed', 'err'); return; }
-    // Default to the first zone that allows this kind; the merchant can drag it elsewhere.
-    const zid = (zoneId && allowedZonesForKind(kind).indexOf(zoneId) >= 0) ? zoneId : allowedZonesForKind(kind)[0];
+    // Default zone: an explicit request wins, else the component's declared defaultZone (if it
+    // allows this kind), else the first zone that allows it. The merchant can drag it elsewhere.
+    const allowed = allowedZonesForKind(kind);
+    const zid = (zoneId && allowed.indexOf(zoneId) >= 0) ? zoneId
+      : (def.defaultZone && allowed.indexOf(def.defaultZone) >= 0) ? def.defaultZone
+      : allowed[0];
     const zone = ckZone(zid); if (!zone) { toast('That component can’t be placed', 'err'); return; }
     const inst = matSection({ kind, zone: zid });
     const arr = pageSections();

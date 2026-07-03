@@ -11,6 +11,7 @@
 
   OS.register('checkout-vip-club', {
     name: 'VIP Club', icon: 'badgePercent',
+    defaultZone: 'cta',
     schema: [
       { info: 'Offers a membership the buyer can tick to join. Binds a real membership product.' },
       { key: 'vip_product', label: 'VIP product', control: 'product', single: true, pickFrom: 'services', default: 'svc-vip', required: true, info: 'Required — binds a real membership product. Its price is used in the Order Summary.' },

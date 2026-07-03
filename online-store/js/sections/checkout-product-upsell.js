@@ -16,6 +16,7 @@
 
   OS.register('checkout-product-upsell', {
     name: 'Product upsell', icon: 'tag',
+    defaultZone: 'cta',
     schema: [
       { info: 'Recommends extra products on the checkout. Buyers add them in one tap; the Order Summary updates.' },
       { key: 'heading', label: 'Heading', control: 'text', default: 'Customers Also Grabbed', placeholder: 'Customers Also Grabbed' },
@@ -24,6 +25,7 @@
       { key: 'products', label: 'Products', control: 'product', default: '', info: 'Up to 6 products.', visibleWhen: (v) => (v.product_source || 'manual') === 'manual' },
       { key: 'collection', label: 'Collection', control: 'collection', default: '', visibleWhen: (v) => v.product_source === 'collection' },
       { key: 'products_limit', label: 'Products limit', control: 'number', default: 4, min: 1, max: 6, info: 'Max products shown on the storefront.' },
+      { key: 'default_selected', label: 'Default-checked products', control: 'product', default: '', info: 'Pre-ticked when the page loads (added to the Order Summary). Should be among the products above; buyers can still untick them.' },
       { sub: 'Layout' },
       { key: 'layout_desktop', label: 'Layout · Desktop', control: 'select', default: 'slider', options: [
         { value: 'slider', label: 'Slider' }, { value: 'grid', label: 'Grid' } ] },
@@ -85,6 +87,13 @@
       const store = (OS.ckState || {})[ctx.sectionId] || {};
       const storeItems = store.items || {};
       const storeVars = store.variants || {};
+      // Products pre-ticked on load. The buyer's explicit choices (storeItems, where an explicit 0
+      // means "unticked") always win; products with no explicit state fall back to this default.
+      const defSel = Array.isArray(s.default_selected) ? s.default_selected : (s.default_selected ? [s.default_selected] : []);
+      const defSet = new Set(defSel);
+      const effQty = (pid) => (Object.prototype.hasOwnProperty.call(storeItems, pid)
+        ? (parseInt(storeItems[pid], 10) || 0)
+        : (defSet.has(pid) ? 1 : 0));
 
       const cards = items.map((p) => {
         // Multi-variant products get an on-card variant selector (the buyer picks). Single-
@@ -96,7 +105,7 @@
         const vPrice = chosen ? chosen.price : p.price;
         const vCompare = chosen ? (chosen.compareAt || 0) : (p.compareAt || 0);
         const vLabel = chosen ? chosen.title : (p.vendor || '');
-        const qty = Math.max(0, parseInt(storeItems[p.id], 10) || 0);
+        const qty = Math.max(0, effQty(p.id));
         const checked = qty > 0;
         const dispQty = checked ? qty : 1;
         const img = s.show_image !== false ? '<div class="ckup-thumb" style="background-image:url(' + esc(p.image) + ')"></div>' : '';
@@ -160,7 +169,9 @@
       const setItem = (pid, qty) => {
         if (!id) return;
         const cur = ((OS.ckState[id] && OS.ckState[id].items) ? Object.assign({}, OS.ckState[id].items) : {});
-        if (qty > 0) cur[pid] = qty; else delete cur[pid];
+        // Store an explicit 0 (not delete) so unticking a default-checked product sticks instead of
+        // falling back to the "default_selected" pre-tick.
+        cur[pid] = qty > 0 ? qty : 0;
         OS.ckSet(id, { items: cur }); OS.ckRecalc();
       };
       const setVar = (pid, vid) => {

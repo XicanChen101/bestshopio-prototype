@@ -11,6 +11,7 @@
 
   OS.register('checkout-shipping-insurance', {
     name: 'Shipping Insurance', icon: 'layers',
+    defaultZone: 'cta',
     schema: [
       { info: 'Offers delivery protection as a tickable add-on. Binds a real service product.' },
       { key: 'heading', label: 'Heading', control: 'text', default: 'Shipping Insurance', placeholder: 'Shipping Insurance', info: 'Leave empty to show only the card.' },

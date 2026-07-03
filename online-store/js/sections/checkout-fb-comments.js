@@ -21,6 +21,7 @@
 
   OS.register('checkout-fb-comments', {
     name: 'Facebook-style Comments', icon: 'layers',
+    defaultZone: 'summary',
     schema: [
       { info: 'Make sure these comments are accurate and do not mislead customers.' },
       { key: 'heading', label: 'Heading', control: 'text', default: '' },

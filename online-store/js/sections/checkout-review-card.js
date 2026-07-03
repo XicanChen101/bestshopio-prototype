@@ -11,6 +11,7 @@
 
   OS.register('checkout-review-card', {
     name: 'Review card', icon: 'layers',
+    defaultZone: 'summary',
     schema: [
       { info: 'Make sure endorsements and claims comply with applicable laws.' },
       { key: 'layout', label: 'Layout', control: 'select', default: 'carousel', options: [
