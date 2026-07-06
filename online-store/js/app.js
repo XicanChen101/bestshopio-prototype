@@ -525,10 +525,14 @@
       }
       return h2;
     }
+    // Required components are locked (no drag/delete). Some (e.g. Header) are still hideable —
+    // they get the eye toggle from the tree, plus the lock to signal they can't be moved.
+    const hideable = !!(def && def.hideable);
     let html = '<div class="os-row sec locked' + (active ? ' active' : '') + (s.hidden ? ' hid' : '') + '" data-sel-sec="' + s.id + '">' +
       (hasBlocks ? '<span class="os-row-caret' + (open ? ' open' : '') + '" data-tog-sec="' + s.id + '">' + I.chevR + '</span>' : '<span class="os-row-caret ghost"></span>') +
       '<span class="os-tr-ico">' + ICON(def ? def.icon : 'layers') + '</span>' +
       '<span class="os-tr-name">' + esc(sectionLabel(s)) + '</span>' +
+      (hideable ? rowActions(s.hidden, false) : '') +
       '<span class="os-tr-lock" title="Required component">' + I.lock + '</span></div>';
     if (hasBlocks && open) {
       (s.blocks || []).forEach((bl) => {

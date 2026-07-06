@@ -11,8 +11,10 @@
 
   OS.register('checkout-header', {
     name: 'Header', icon: 'image',
+    // Required component: can't be moved/deleted, but visibility is toggled from the tree's
+    // eye icon (s.hidden) instead of a "Show header" setting — keeps show/hide consistent.
+    hideable: true,
     schema: [
-      { key: 'show_header', label: 'Show header', control: 'toggle', default: true, info: 'Hides the visual header only — the checkout body is unaffected.' },
       { sub: 'Logo' },
       { key: 'logo_image', label: 'Logo image', control: 'image', default: '', info: 'JPG / PNG / WebP / SVG. Falls back to the store brand name.' },
       { key: 'logo_width', label: 'Logo width · PC', control: 'range', min: 40, max: 300, step: 1, unit: 'px', default: 120 },
@@ -41,9 +43,6 @@
       { key: 'custom_css', label: 'Custom CSS', control: 'custom_css', default: '', info: 'Applies to this header only.' },
     ],
     render(s, blocks, ctx) {
-      if (s.show_header === false) {
-        return '<div class="ck-header off"><div class="ck-header-in" style="height:32px"><div class="ck-h-slot center" style="color:var(--ck-muted);font-size:12px">Header hidden — checkout body unaffected</div></div></div>';
-      }
       const tk = ctx.tokens || {}; const L = tk.layout || {};
       const mob = ctx.mob;
       const store = (ctx.checkout && ctx.checkout.storeName) || 'AURA';
