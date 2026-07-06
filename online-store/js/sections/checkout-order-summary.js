@@ -118,7 +118,7 @@
             thumb +
             '<div class="ck-msum-meta">' +
               '<span class="ck-msum-lbl ck-when-collapsed">Total</span>' +
-              '<span class="ck-msum-lbl ck-when-expanded">' + esc(head) + '</span>' +
+              (s.show_heading_mobile === false ? '' : '<span class="ck-msum-lbl ck-when-expanded">' + esc(head) + '</span>') +
               '<span class="ck-msum-items ck-when-collapsed">' + itemCount + ' items</span>' +
             '</div>' +
             '<div class="ck-msum-amt">' +
