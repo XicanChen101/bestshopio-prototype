@@ -321,9 +321,10 @@
   //  Home/Collection/PDP theme settings above. (PRD §3, §5, §6)
   // ==========================================================================
 
-  // Checkout editor page selector (Thank you page is out of scope this round).
+  // Checkout editor page selector — both transaction pages share one theme (Thank you PRD §23.1).
   const CHECKOUT_PAGES = [
     { value: 'checkout', label: 'Checkout' },
+    { value: 'thankyou', label: 'Thank you' },
   ];
 
   const FONT_CK = ['Default', 'Inter', 'Manrope', 'Playfair Display', 'Georgia', 'system-ui'].map((v) => ({ value: v, label: v }));
@@ -524,8 +525,108 @@
     ] },
   ];
 
+  // ==========================================================================
+  //  THANK YOU PAGE (Thank you PRD) — second transaction page, shares the
+  //  Checkout theme settings. Final Funnel order confirmation, not the raw
+  //  checkout cart. Required components + a limited set of reusable content &
+  //  trust enhancement components, in their own insertion zones. (PRD §3, §9)
+  // ==========================================================================
+
+  // Thank-you insertion zones (PRD §9.2). No commerce here — order is already
+  // placed. `col` mirrors the checkout render regions: 'announce' full-bleed top,
+  // 'main' left column, 'summary' the right Order Summary column, 'bottom' the
+  // full-bleed band (policy links → footer). Order status stays pinned to the top;
+  // nothing can be inserted above it (PRD §9.3, §9.4).
+  const THANKYOU_ZONES = [
+    { id: 'announce', label: 'Above header', after: null, col: 'announce', allow: ['announcement-bar'] },
+    { id: 'header', label: 'Below header', after: 'checkout-header', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges'] },
+    { id: 'status', label: 'Below Order status', after: 'thankyou-order-status', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges'] },
+    { id: 'details', label: 'Below Order details', after: 'thankyou-order-details', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges', 'checkout-review-card'] },
+    { id: 'continue', label: 'Below Continue shopping', after: 'thankyou-contact-us', col: 'main', allow: ['checkout-static-content', 'checkout-trustpilot', 'checkout-review-card', 'checkout-fb-comments'] },
+    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: ['checkout-static-content', 'checkout-trust-badges', 'checkout-review-card', 'checkout-payment-icons'] },
+    // policytop is listed before 'bottom' so drag-onto-policy-links resolves here first.
+    { id: 'policytop', label: 'Above policy links', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-testimonials', 'checkout-trustpilot', 'checkout-fb-comments', 'checkout-static-content'] },
+    { id: 'bottom', label: 'Page bottom', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-footer'] },
+  ];
+
+  // Thank-you skeleton (PRD §3.1, §23.2). Required components are locked; reused
+  // Checkout components (header, mobile summary bar, order summary, policy links,
+  // footer) carry the same behaviour they have on Checkout.
+  const THANKYOU_TEMPLATE = {
+    sections: [
+      { id: 'ty-header', kind: 'checkout-header' },
+      { id: 'ty-summary-bar', kind: 'checkout-order-summary-bar' },
+      { id: 'ty-status', kind: 'thankyou-order-status' },
+      { id: 'ty-details', kind: 'thankyou-order-details' },
+      { id: 'ty-continue', kind: 'thankyou-continue-shopping' },
+      { id: 'ty-contact', kind: 'thankyou-contact-us' },
+      { id: 'ty-summary', kind: 'checkout-order-summary', blocks: [
+        { id: 'ty-blk-lines', kind: 'cart-lines' },
+        { id: 'ty-blk-subtotal', kind: 'subtotal' },
+        { id: 'ty-blk-discount', kind: 'discount' },
+        { id: 'ty-blk-shipping', kind: 'shipping' },
+        { id: 'ty-blk-tax', kind: 'tax' },
+        { id: 'ty-blk-total', kind: 'total' },
+      ] },
+      { id: 'ty-policy', kind: 'checkout-policy-links', settings: {
+        refund_policy_page: 'pg-refund', privacy_policy_page: 'pg-privacy', terms_of_service_page: 'pg-terms', contact_page: 'pg-contact',
+      } },
+      { id: 'ty-footer', kind: 'checkout-footer', zone: 'bottom' },
+    ],
+  };
+
+  // Add-component catalog for the Thank-you editor (PRD §7, §9.2). Only reusable
+  // content & trust enhancement components — NO commerce boosters (PRD §8).
+  const THANKYOU_CATALOG = [
+    { label: 'Reviews & social proof', entries: [
+      { kind: 'checkout-trustpilot', name: 'Trustpilot Review', desc: 'Trustpilot-style rating & reviews (static)' },
+      { kind: 'checkout-review-card', name: 'Review card', desc: 'Expert / media endorsement cards' },
+      { kind: 'checkout-testimonials', name: 'Testimonials', desc: 'Customer reviews (bottom area only)' },
+      { kind: 'checkout-fb-comments', name: 'Facebook-style Comments', desc: 'Social-proof comment thread' },
+    ] },
+    { label: 'Trust & security', entries: [
+      { kind: 'checkout-trust-badges', name: 'Trust badges', desc: 'Guarantee / security / shipping badges' },
+      { kind: 'checkout-payment-icons', name: 'Payment Icons', desc: 'Accepted-payment brand badges' },
+    ] },
+    { label: 'Promotion & urgency', entries: [
+      { kind: 'announcement-bar', name: 'Announcement Bar', desc: 'Post-purchase notice / next-order offer (above header)' },
+    ] },
+    { label: 'Content & structure', entries: [
+      { kind: 'checkout-static-content', name: 'Static content', desc: 'Order-processing / shipping / support notice' },
+    ] },
+  ];
+
+  // Final Order Snapshot (PRD §4, §5, §14) — the FUNNEL-final order shown on the
+  // Thank-you page: the Checkout cart lines PLUS one accepted upsell line. Amounts
+  // are read-only final results (the page never recalculates; PRD §5.3).
+  const THANKYOU_UPSELL_LINE = { id: 'up-crew', title: 'Crewneck sweater', variant: 'Sage / M', qty: 1, price: 44.0, compareAt: 0, image: IMG.p5, upsell: true };
+  const THANKYOU_SNAPSHOT = {
+    storeName: 'AURA',
+    currency: 'USD',
+    confirmationNumber: 'ABC123EXAMPLE',
+    orderNumber: '#1001',
+    orderStatus: 'confirmed',
+    customer: { name: 'Alanna', fullName: 'Alanna Bogan', email: 'alanna.bogan@example.com', phone: '+1 (202) 456-1414' },
+    shippingAddress: {
+      name: 'Alanna Bogan', line1: '1600 Pennsylvania Avenue NW', city: 'Washington', state: 'DC',
+      zip: '20500-0005', country: 'United States', phone: '+1 (202) 456-1414',
+    },
+    shippingMethod: 'Standard (Example)',
+    payment: { brand: 'Visa', last4: '—', label: 'Credit card' },
+    billingSameAsShipping: true,
+    // Final cart lines = Checkout items + accepted upsell (PRD §4.3 example).
+    lines: CHECKOUT_MOCK.cart.concat([THANKYOU_UPSELL_LINE]),
+    // Read-only final amounts (USD). subtotal = Σ line totals.
+    subtotal: 152.97,
+    discount: 10.99,
+    shipping: 5.99,
+    tax: 7.34,
+    total: 155.31,
+  };
+
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
     CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
+    THANKYOU_TEMPLATE, THANKYOU_ZONES, THANKYOU_CATALOG, THANKYOU_SNAPSHOT,
   };
 })();

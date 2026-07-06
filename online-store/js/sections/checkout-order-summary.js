@@ -36,22 +36,26 @@
     } },
 
     render(s, blocks, ctx) {
+      // Thank-you page reads the Final Order Snapshot (read-only final order,
+      // Checkout items + accepted upsell/downsell) instead of the live cart, and
+      // hides every interactive bit — no coupon input, no editable qty (PRD §5.3/§14).
+      const snap = ctx.snapshot;
       const mock = ctx.checkout || {};
       // Live add-ons: upsell picks become extra cart lines; insurance / VIP become
       // their own summary rows (computed centrally in app.js, shared by every surface).
-      const add = ctx.ckAddons || { rows: [], lines: [] };
-      const cart = (mock.cart || []).concat(add.lines || []);
-      const cur = mock.currency || 'USD';
+      const add = snap ? { rows: [], lines: [] } : (ctx.ckAddons || { rows: [], lines: [] });
+      const cart = snap ? (snap.lines || []) : (mock.cart || []).concat(add.lines || []);
+      const cur = (snap ? snap.currency : mock.currency) || 'USD';
       const find = (k) => (blocks || []).find((b) => b.kind === k) || { id: '', settings: {} };
       const sel = ctx.selectedBlockId;
 
-      const subtotal = cart.reduce((t, l) => t + l.price * l.qty, 0);
+      const subtotal = snap ? (snap.subtotal != null ? snap.subtotal : cart.reduce((t, l) => t + l.price * l.qty, 0)) : cart.reduce((t, l) => t + l.price * l.qty, 0);
       const ship = (mock.shippingMethods || []).find((m) => m.id === mock.selectedShipping) || (mock.shippingMethods || [])[0] || { price: 0 };
-      const shipPrice = ship.price || 0;
-      const discount = (mock.coupon && mock.coupon.amount) || 0;
-      const tax = mock.tax || 0;
+      const shipPrice = snap ? (snap.shipping || 0) : (ship.price || 0);
+      const discount = snap ? (snap.discount || 0) : ((mock.coupon && mock.coupon.amount) || 0);
+      const tax = snap ? (snap.tax || 0) : (mock.tax || 0);
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
-      const total = subtotal - discount + shipPrice + tax + addonTotal;
+      const total = snap ? (snap.total != null ? snap.total : subtotal - discount + shipPrice + tax) : subtotal - discount + shipPrice + tax + addonTotal;
       const itemCount = cart.reduce((t, l) => t + l.qty, 0);
       const lineSavings = cart.reduce((t, l) => t + (l.compareAt && l.compareAt > l.price ? (l.compareAt - l.price) * l.qty : 0), 0);
       const savings = lineSavings + discount;
@@ -66,17 +70,19 @@
         const cmp = l.compareAt && l.compareAt > l.price ? '<span class="ck-line-cmp">' + money(l.compareAt) + '</span>' : '';
         const deal = (l.deal && l.compareAt && l.compareAt > l.price)
           ? '<div class="ck-line-deal">' + TAG + '<span>' + esc(l.deal) + ' (−' + money((l.compareAt - l.price) * l.qty) + ')</span></div>' : '';
+        // Final-order lines may carry an accepted upsell/downsell flag (PRD §14.4).
+        const flag = l.upsell ? '<span class="ck-line-flag">Added offer</span>' : (l.downsell ? '<span class="ck-line-flag">Special offer</span>' : '');
         return '<div class="ck-line">' +
           '<div class="ck-line-img" style="background-image:url(' + esc(l.image) + ')"><span class="ck-line-qty">' + l.qty + '</span></div>' +
-          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + '</div><div class="ck-line-v">' + esc(l.variant || '') + '</div>' + deal + '</div>' +
+          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + flag + '</div><div class="ck-line-v">' + esc(l.variant || '') + '</div>' + deal + '</div>' +
           '<div class="ck-line-pr">' + cmp + money(l.price * l.qty) + '</div>' +
         '</div>';
       }).join('');
       const linesBlk = blk(lb.id, '<div class="ck-lines">' + lines + '</div>', sel === lb.id);
 
-      // ---- coupon block ----
+      // ---- coupon block ---- (read-only on Thank you: no coupon entry, PRD §5.3)
       const cb = find('coupon'); const cs = cb.settings || {};
-      const couponBlk = cs.show_coupon === false ? '' : blk(cb.id,
+      const couponBlk = (snap || cs.show_coupon === false) ? '' : blk(cb.id,
         '<div class="ck-coupon"><input class="ck-input" placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>', sel === cb.id);
 
       // ---- totals ----
@@ -107,7 +113,7 @@
         const thumb = cart[0] ? '<div class="ck-msum-thumb" style="background-image:url(' + esc(cart[0].image) + ')"></div>' : '';
         const savLine = savings > 0 ? '<div class="ck-msum-sav">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
         return '<div class="ck-summary mob' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + '">' +
-          '<button class="ck-msum-adddisc" type="button" data-ck-sum-toggle>' + TAG + '<span>Add discount</span></button>' +
+          (snap ? '' : '<button class="ck-msum-adddisc" type="button" data-ck-sum-toggle>' + TAG + '<span>Add discount</span></button>') +
           '<div class="ck-msum-bar" data-ck-sum-toggle>' +
             thumb +
             '<div class="ck-msum-meta">' +

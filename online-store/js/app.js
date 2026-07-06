@@ -140,7 +140,8 @@
       'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-order-summary-bar', 'checkout-policy-links',
       'checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club',
       'checkout-countdown', 'checkout-payment-icons', 'checkout-trust-badges', 'checkout-trustpilot',
-      'checkout-review-card', 'checkout-testimonials', 'checkout-fb-comments', 'checkout-static-content', 'checkout-footer'];
+      'checkout-review-card', 'checkout-testimonials', 'checkout-fb-comments', 'checkout-static-content', 'checkout-footer',
+      'thankyou-order-status', 'thankyou-order-details', 'thankyou-continue-shopping', 'thankyou-contact-us'];
     D.CATALOG.forEach((g) => g.entries.forEach((e) => { if (e.kind && kinds.indexOf(e.kind) < 0) kinds.push(e.kind); }));
     _sectionsP = Promise.all(kinds.map((k) => loadScript(MOD_BASE + 'sections/' + k + '.js?v=' + OS_V).catch(() => { /* not yet ported — skip */ })));
     return _sectionsP;
@@ -211,6 +212,8 @@
     theme.checkout = {
       settings: buildCkSettingsDefaults(),
       sections: ((D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || []).map(matSection),
+      // Thank-you page shares theme.checkout.settings; its own locked skeleton + zones.
+      thankyou: ((D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || []).map(matSection),
     };
     return theme;
   }
@@ -250,16 +253,20 @@
   const isCheckoutContent = (kind) => CK_CONTENT.indexOf(kind) >= 0;
   const isCheckoutAddable = (kind) => isCheckoutCommerce(kind) || isCheckoutContent(kind);
   const isSingletonKind = (kind) => { const d = SECTIONS[kind]; return !!(d && d.singleton); };
-  const ckZone = (id) => (D.CHECKOUT_ZONES || []).find((z) => z.id === id) || null;
-  // Which zones a component kind may live in (PRD §4.2 matrix). Placement is enforced
-  // on drag: a commerce row can only be dropped into a zone that allows its kind.
-  const allowedZonesForKind = (kind) => (D.CHECKOUT_ZONES || []).filter((z) => (z.allow || []).indexOf(kind) >= 0).map((z) => z.id);
+  // Active insertion-zone set — Checkout vs Thank you (Thank you PRD §9). Every zone
+  // lookup goes through here so both pages get their own anchors / allow-lists.
+  const ckZones = () => (isThankyou() ? (D.THANKYOU_ZONES || []) : (D.CHECKOUT_ZONES || []));
+  const ckCatalog = () => (isThankyou() ? (D.THANKYOU_CATALOG || []) : (D.CHECKOUT_CATALOG || []));
+  const ckZone = (id) => ckZones().find((z) => z.id === id) || null;
+  // Which zones a component kind may live in (PRD §9.2 matrix). Placement is enforced
+  // on drag: a component row can only be dropped into a zone that allows its kind.
+  const allowedZonesForKind = (kind) => ckZones().filter((z) => (z.allow || []).indexOf(kind) >= 0).map((z) => z.id);
   // Anchor (required) section → zone it opens, used to resolve the drop target's zone.
   // Either Order Summary surface (the mobile top bar or the bottom summary) maps to the
   // single 'summary' zone, so dropping onto whichever the merchant sees works.
   const ckAnchorZone = (kind) => {
     if (kind === 'checkout-order-summary' || kind === 'checkout-order-summary-bar') return 'summary';
-    const z = (D.CHECKOUT_ZONES || []).find((zz) => zz.after === kind); return z ? z.id : null;
+    const z = ckZones().find((zz) => zz.after === kind); return z ? z.id : null;
   };
   // Resolve which zone a tree row represents as a drop target for a commerce component.
   // A row can be a section anchor (Contact / Shipping method / Payment / Order Summary),
@@ -328,8 +335,10 @@
   const isDirty = () => !eq(ED.theme, ED.savedTheme);
   const hasDraft = () => !eq(ED.savedTheme, ED.publishedTheme);
   const status = () => isDirty() ? 'unsaved' : hasDraft() ? 'draft' : 'saved';
-  const pageSections = () => isCheckout() ? ED.theme.checkout.sections : ED.theme.templates[ED.currentPage].sections;
-  const pageLabel = () => isCheckout() ? 'Checkout' : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
+  // Checkout surface has two pages sharing one theme: Checkout and Thank you (Thank you PRD §23.1).
+  const isThankyou = () => isCheckout() && ED.checkoutPage === 'thankyou';
+  const pageSections = () => isCheckout() ? (isThankyou() ? ED.theme.checkout.thankyou : ED.theme.checkout.sections) : ED.theme.templates[ED.currentPage].sections;
+  const pageLabel = () => isCheckout() ? (isThankyou() ? 'Thank you' : 'Checkout') : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
   const tokens = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
 
   // ==========================================================================
@@ -364,14 +373,17 @@
   // ==========================================================================
   //  BUILDER  (#/online-store/edit/:handle)
   // ==========================================================================
-  function renderBuilder(handle, surface) {
+  function renderBuilder(handle, surface, page) {
     if (!ED || ED.meta.handle !== handle) startEditor(handle);
     // Entered via a route that pins a surface (e.g. #/checkout) — align the editor to it.
     if (surface && ED.surface !== surface) {
       ED.surface = surface;
-      if (surface === 'checkout') ED.checkoutPage = 'checkout';
+      if (surface === 'checkout') ED.checkoutPage = (page === 'thankyou') ? 'thankyou' : 'checkout';
       ED.leftMode = 'sections';
       ED.selection = defaultSelection();
+    } else if (surface === 'checkout' && page && ED.checkoutPage !== page) {
+      // Same surface, but the route pins a specific checkout page (#/checkout/thankyou).
+      ED.checkoutPage = page; ED.leftMode = 'sections'; ED.selection = defaultSelection();
     }
     closeBuilder(); ensureStyles();
     const b = h('<div class="os-builder" id="os-builder"></div>');
@@ -436,6 +448,7 @@
       const v = psel.value;
       if (v === '__checkout__') { switchSurface('checkout'); return; }
       if (v === '__back__') { switchSurface('online-store'); return; }
+      if (isCheckout()) { switchCheckoutPage(v); return; }
       switchPage(v);
     };
     b.querySelectorAll('[data-dev]').forEach((x) => x.onclick = () => { const d = x.getAttribute('data-dev'); if (d !== ED.device) { ED.device = d; refreshTop(); refreshCanvas(); } });
@@ -465,11 +478,14 @@
   // Checkout tree — required components are locked; commerce components (PRD §14.1)
   // can be added / hidden / deleted / reordered.
   function checkoutTreeHtml() {
-    let html = '<div class="os-grp-head" style="cursor:default">Checkout Template</div>';
+    let html = '<div class="os-grp-head" style="cursor:default">' + (isThankyou() ? 'Thank you' : 'Checkout') + ' Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
-    const nAdd = (D.CHECKOUT_COMMERCE || []).length + (D.CHECKOUT_CONTENT || []).length;
+    let nAdd = 0; ckCatalog().forEach((g) => nAdd += g.entries.length);
     html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add section <span class="os-add-n">(' + nAdd + ')</span></div>';
-    html += '<div class="os-tree-note" style="margin-top:10px">Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce and content & trust components can be added, hidden, deleted and reordered within their allowed zones.</div>';
+    const note = isThankyou()
+      ? 'Required components confirm the order, so they can\u2019t be moved. Only content & trust components can be added, hidden, deleted and reordered within their allowed zones.'
+      : 'Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce and content & trust components can be added, hidden, deleted and reordered within their allowed zones.';
+    html += '<div class="os-tree-note" style="margin-top:10px">' + note + '</div>';
     return html;
   }
   function checkoutRow(s) {
@@ -666,7 +682,7 @@
     return c;
   }
   function canvasHtml() {
-    if (isCheckout()) return checkoutCanvasHtml();
+    if (isCheckout()) return isThankyou() ? thankyouCanvasHtml() : checkoutCanvasHtml();
     let html = '';
     const secs = pageSections().filter((s) => !s.hidden);
     const first = secs[0];
@@ -683,7 +699,7 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkout: D.CHECKOUT_MOCK, ckAddons: CK_ADDONS }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -738,6 +754,59 @@
           mobBefore + summary + summaryZoneHtml + mobAfter + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + leftCol + '</div>' +
+          '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
+        '</div>';
+    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + topBar + inner + bottomHtml + '</div>';
+  }
+
+  // -------------------------------------------------------------- THANK YOU canvas
+  // Mirrors the checkout two-column PC / single-column mobile layout with the
+  // Thank-you skeleton (Thank you PRD §20/§21). Left column: Order status → Order
+  // details → (Contact us | Continue shopping) row, plus main-zone enhancement
+  // components. Right column: Order summary (read-only Final Order Snapshot) + its
+  // summary-zone components. Full-bleed announce band on top; Policy links + Footer
+  // in the full-bleed bottom band. Reuses wrapSection / checkoutVars / hydrate.
+  function thankyouCanvasHtml() {
+    const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
+    const secs = pageSections();
+    CK_ADDONS = { rows: [], lines: [] }; // no commerce components on Thank you
+    const byKind = (k) => secs.find((s) => s.kind === k);
+    const wrap = (s, first) => (s && !s.hidden) ? wrapSection(s, !!first) : '';
+    const inZone = (s, z) => isCheckoutAddable(s.kind) && s.zone === z;
+    const zoneHtml = (z) => secs.filter((s) => inZone(s, z)).map((s) => wrap(s)).join('');
+
+    const header = wrap(byKind('checkout-header'), true);
+    const topBar = mob ? wrap(byKind('checkout-order-summary-bar')) : '';
+    const sumSec = byKind('checkout-order-summary');
+    const summary = wrap(sumSec);
+    const summaryZoneInner = zoneHtml('summary');
+    const summaryZoneHtml = summaryZoneInner ? '<div class="cksz">' + summaryZoneInner + '</div>' : '';
+
+    // Main column building blocks (Order status pinned at top; nothing above it).
+    const statusB = wrap(byKind('thankyou-order-status')) + zoneHtml('status');
+    const detailsB = wrap(byKind('thankyou-order-details')) + zoneHtml('details');
+    const continueSec = byKind('thankyou-continue-shopping');
+    const contactSec = byKind('thankyou-contact-us');
+    // PC: Contact us (left) + Continue shopping (right) share one row (matches Shopify).
+    const actionsPC = '<div class="ty-actions">' + wrap(contactSec) + wrap(continueSec) + '</div>';
+    const continueZone = zoneHtml('continue');
+
+    const announceHtml = zoneHtml('announce');
+    // Bottom band: policytop items → Policy links → Footer (Footer pinned last).
+    const bottomInner = zoneHtml('policytop') + wrap(byKind('checkout-policy-links')) + wrap(byKind('checkout-footer'));
+    const bottomHtml = bottomInner ? '<div class="ckbottom">' + bottomInner + '</div>' : '';
+
+    const vars = checkoutVars(tk);
+    const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
+    const L = tk.layout || {};
+    const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
+
+    const mainCol = statusB + detailsB + actionsPC + continueZone;
+    const inner = mob
+      ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
+          statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summary + summaryZoneHtml + '</div>')
+      : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
+          '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + mainCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
         '</div>';
     return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + topBar + inner + bottomHtml + '</div>';
@@ -1222,7 +1291,7 @@
     // clamps the top so the whole modal stays on-screen even when the button sits low.
     positionPop(pop, anchor, 640, 470);
     pop.style.zIndex = '251'; // above the editor chrome (.os-builder z-index 140)
-    const cat = D.CHECKOUT_CATALOG || [];
+    const cat = ckCatalog();
     const showPrev = (rw) => {
       pop.querySelectorAll('.os-addrow').forEach((x) => x.classList.remove('hover')); rw.classList.add('hover');
       const kind = rw.getAttribute('data-add-kind'); const st = rw.getAttribute('data-status'); const name = rw.getAttribute('data-name');
@@ -1286,11 +1355,18 @@
   function ckInsertIndex(arr, zone, kind) {
     if (zone.id === 'announce') return 0;
     if (kind === 'checkout-footer') return arr.length;
-    let at = arr.findIndex((x) => x.kind === zone.after);
-    if (at < 0) {
-      if (zone.id === 'bottom') at = arr.length - 1;
-      else { const cta = arr.findIndex((x) => x.kind === 'checkout-cta'); at = cta < 0 ? arr.length - 1 : cta - 1; }
+    // Thank-you bottom band: 'policytop' items sit just above Policy links, other
+    // bottom-band items just below it (footer already handled above).
+    if (zone.col === 'bottom') {
+      const pol = arr.findIndex((x) => x.kind === 'checkout-policy-links');
+      if (zone.id === 'policytop') return pol < 0 ? arr.length : pol; // before Policy links, after existing siblings
+      let at = pol < 0 ? arr.length - 1 : pol;
+      let insAt = at + 1;
+      while (insAt < arr.length && isCheckoutAddable(arr[insAt].kind) && arr[insAt].zone === zone.id && arr[insAt].kind !== 'checkout-footer') insAt++;
+      return insAt;
     }
+    let at = arr.findIndex((x) => x.kind === zone.after);
+    if (at < 0) { const cta = arr.findIndex((x) => x.kind === 'checkout-cta'); at = cta < 0 ? arr.length - 1 : cta - 1; }
     let insAt = at + 1;
     while (insAt < arr.length && isCheckoutAddable(arr[insAt].kind) && arr[insAt].zone === zone.id && arr[insAt].kind !== 'checkout-footer') insAt++;
     return insAt;
@@ -1474,6 +1550,13 @@
     ED.currentPage = pt; if (ED.selection.kind === 'section' || ED.selection.kind === 'block') ED.selection = { kind: 'header' };
     ED.leftMode = 'sections'; rerender();
   }
+  // Switch between the two checkout-surface pages (Checkout ↔ Thank you). Shared
+  // theme settings; each page has its own sections/zones (Thank you PRD §23.1).
+  function switchCheckoutPage(pt) {
+    if (pt === ED.checkoutPage) return;
+    ED.checkoutPage = pt; ED.leftMode = 'sections'; ED.selection = defaultSelection();
+    syncSurfaceHash(); rerender();
+  }
   function defaultSelection() {
     if (isCheckout()) { const s = pageSections()[0]; return s ? { kind: 'section', sectionId: s.id } : { kind: 'theme-settings' }; }
     return { kind: 'header' };
@@ -1495,7 +1578,9 @@
   // (replaceState doesn't fire hashchange), so the Checkout editor stays bookmarkable.
   function syncSurfaceHash() {
     const handle = ED.meta.handle;
-    const want = isCheckout() ? '#/checkout/' + encodeURIComponent(handle) : '#/online-store/edit/' + encodeURIComponent(handle);
+    const want = isCheckout()
+      ? ('#/checkout/' + encodeURIComponent(handle) + (isThankyou() ? '/thankyou' : ''))
+      : '#/online-store/edit/' + encodeURIComponent(handle);
     if (location.hash !== want) { try { history.replaceState(null, '', want); } catch (e) {} }
   }
 
@@ -1666,8 +1751,12 @@
     // opens the builder straight on the Checkout surface, no Online-store detour).
     const first = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
     if (first === 'checkout') {
-      const handle = (rest || '').split('/').filter(Boolean)[0] || (D.THEMES[0] && D.THEMES[0].handle) || 'aura';
-      ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout'));
+      // #/checkout, #/checkout/:handle, #/checkout/thankyou, #/checkout/:handle/thankyou
+      const parts = (rest || '').split('/').filter(Boolean);
+      let page = 'checkout';
+      const ti = parts.indexOf('thankyou'); if (ti >= 0) { page = 'thankyou'; parts.splice(ti, 1); }
+      const handle = parts[0] || (D.THEMES[0] && D.THEMES[0].handle) || 'aura';
+      ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout', page));
       return;
     }
     const m = (rest || '').match(/^edit\/(.+)$/);
@@ -2116,5 +2205,11 @@
   .ck-summary.mob .ck-summary-body{margin-top:16px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
   .ck-summary.mob .ck-savings{text-transform:uppercase;font-weight:600;letter-spacing:.02em}
+  .ck-line-flag{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;background:var(--ck-divider);color:var(--ck-sum-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
+  /* Thank-you page — the Continue shopping + Contact us action row (PC: Contact us
+     left, Continue shopping right; mobile: button full-width then contact below). */
+  .ty-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .ty-actions>.os-sec{margin:0}
+  .ckpage.mob .ty-actions{display:flex;flex-direction:column-reverse;align-items:stretch;gap:14px}
   `;
 })();
