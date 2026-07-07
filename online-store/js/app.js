@@ -653,9 +653,13 @@
   }
   function sectionLabel(s) {
     const def = SECTIONS[s.kind];
-    // Mobile-only top recap bar: fixed tree/panel label so it's distinguishable from the
-    // full itemized Order summary below (and independent of the buyer-facing heading text).
+    // Order summary is split into two viewport-specific components. Label the top recap bar
+    // "(Mobile)" so it's distinguishable from the full itemized summary (and independent of the
+    // buyer-facing heading). On Thank you the two are a strict viewport swap (bar = mobile only,
+    // full = desktop only), so label the full one "(Desktop)" to make the pairing unambiguous.
+    // On Checkout the full summary also renders in the mobile body, so it keeps its plain label.
     if (s.kind === 'checkout-order-summary-bar') return 'Order summary (Mobile)';
+    if (s.kind === 'checkout-order-summary' && isThankyou()) return 'Order summary (Desktop)';
     const head = s.settings && (s.settings.heading || s.settings.logoText || s.settings.title);
     if (head && String(head).trim()) return String(head).trim();
     return def ? def.name : s.kind;
