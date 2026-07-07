@@ -28,10 +28,13 @@
       const subtotal = cart.reduce((t, l) => t + l.price * l.qty, 0);
       const ship = (mock.shippingMethods || []).find((m) => m.id === mock.selectedShipping) || (mock.shippingMethods || [])[0] || { price: 0 };
       const shipPrice = ship.price || 0;
-      // Reflect the applied coupon (shared runtime key) so this bar matches the
-      // bottom Order Summary. Default: none applied → no discount.
-      const applied = (OS.ckState || {})['ck-coupon'] || null;
-      const discount = applied ? (applied.amount || 0) : 0;
+      // Reflect the applied coupons (shared runtime key) so this bar matches the
+      // bottom Order Summary. Multiple coupons stack. Default: none → no discount.
+      const appliedList = (OS.ckState || {})['ck-coupons'] || [];
+      const dOrder = appliedList.reduce((t, c) => t + (+c.order || 0), 0);
+      const dShip = appliedList.reduce((t, c) => t + (+c.shipping || 0), 0);
+      const dProduct = appliedList.reduce((t, c) => t + (+c.product || 0), 0);
+      const discount = dProduct + dOrder + dShip;
       const tax = mock.tax || 0;
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
       const total = subtotal - discount + shipPrice + tax + addonTotal;
@@ -53,9 +56,12 @@
       }).join('');
       const trow = (lbl, val) => '<div class="ck-trow"><span class="lbl">' + esc(lbl) + '</span><span class="amt">' + val + '</span></div>';
       const addonRows = (add.rows || []).map((r) => trow(r.label, money(r.amount))).join('');
+      const discRows = (dProduct > 0 ? trow('Product discount', '−' + money(dProduct)) : '') +
+        (dOrder > 0 ? trow('Order discount', '−' + money(dOrder)) : '') +
+        (dShip > 0 ? trow('Shipping discount', '−' + money(dShip)) : '');
       const totals = '<div class="ck-totals">' +
         trow('Subtotal', money(subtotal)) +
-        (discount > 0 ? trow('Discount', '−' + money(discount)) : '') +
+        discRows +
         trow('Shipping', shipPrice ? money(shipPrice) : 'Free') +
         trow('Taxes', money(tax)) +
         addonRows +

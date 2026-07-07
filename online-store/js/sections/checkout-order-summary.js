@@ -55,15 +55,16 @@
       const shipId = ((OS.ckState || {})['ck-shipping'] || {}).id || mock.selectedShipping;
       const ship = (mock.shippingMethods || []).find((m) => m.id === shipId) || (mock.shippingMethods || [])[0] || { price: 0 };
       const shipPrice = snap ? (snap.shipping || 0) : (ship.price || 0);
-      // Applied coupon lives in a shared runtime key so every summary surface (PC,
-      // mobile, top bar) reflects the same discount. Default: none applied → no discount.
-      const applied = snap ? null : ((OS.ckState || {})['ck-coupon'] || null);
+      // Applied coupons live in a shared runtime key so every summary surface (PC,
+      // mobile, top bar) reflects the same discounts. Multiple coupons can stack —
+      // each carries its own {product, order, shipping} breakdown. Default: none.
+      const appliedList = snap ? [] : (((OS.ckState || {})['ck-coupons']) || []);
       // Item 2 — Shopify itemises discounts into three types: product (line-item),
-      // order, and shipping. The applied coupon carries the breakdown; each non-zero
+      // order, and shipping. Each type sums across every applied coupon; each non-zero
       // type renders its own row and all of them deduct from the Total.
-      const dProduct = snap ? (snap.discount || 0) : (applied ? (+applied.product || 0) : 0);
-      const dOrder = snap ? 0 : (applied ? (+applied.order || 0) : 0);
-      const dShip = snap ? 0 : (applied ? (+applied.shipping || 0) : 0);
+      const dProduct = snap ? (snap.discount || 0) : appliedList.reduce((t, c) => t + (+c.product || 0), 0);
+      const dOrder = snap ? 0 : appliedList.reduce((t, c) => t + (+c.order || 0), 0);
+      const dShip = snap ? 0 : appliedList.reduce((t, c) => t + (+c.shipping || 0), 0);
       const discount = dProduct + dOrder + dShip;
       const tax = snap ? (snap.tax || 0) : (mock.tax || 0);
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
@@ -114,19 +115,20 @@
       const linesBlk = blk(lb.id, '<div class="ck-lines">' + lines + '</div>', sel === lb.id);
 
       // ---- coupon block ---- (read-only on Thank you: no coupon entry, PRD §5.3)
-      // Fix 0: the discount-code input + Apply ALWAYS stay visible. When a coupon is
-      // applied, the chip renders as an ADDITIONAL row below the input (removing it via
-      // "×" clears the discount; re-applying while one is applied still works).
+      // The discount-code input + Apply ALWAYS stay visible. Each applied coupon
+      // renders as its own chip row below the input (multiple coupons can stack);
+      // removing one via "×" drops just that coupon and re-applying still works.
       const cb = find('coupon'); const cs = cb.settings || {};
       let couponInner = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
         '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>';
-      if (applied) {
-        couponInner += '<div class="ck-coupon-applied below" data-ck-coupon-applied>' +
-          '<span class="ck-coupon-chip">' + TAG + '<span class="code">' + esc(applied.code) + '</span>' +
-          '<button class="ck-coupon-x" type="button" data-ck-coupon-remove aria-label="Remove discount">×</button></span>' +
-          '<span class="ck-coupon-off">−' + money(applied.amount || 0) + '</span>' +
+      couponInner += appliedList.map((c) => {
+        const off = (+c.product || 0) + (+c.order || 0) + (+c.shipping || 0);
+        return '<div class="ck-coupon-applied below" data-ck-coupon-applied>' +
+          '<span class="ck-coupon-chip">' + TAG + '<span class="code">' + esc(c.code) + '</span>' +
+          '<button class="ck-coupon-x" type="button" data-ck-coupon-remove="' + esc(c.code) + '" aria-label="Remove discount">×</button></span>' +
+          '<span class="ck-coupon-off">−' + money(off) + '</span>' +
         '</div>';
-      }
+      }).join('');
       const couponBlk = (snap || cs.show_coupon === false) ? '' : blk(cb.id, couponInner, sel === cb.id);
 
       // ---- totals ----
@@ -218,21 +220,29 @@
               showErr('Enter a valid discount code');
               return;
             }
+            const list = ((OS.ckState || {})['ck-coupons'] || []).slice();
+            if (list.some((c) => c.code === key)) {
+              apply.textContent = 'Apply'; apply.disabled = false;
+              showErr('This code is already applied');
+              return;
+            }
             // Item 2 — normalise to a {product, order, shipping} breakdown. A plain
-            // number is treated as a product discount (backward-compat).
+            // number is treated as a product discount (backward-compat). Multiple
+            // coupons stack, so push onto the shared list (dedupe by code above).
             const norm = (typeof entry === 'number') ? { product: entry } : (entry || {});
             const product = +norm.product || 0, order = +norm.order || 0, shipping = +norm.shipping || 0;
-            OS.ckSet('ck-coupon', { code: key, product: product, order: order, shipping: shipping, amount: product + order + shipping });
+            list.push({ code: key, product: product, order: order, shipping: shipping, amount: product + order + shipping });
+            OS.ckState['ck-coupons'] = list;
             OS.ckRecalc();
           }, 600);
         });
       }
-      const remove = el.querySelector('[data-ck-coupon-remove]');
-      if (remove) remove.addEventListener('click', (e) => {
+      el.querySelectorAll('[data-ck-coupon-remove]').forEach((remove) => remove.addEventListener('click', (e) => {
         e.preventDefault();
-        OS.ckState['ck-coupon'] = null;
+        const code = remove.getAttribute('data-ck-coupon-remove');
+        OS.ckState['ck-coupons'] = ((OS.ckState || {})['ck-coupons'] || []).filter((c) => c.code !== code);
         OS.ckRecalc();
-      });
+      }));
     },
   });
 })();
