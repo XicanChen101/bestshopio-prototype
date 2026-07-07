@@ -58,7 +58,13 @@
       // Applied coupon lives in a shared runtime key so every summary surface (PC,
       // mobile, top bar) reflects the same discount. Default: none applied → no discount.
       const applied = snap ? null : ((OS.ckState || {})['ck-coupon'] || null);
-      const discount = snap ? (snap.discount || 0) : (applied ? (applied.amount || 0) : 0);
+      // Item 2 — Shopify itemises discounts into three types: product (line-item),
+      // order, and shipping. The applied coupon carries the breakdown; each non-zero
+      // type renders its own row and all of them deduct from the Total.
+      const dProduct = snap ? (snap.discount || 0) : (applied ? (+applied.product || 0) : 0);
+      const dOrder = snap ? 0 : (applied ? (+applied.order || 0) : 0);
+      const dShip = snap ? 0 : (applied ? (+applied.shipping || 0) : 0);
+      const discount = dProduct + dOrder + dShip;
       const tax = snap ? (snap.tax || 0) : (mock.tax || 0);
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
       const total = snap ? (snap.total != null ? snap.total : subtotal - discount + shipPrice + tax) : subtotal - discount + shipPrice + tax + addonTotal;
@@ -72,33 +78,54 @@
 
       // ---- cart lines block ----
       const lb = find('cart-lines');
+      const imgHtml = (src, qty, extra) => '<div class="ck-line-img' + (extra || '') + '" style="background-image:url(' + esc(src) + ')"><span class="ck-line-qty">' + (qty == null ? 1 : qty) + '</span></div>';
       const lines = cart.map((l) => {
         const cmp = l.compareAt && l.compareAt > l.price ? '<span class="ck-line-cmp">' + money(l.compareAt) + '</span>' : '';
         const deal = (l.deal && l.compareAt && l.compareAt > l.price)
           ? '<div class="ck-line-deal">' + TAG + '<span>' + esc(l.deal) + ' (−' + money((l.compareAt - l.price) * l.qty) + ')</span></div>' : '';
         // Final-order lines may carry an accepted upsell/downsell flag (PRD §14.4).
         const flag = l.upsell ? '<span class="ck-line-flag">Added offer</span>' : (l.downsell ? '<span class="ck-line-flag">Special offer</span>' : '');
+        const variantHtml = l.variant ? '<div class="ck-line-v">' + esc(l.variant) + '</div>' : '';
+        // Item 3 — subscription cadence tag (the (−$x) is the subscription saving).
+        const subTag = l.subscription
+          ? '<div class="ck-line-sub">' + TAG + '<span>' + esc(l.subscription.label) +
+            (l.subscription.save ? ' (−' + money(l.subscription.save) + ')' : '') + '</span></div>' : '';
+        // Item 3 — bundle parent: black "Bundle" badge instead of the thumb, then
+        // indented "Included" children (small thumb + orange pill, no own price).
+        if (l.bundle) {
+          const kids = (l.bundleItems || []).map((c) =>
+            '<div class="ck-bundle-child">' +
+              imgHtml(c.image, c.qty, ' sm') +
+              '<div class="ck-line-info"><div class="ck-line-t"><span class="ck-line-included">Included</span>' + esc(c.title) + '</div>' +
+              (c.variant ? '<div class="ck-line-v">' + esc(c.variant) + '</div>' : '') + '</div>' +
+            '</div>').join('');
+          return '<div class="ck-line ck-line--bundle">' +
+              '<div class="ck-line-bundle-badge">Bundle</div>' +
+              '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + flag + '</div>' + variantHtml + deal + '</div>' +
+              '<div class="ck-line-pr">' + cmp + money(l.price * l.qty) + '</div>' +
+            '</div>' + kids;
+        }
         return '<div class="ck-line">' +
-          '<div class="ck-line-img" style="background-image:url(' + esc(l.image) + ')"><span class="ck-line-qty">' + l.qty + '</span></div>' +
-          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + flag + '</div><div class="ck-line-v">' + esc(l.variant || '') + '</div>' + deal + '</div>' +
+          imgHtml(l.image, l.qty) +
+          '<div class="ck-line-info"><div class="ck-line-t">' + esc(l.title) + flag + '</div>' + variantHtml + subTag + deal + '</div>' +
           '<div class="ck-line-pr">' + cmp + money(l.price * l.qty) + '</div>' +
         '</div>';
       }).join('');
       const linesBlk = blk(lb.id, '<div class="ck-lines">' + lines + '</div>', sel === lb.id);
 
       // ---- coupon block ---- (read-only on Thank you: no coupon entry, PRD §5.3)
+      // Fix 0: the discount-code input + Apply ALWAYS stay visible. When a coupon is
+      // applied, the chip renders as an ADDITIONAL row below the input (removing it via
+      // "×" clears the discount; re-applying while one is applied still works).
       const cb = find('coupon'); const cs = cb.settings || {};
-      let couponInner;
+      let couponInner = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
+        '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>';
       if (applied) {
-        // Applied: show a chip with the code + a remove button (clears the discount).
-        couponInner = '<div class="ck-coupon-applied" data-ck-coupon-applied>' +
+        couponInner += '<div class="ck-coupon-applied below" data-ck-coupon-applied>' +
           '<span class="ck-coupon-chip">' + TAG + '<span class="code">' + esc(applied.code) + '</span>' +
           '<button class="ck-coupon-x" type="button" data-ck-coupon-remove aria-label="Remove discount">×</button></span>' +
           '<span class="ck-coupon-off">−' + money(applied.amount || 0) + '</span>' +
         '</div>';
-      } else {
-        couponInner = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
-          '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>';
       }
       const couponBlk = (snap || cs.show_coupon === false) ? '' : blk(cb.id, couponInner, sel === cb.id);
 
@@ -112,9 +139,21 @@
       const sub = find('subtotal'), dis = find('discount'), shp = find('shipping'), tx = find('tax'), tot = find('total');
       const savingsLine = savings > 0 ? '<div class="ck-savings">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
       const addonRows = (add.rows || []).map((r) => '<div class="ck-trow ck-addon"><span class="lbl">' + esc(r.label) + '</span><span class="amt">' + money(r.amount) + '</span></div>').join('');
+      // Item 2 — a separate discount row per non-zero type (Shopify-style labels).
+      // Thank-you snapshot only carries a single lump discount → use the block label.
+      const discRows = [];
+      if (snap) { if (dProduct > 0) discRows.push([(dis.settings || {}).row_label || 'Discount', dProduct]); }
+      else {
+        if (dProduct > 0) discRows.push(['Product discount', dProduct]);
+        if (dOrder > 0) discRows.push(['Order discount', dOrder]);
+        if (dShip > 0) discRows.push(['Shipping discount', dShip]);
+      }
+      const discountHtml = discRows.length
+        ? blk(dis.id, discRows.map((d) => '<div class="ck-trow ck-disc"><span class="lbl">' + esc(d[0]) + '</span><span class="amt">−' + money(d[1]) + '</span></div>').join(''), sel === dis.id)
+        : '';
       const totals = '<div class="ck-totals">' +
         row(sub, money(subtotal), { suffix: ' <span class="ck-itemc">· ' + itemCount + ' items</span>' }) +
-        (discount > 0 ? row(dis, '−' + money(discount)) : '') +
+        discountHtml +
         row(shp, shipPrice ? money(shipPrice) : 'Free') +
         row(tx, money(tax)) +
         addonRows +
@@ -173,13 +212,17 @@
           setTimeout(() => {
             const codes = (OS.data && OS.data.CHECKOUT_MOCK && OS.data.CHECKOUT_MOCK.coupons) || {};
             const key = code.toUpperCase();
-            const amount = codes[key];
-            if (amount == null) {
+            const entry = codes[key];
+            if (entry == null) {
               apply.textContent = 'Apply'; apply.disabled = false;
               showErr('Enter a valid discount code');
               return;
             }
-            OS.ckSet('ck-coupon', { code: key, amount: amount });
+            // Item 2 — normalise to a {product, order, shipping} breakdown. A plain
+            // number is treated as a product discount (backward-compat).
+            const norm = (typeof entry === 'number') ? { product: entry } : (entry || {});
+            const product = +norm.product || 0, order = +norm.order || 0, shipping = +norm.shipping || 0;
+            OS.ckSet('ck-coupon', { code: key, product: product, order: order, shipping: shipping, amount: product + order + shipping });
             OS.ckRecalc();
           }, 600);
         });

@@ -485,6 +485,19 @@
       { id: 'l1', title: 'Linen-feel wide pants', variant: 'Sand / M', qty: 1, price: 32.99, compareAt: 45.0, deal: 'EXTRA SALE', image: IMG.p1 },
       { id: 'l2', title: 'Soft rib tee', variant: 'Forest / S', qty: 2, price: 18.99, compareAt: 26.0, deal: 'BUY 2 SAVE 30%', image: IMG.p2 },
       { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, deal: 'CLEARANCE', image: IMG.p6 },
+      // Subscription lines — the line price already reflects the subscription saving
+      // (compareAt − save = price); the cadence tag is informational (Item 3).
+      { id: 'l4', title: '04 Normal product - single variant', variant: '', qty: 1, price: 10.39, compareAt: 12.99, image: IMG.p4,
+        subscription: { label: 'Delivery every 1 month', save: 2.6 } },
+      { id: 'l5', title: '05 Normal product - multiple variants', variant: 'Citrus, 24 Pack', qty: 1, price: 15.19, compareAt: 18.99, image: IMG.p5,
+        subscription: { label: 'Delivery every 2 months', save: 3.8 } },
+      // Bundle parent — black "Bundle" badge instead of a thumb, BUNDLE-discount deal
+      // tag (compareAt − price), followed by indented "Included" children (no own price).
+      { id: 'l6', title: '03 Bundle product - one-time purchase', variant: '', qty: 1, price: 42.0, compareAt: 49.98, deal: 'BUNDLE discount', image: IMG.p3,
+        bundle: true, bundleItems: [
+          { title: 'Bundle item A - Focus Gum', variant: '12 Pack', qty: 1, image: IMG.p1 },
+          { title: 'Bundle item B - Refill Pack', variant: 'Mint, 24 Pack', qty: 1, image: IMG.p2 },
+        ] },
     ],
     shippingMethods: [
       { id: 'free', name: 'Free Shipping', eta: '', desc: '4–7 business days', price: 0 },
@@ -492,9 +505,17 @@
     ],
     selectedShipping: 'free',
     coupon: { code: 'WELCOME10', amount: 10.99 },
-    // Valid demo discount codes (case-insensitive). Amount drives the Order Summary
-    // Discount line once applied. WELCOME10 reuses coupon.amount for consistency.
-    coupons: { WELCOME10: 10.99, SAVE10: 10.0 },
+    // Valid demo discount codes (case-insensitive). Shopify itemises discounts into
+    // three types (Item 2): product / order / shipping. Each entry is an object with
+    // any of {product, order, shipping}; a plain number is treated as a product
+    // discount (backward-compat). The applied coupon carries this breakdown so the
+    // Order Summary can render a separate row per non-zero discount type.
+    coupons: {
+      WELCOME10: { product: 10.99 },       // product (line-item) discount
+      SAVE10: { order: 10.0 },             // order discount (matches reference)
+      SHIP5: { shipping: 5.0 },            // shipping discount (negative shipping line)
+      BUNDLE15: { product: 5.0, order: 7.0, shipping: 3.0 }, // demos all three at once
+    },
     tax: 7.34,
     // Signed-in demo account (Item 1). The signed-in flag itself is a runtime toggle
     // shared by Contact + Delivery (OS.ckState['ck-account']), default signed OUT.
@@ -632,8 +653,10 @@
     shippingMethod: 'Standard (Example)',
     payment: { brand: 'Visa', last4: '—', label: 'Credit card' },
     billingSameAsShipping: true,
-    // Final cart lines = Checkout items + accepted upsell (PRD §4.3 example).
-    lines: CHECKOUT_MOCK.cart.concat([THANKYOU_UPSELL_LINE]),
+    // Final cart lines = the original 3 Checkout items + accepted upsell (PRD §4.3).
+    // Slice to the first 3 so the demo subscription/bundle lines added for the live
+    // Checkout preview don't perturb the read-only snapshot's hardcoded totals below.
+    lines: CHECKOUT_MOCK.cart.slice(0, 3).concat([THANKYOU_UPSELL_LINE]),
     // Read-only final amounts (USD). subtotal = Σ line totals.
     subtotal: 152.97,
     discount: 10.99,

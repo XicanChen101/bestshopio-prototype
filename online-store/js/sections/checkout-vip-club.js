@@ -1,7 +1,7 @@
 /* Checkout · VIP Club (Commerce PRD §9) — opt-in membership add-on.
-   Binds a real membership product; the buyer ticks the card to add it to the order.
-   Addable / hideable / deletable / draggable. Prototype: the tick is a visual toggle —
-   the static mock Order Summary is not recalculated live. Complex subscription /
+   Price & Order-Summary image are configured on the component (Item 1); the buyer ticks
+   the card to add it to the order. Addable / hideable / deletable / draggable. Prototype:
+   ticking recalculates the shared Order Summary via OS.ckRecalc(). Complex subscription /
    recurring-billing compliance is out of scope this round (PRD §9.1). */
 (function () {
   if (!window.OS) return;
@@ -13,11 +13,12 @@
     name: 'VIP Club', icon: 'badgePercent',
     defaultZone: 'cta',
     schema: [
-      { info: 'Offers a membership the buyer can tick to join. Binds a real membership product.' },
-      { key: 'vip_product', label: 'VIP product', control: 'product', single: true, pickFrom: 'services', default: 'svc-vip', required: true, info: 'Required — binds a real membership product. Its price is used in the Order Summary.' },
+      { info: 'Offers a membership the buyer can tick to join. Price & Order-Summary image are configured here.' },
       { sub: 'Content' },
       { key: 'title', label: 'Title', control: 'text', default: 'Welcome to the VIP Club!', placeholder: 'Welcome to the VIP Club!' },
       { key: 'description', label: 'Description', control: 'richtext', default: '', info: 'Membership perks. Basic HTML allowed.' },
+      { key: 'price', label: 'Price', control: 'number', default: 29.99, min: 0, step: 0.01, info: 'Membership fee added to the Order Summary when selected.' },
+      { key: 'image', label: 'Order Summary image', control: 'image', default: '', info: 'Image shown in the Order Summary line.' },
       { sub: 'Behavior' },
       { key: 'default_selected', label: 'Default selected', control: 'toggle', default: false, info: 'Add to the order on page load.' },
       { sub: 'Style' },

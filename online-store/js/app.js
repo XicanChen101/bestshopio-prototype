@@ -301,9 +301,16 @@
       if (s.kind === 'checkout-shipping-insurance' || s.kind === 'checkout-vip-club') {
         const on = ('selected' in st) ? st.selected : !!cfg.default_selected;
         if (!on) return;
-        const pid = s.kind === 'checkout-vip-club' ? cfg.vip_product : cfg.insurance_product;
-        const p = (D.SAMPLE.services || []).concat(D.SAMPLE.products || []).find((x) => x.id === pid);
-        if (p) lines.push({ id: p.id + ':' + s.id, title: p.title, variant: '', qty: 1, price: p.price, compareAt: p.compareAt || 0, image: p.image, addon: true });
+        // Item 1: the Order-Summary line is built from component-level config
+        // (price / image / title) — no longer from a bound service product.
+        const isVip = s.kind === 'checkout-vip-club';
+        const def = SECTIONS[s.kind] || {};
+        const title = cfg.title || def.name || (isVip ? 'VIP Club' : 'Shipping insurance');
+        const price = (cfg.price == null ? (isVip ? 29.99 : 3.95) : +cfg.price) || 0;
+        const img = ((D.SAMPLE || {}).IMG) || {};
+        const image = cfg.image || (isVip ? img.svcVip : img.svcShip) || '';
+        const key = isVip ? 'vip' : 'insurance';
+        lines.push({ id: key + ':' + s.id, title: title, variant: '', qty: 1, price: price, compareAt: 0, image: image, addon: true });
       } else if (s.kind === 'checkout-product-upsell') {
         const explicit = st.items || {};
         const vmap = st.variants || {};
@@ -2170,6 +2177,17 @@
   .ck-line-cmp{color:var(--ck-sum-muted);text-decoration:line-through;font-size:var(--ck-small-fs);font-weight:400}
   .ck-line-deal{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:var(--ck-small-fs);color:var(--ck-sum-muted)}
   .ck-line-deal .ck-tag-i{flex:none}
+  /* Item 3 — subscription cadence tag (muted, tag icon + "Delivery every … (−$x)") */
+  .ck-line-sub{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:var(--ck-small-fs);color:var(--ck-sum-muted)}
+  .ck-line-sub .ck-tag-i{flex:none}
+  /* Item 3 — bundle parent (black "Bundle" badge in place of the thumb) + children */
+  .ck-line--bundle{align-items:flex-start;margin-bottom:14px}
+  .ck-line-bundle-badge{flex:none;width:64px;min-height:34px;display:inline-flex;align-items:center;justify-content:center;background:#111;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:6px 10px;box-sizing:border-box}
+  .ck-bundle-child{display:flex;gap:12px;align-items:center;margin:0 0 14px 24px}
+  .ck-bundle-child:last-child{margin-bottom:2px}
+  .ck-line-img.sm{width:44px;height:44px;border-radius:8px}
+  .ck-line-img.sm .ck-line-qty{top:-8px;right:-8px;min-width:18px;height:18px;font-size:10px}
+  .ck-line-included{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:6px;background:#fff2e3;color:#d9822b;font-size:11px;font-weight:700;vertical-align:middle;line-height:1.5}
   .ck-itemc{color:var(--ck-sum-muted);font-weight:400}
   .ck-savings{display:flex;align-items:center;gap:6px;margin-top:12px;font-size:var(--ck-small-fs);color:#2e7d32}
   .ck-coupon{display:flex;gap:8px;margin:0;padding:20px 0;border-top:1px solid var(--ck-divider)}
@@ -2281,6 +2299,8 @@
   .ck-radio .desc{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:2px}
   /* Item 2 — applied coupon chip + inline error */
   .ck-coupon-applied{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding:20px 0;border-top:1px solid var(--ck-divider)}
+  /* Fix 0 — chip rendered as a row BELOW the always-visible discount input */
+  .ck-coupon-applied.below{border-top:0;padding:0 0 20px;margin-top:-8px}
   .ck-coupon-chip{display:inline-flex;align-items:center;gap:7px;background:var(--ck-divider);color:var(--ck-sum-text);border-radius:999px;padding:6px 8px 6px 12px;font-size:var(--ck-small-fs);font-weight:600}
   .ck-coupon-chip .ck-tag-i{flex:none}
   .ck-coupon-chip .code{letter-spacing:.02em;text-transform:uppercase}

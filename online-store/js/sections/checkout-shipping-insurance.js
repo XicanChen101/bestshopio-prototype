@@ -1,7 +1,7 @@
 /* Checkout · Shipping Insurance (Commerce PRD §8) — opt-in delivery-protection service.
-   Binds a real service product; the buyer ticks the card to add the fee to the order.
-   Addable / hideable / deletable / draggable. Prototype: the tick is a visual toggle —
-   the static mock Order Summary is not recalculated live. */
+   Price & Order-Summary image are configured on the component (Item 1); the buyer ticks
+   the card to add the fee to the order. Addable / hideable / deletable / draggable.
+   Prototype: ticking recalculates the shared Order Summary via OS.ckRecalc(). */
 (function () {
   if (!window.OS) return;
   const { esc, money } = OS;
@@ -13,14 +13,15 @@
     name: 'Shipping Insurance', icon: 'layers',
     defaultZone: 'cta',
     schema: [
-      { info: 'Offers delivery protection as a tickable add-on. Binds a real service product.' },
+      { info: 'Offers delivery protection as a tickable add-on. Price & Order-Summary image are configured here.' },
       { key: 'heading', label: 'Heading', control: 'text', default: 'Shipping Insurance', placeholder: 'Shipping Insurance', info: 'Leave empty to show only the card.' },
-      { key: 'insurance_product', label: 'Insurance product', control: 'product', single: true, pickFrom: 'services', default: 'svc-ship', required: true, info: 'Required — binds a real service product. Its price is used in the Order Summary.' },
       { sub: 'Content' },
       { key: 'title', label: 'Title', control: 'text', default: 'Shipping insurance', placeholder: 'Shipping insurance' },
       { key: 'description', label: 'Description', control: 'text', default: 'Receive your order faster for just $3.95', info: 'Supports a price variable.' },
+      { key: 'price', label: 'Price', control: 'number', default: 3.95, min: 0, step: 0.01, info: 'Fee added to the Order Summary when selected.' },
+      { key: 'image', label: 'Order Summary image', control: 'image', default: '', info: 'Product image shown in the Order Summary line.' },
       { key: 'social_proof', label: 'Social proof', control: 'text', default: '88% of people choose this option', info: 'Optional reassurance line.' },
-      { key: 'icon', label: 'Icon', control: 'image', default: '', info: 'SVG / PNG. Falls back to a shield icon.' },
+      { key: 'icon', label: 'Icon', control: 'image', default: '', info: 'Card icon (distinct from the Order-Summary image). SVG / PNG. Falls back to a shield icon.' },
       { sub: 'Behavior' },
       { key: 'default_selected', label: 'Default selected', control: 'toggle', default: false, info: 'Add to the order on page load.' },
       { sub: 'Style' },
@@ -48,9 +49,8 @@
       const icon = s.icon
         ? '<img class="ckins-iconimg" src="' + esc(s.icon) + '" alt="">'
         : SHIELD;
-      const pool = ctx.sample ? (ctx.sample.services || []).concat(ctx.sample.products || []) : [];
-      const prod = pool.find((x) => x.id === s.insurance_product);
-      const price = prod ? prod.price : 0;
+      // Price is now component-level config (Item 1) — no longer pulled from a bound product.
+      const price = (s.price == null ? 3.95 : s.price);
       const desc = (s.description || '').replace(/\$[\d.,]+/g, '$' + Number(price).toFixed(2)).trim();
       const descHtml = desc ? '<div class="ckins-desc">' + esc(desc) + '</div>' : '';
       const proof = s.social_proof ? '<div class="ckins-proof">' + esc(s.social_proof) + '</div>' : '';
