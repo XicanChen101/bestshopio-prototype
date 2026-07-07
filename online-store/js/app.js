@@ -846,9 +846,13 @@
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
 
     const mainCol = headerZoneHtml + statusB + detailsB + actionsPC + continueZone;
+    // Mobile mirrors Shopify's Thank-you page: the ONLY order summary is the top bar
+    // (checkout-order-summary-bar, expandable to full detail). The full right-column
+    // Order Summary is desktop-only here — so we drop `summary` and keep just its zone
+    // add-ons. (Checkout mobile still shows the in-body summary; the two pages differ.)
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          headerZoneHtml + statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summary + summaryZoneHtml + '</div>')
+          headerZoneHtml + statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summaryZoneHtml + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + mainCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
