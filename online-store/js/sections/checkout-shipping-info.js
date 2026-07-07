@@ -23,34 +23,49 @@
     ],
     render(s, blocks, ctx) {
       const mock = ctx.checkout || {};
+      // Item 1: shared signed-in flag (also driven by Contact). When signed in,
+      // every field is pre-filled from the mock account with a "filled" tint.
+      const signedIn = !!((OS.ckState || {})['ck-account'] || {}).signedIn;
+      const acct = signedIn ? (mock.account || {}) : {};
+      const activeCountry = signedIn ? (acct.country || mock.country) : mock.country;
+      const filled = (v) => v ? ' ck-filled' : '';
       const countries = (mock.countries || ['United States']);
-      const opts = countries.map((c) => '<option' + (c === mock.country ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
-      const inp = (ph, type) => '<input class="ck-input" type="' + (type || 'text') + '" placeholder="' + esc(ph) + '">';
+      const opts = countries.map((c) => '<option' + (c === activeCountry ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
+      const inp = (ph, val, type) => '<input class="ck-input' + filled(val) + '" type="' + (type || 'text') + '" placeholder="' + esc(ph) + '"' + (val ? ' value="' + esc(val) + '"' : '') + '>';
       // Placeholder-style dropdown: first option acts as the grey placeholder, turns to
       // normal text once a real value is picked (inline handler keeps it framework-free).
-      const sel = (ph, items) => '<div class="ck-selwrap"><select class="ck-input ck-select" style="color:var(--ck-ph)" onchange="this.style.color=this.value?\'\':\'var(--ck-ph)\'">' +
-        '<option value="" selected>' + esc(ph) + '</option>' +
-        (items || []).map((o) => '<option>' + esc(o) + '</option>').join('') +
-        '</select></div>';
+      // When signed in, the account value is pre-selected (added to the list if missing).
+      const sel = (ph, items, val) => {
+        const list = (items || []).slice();
+        if (val && list.indexOf(val) === -1) list.unshift(val);
+        const color = val ? '' : 'var(--ck-ph)';
+        return '<div class="ck-selwrap"><select class="ck-input ck-select' + filled(val) + '" style="color:' + color + '" onchange="this.style.color=this.value?\'\':\'var(--ck-ph)\'">' +
+          '<option value=""' + (val ? '' : ' selected') + '>' + esc(ph) + '</option>' +
+          list.map((o) => '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>').join('') +
+          '</select></div>';
+      };
       // Phone: a compact dial-code prefix (auto from country) sits inline, left of the input.
-      const dial = DIAL[mock.country] || '+1';
+      const dial = DIAL[activeCountry] || '+1';
       const phone = '<div class="ck-phone">' +
         '<span class="ck-phone-cc" data-ck-dial>' + esc(dial) + '</span>' +
-        '<input class="ck-input ck-phone-num" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '">' +
+        '<input class="ck-input ck-phone-num' + filled(acct.phone) + '" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '"' + (acct.phone ? ' value="' + esc(acct.phone) + '"' : '') + '>' +
       '</div>';
+      // Shopify-style address suggestion, only when signed in and a suggestion exists.
+      const didYouMean = (signedIn && acct.suggestion)
+        ? '<div class="ck-didyoumean">ⓘ Did you mean <b>' + esc(acct.suggestion) + '</b>?</div>' : '';
       return '<div class="cksec ck-shipinfo">' +
         '<h3 class="ck-h">' + esc(s.heading || 'Delivery') + '</h3>' +
-        '<div class="ck-field"><div class="ck-selwrap"><select class="ck-input ck-select" data-ck-country>' + opts + '</select></div></div>' +
+        '<div class="ck-field"><div class="ck-selwrap"><select class="ck-input ck-select' + filled(signedIn && activeCountry) + '" data-ck-country>' + opts + '</select></div></div>' +
         '<div class="ck-row2">' +
-          '<div class="ck-field">' + inp(s.first_name_placeholder || 'First name') + '</div>' +
-          '<div class="ck-field">' + inp(s.last_name_placeholder || 'Last name') + '</div>' +
+          '<div class="ck-field">' + inp(s.first_name_placeholder || 'First name', acct.firstName) + '</div>' +
+          '<div class="ck-field">' + inp(s.last_name_placeholder || 'Last name', acct.lastName) + '</div>' +
         '</div>' +
-        '<div class="ck-field">' + inp(s.address_placeholder || 'Address') + '</div>' +
-        '<div class="ck-field">' + inp(s.apartment_placeholder || 'Apartment') + '</div>' +
+        '<div class="ck-field">' + inp(s.address_placeholder || 'Address', acct.address) + didYouMean + '</div>' +
+        '<div class="ck-field">' + inp(s.apartment_placeholder || 'Apartment', acct.apartment) + '</div>' +
         '<div class="ck-row3">' +
-          '<div class="ck-field">' + sel(s.city_placeholder || 'City', mock.cities) + '</div>' +
-          '<div class="ck-field">' + sel(s.state_placeholder || 'State/province', mock.states) + '</div>' +
-          '<div class="ck-field">' + inp(s.zip_placeholder || 'ZIP code') + '</div>' +
+          '<div class="ck-field">' + sel(s.city_placeholder || 'City', mock.cities, acct.city) + '</div>' +
+          '<div class="ck-field">' + sel(s.state_placeholder || 'State/province', mock.states, acct.state) + '</div>' +
+          '<div class="ck-field">' + inp(s.zip_placeholder || 'ZIP code', acct.zip) + '</div>' +
         '</div>' +
         '<div class="ck-field ck-field-phone">' + phone + '</div>' +
       '</div>';

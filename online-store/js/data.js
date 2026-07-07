@@ -487,12 +487,23 @@
       { id: 'l3', title: 'Pleated midi skirt', variant: 'Black / M', qty: 1, price: 38.0, compareAt: 49.0, deal: 'CLEARANCE', image: IMG.p6 },
     ],
     shippingMethods: [
-      { id: 'free', name: 'Free Shipping', eta: '', price: 0 },
-      { id: 'vip', name: 'VIP Shipping', eta: '', price: 12.99 },
+      { id: 'free', name: 'Free Shipping', eta: '', desc: '4–7 business days', price: 0 },
+      { id: 'vip', name: 'VIP Shipping', eta: '', desc: '1–2 business days · priority handling', price: 12.99 },
     ],
     selectedShipping: 'free',
     coupon: { code: 'WELCOME10', amount: 10.99 },
+    // Valid demo discount codes (case-insensitive). Amount drives the Order Summary
+    // Discount line once applied. WELCOME10 reuses coupon.amount for consistency.
+    coupons: { WELCOME10: 10.99, SAVE10: 10.0 },
     tax: 7.34,
+    // Signed-in demo account (Item 1). The signed-in flag itself is a runtime toggle
+    // shared by Contact + Delivery (OS.ckState['ck-account']), default signed OUT.
+    account: {
+      email: 'cxc8697@gmail.com', firstName: 'Otto', lastName: 'Chen',
+      country: 'United States', address: '4073 Riverside Drive', apartment: '',
+      city: 'COLUMBUS', state: 'Kansas', zip: '66725', phone: '',
+      suggestion: '4073 N Riverside Dr',
+    },
   };
 
   // Add-component catalog for the Checkout editor, grouped into MECE categories by

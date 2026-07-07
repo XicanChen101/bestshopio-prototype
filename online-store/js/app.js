@@ -2210,6 +2210,33 @@
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
   .ck-summary.mob .ck-savings{text-transform:uppercase;font-weight:600;letter-spacing:.02em}
   .ck-line-flag{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;background:var(--ck-divider);color:var(--ck-sum-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
+  /* Item 1 — signed-in Contact account chip + kebab popover */
+  .ck-acct{position:relative;display:flex;align-items:center;gap:12px;border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:var(--ck-input-bg);padding:10px 12px;box-sizing:border-box}
+  .ck-acct-av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--ck-accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;text-transform:uppercase}
+  .ck-acct-email{flex:1;min-width:0;font-size:var(--ck-base-fs);color:var(--ck-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ck-acct-kebab{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:0;background:none;color:var(--ck-muted);border-radius:6px;cursor:pointer}
+  .ck-acct-kebab:hover{background:rgba(0,0,0,.05);color:var(--ck-text)}
+  .ck-acct-pop{position:absolute;top:calc(100% + 6px);right:8px;z-index:5;min-width:140px;background:#fff;border:1px solid var(--ck-input-border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:5px}
+  .ck-acct-pop[hidden]{display:none}
+  .ck-acct-pop-item{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 12px;border-radius:6px;font-family:inherit;font-size:var(--ck-base-fs);color:var(--ck-text);cursor:pointer}
+  .ck-acct-pop-item:hover{background:rgba(0,0,0,.05)}
+  /* Item 1 — signed-in Delivery: filled fields + address suggestion */
+  .ck-input.ck-filled{background:#eef2fb}
+  .ck-didyoumean{margin-top:6px;font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.4}
+  .ck-didyoumean b{color:var(--ck-text);font-weight:600}
+  /* Item 3 — shipping method description line */
+  .ck-radio .nm-t{color:var(--ck-text)}
+  .ck-radio .desc{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:2px}
+  /* Item 2 — applied coupon chip + inline error */
+  .ck-coupon-applied{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding:20px 0;border-top:1px solid var(--ck-divider)}
+  .ck-coupon-chip{display:inline-flex;align-items:center;gap:7px;background:var(--ck-divider);color:var(--ck-sum-text);border-radius:999px;padding:6px 8px 6px 12px;font-size:var(--ck-small-fs);font-weight:600}
+  .ck-coupon-chip .ck-tag-i{flex:none}
+  .ck-coupon-chip .code{letter-spacing:.02em;text-transform:uppercase}
+  .ck-coupon-x{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:0;border-radius:50%;background:rgba(0,0,0,.12);color:var(--ck-sum-text);font-size:14px;line-height:1;cursor:pointer;font-family:inherit}
+  .ck-coupon-x:hover{background:rgba(0,0,0,.22)}
+  .ck-coupon-off{font-size:var(--ck-base-fs);color:var(--ck-sum-text);white-space:nowrap}
+  .ck-coupon-err{margin:-8px 0 20px;font-size:var(--ck-small-fs);color:var(--ck-error)}
+  .ck-coupon-err[hidden]{display:none}
   /* Thank-you page — the Continue shopping + Contact us action row (PC: Contact us
      left, Continue shopping right; mobile: button full-width then contact below). */
   .ty-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}

@@ -28,7 +28,10 @@
       const subtotal = cart.reduce((t, l) => t + l.price * l.qty, 0);
       const ship = (mock.shippingMethods || []).find((m) => m.id === mock.selectedShipping) || (mock.shippingMethods || [])[0] || { price: 0 };
       const shipPrice = ship.price || 0;
-      const discount = (mock.coupon && mock.coupon.amount) || 0;
+      // Reflect the applied coupon (shared runtime key) so this bar matches the
+      // bottom Order Summary. Default: none applied → no discount.
+      const applied = (OS.ckState || {})['ck-coupon'] || null;
+      const discount = applied ? (applied.amount || 0) : 0;
       const tax = mock.tax || 0;
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
       const total = subtotal - discount + shipPrice + tax + addonTotal;
