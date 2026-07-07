@@ -66,7 +66,6 @@
         '<div class="tyod-card" style="' + cardStyle + '">' +
           (s.heading ? '<h3 class="tyod-head">' + esc(s.heading) + '</h3>' : '') +
           grid +
-          '<div class="tyod-save"><span class="tyod-save-box"></span><span>Save my information for a faster checkout</span></div>' +
         '</div>' +
       '</div>';
     },
@@ -81,8 +80,6 @@
   .tyod-l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ck-muted);margin-bottom:4px}
   .tyod-v{font-size:var(--ck-small-fs);color:var(--ck-text);line-height:1.55;word-break:break-word}
   .tyod-empty{font-size:var(--ck-small-fs);color:var(--ck-muted)}
-  .tyod-save{display:flex;align-items:center;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--ck-divider);font-size:var(--ck-small-fs);color:var(--ck-muted)}
-  .tyod-save-box{flex:none;width:16px;height:16px;border:1px solid var(--ck-input-border);border-radius:4px;background:var(--ck-input-bg)}
   .ckpage.mob .tyod-grid{grid-template-columns:1fr;gap:16px}
   .ckpage.mob .tyod-col{gap:16px}
   `);

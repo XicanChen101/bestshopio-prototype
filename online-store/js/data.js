@@ -264,12 +264,33 @@
       ] },
     ],
     pages: [
-      { id: 'pg-privacy', title: 'Privacy Policy', url: '/pages/privacy' },
-      { id: 'pg-refund', title: 'Refund Policy', url: '/pages/refund' },
-      { id: 'pg-terms', title: 'Terms of Service', url: '/pages/terms' },
-      { id: 'pg-shipping', title: 'Shipping Policy', url: '/pages/shipping' },
-      { id: 'pg-about', title: 'About Us', url: '/pages/about' },
-      { id: 'pg-contact', title: 'Contact Us', url: '/pages/contact' },
+      { id: 'pg-privacy', title: 'Privacy Policy', url: '/pages/privacy', content:
+        '<p>This Privacy Policy describes how your personal information is collected, used, and shared when you visit or make a purchase from our store.</p>' +
+        '<p><strong>Information we collect.</strong> When you place an order we collect your name, billing and shipping address, payment details, email address, and phone number so we can fulfil your order and keep you updated.</p>' +
+        '<p><strong>How we use it.</strong> We use the information to process payments, arrange shipping, and provide order confirmations. We may also use it to communicate with you and to screen for potential risk or fraud.</p>' +
+        '<p>You can contact us at any time to review, update, or delete the personal information we hold about you.</p>' },
+      { id: 'pg-refund', title: 'Refund Policy', url: '/pages/refund', content:
+        '<p>We have a 30-day return policy, which means you have 30 days after receiving your item to request a return.</p>' +
+        '<p><strong>Eligibility.</strong> To be eligible for a return, your item must be in the same condition that you received it — unworn or unused, with tags, and in its original packaging. You will also need the receipt or proof of purchase.</p>' +
+        '<p><strong>Refunds.</strong> Once we have received and inspected your return, we will notify you of the approval. If approved, you will be automatically refunded to your original payment method within 10 business days.</p>' },
+      { id: 'pg-terms', title: 'Terms of Service', url: '/pages/terms', content:
+        '<p>By accessing this site and placing an order you agree to the following terms and conditions.</p>' +
+        '<p><strong>Products & pricing.</strong> We reserve the right to modify prices and product availability at any time. All prices are shown in the store currency and include applicable taxes where required.</p>' +
+        '<p><strong>Orders.</strong> We reserve the right to refuse or cancel any order. If we cancel an order after payment, you will receive a full refund.</p>' +
+        '<p>These terms are governed by the laws of the jurisdiction in which the store operates.</p>' },
+      { id: 'pg-shipping', title: 'Shipping Policy', url: '/pages/shipping', content:
+        '<p>We aim to process and dispatch all orders within 1–2 business days.</p>' +
+        '<p><strong>Delivery times.</strong> Standard shipping typically arrives within 3–7 business days. Express options are available at checkout for faster delivery.</p>' +
+        '<p><strong>Tracking.</strong> Once your order ships you will receive a confirmation email with a tracking number so you can follow its progress.</p>' +
+        '<p>Shipping fees are calculated at checkout based on destination and the options you select.</p>' },
+      { id: 'pg-about', title: 'About Us', url: '/pages/about', content:
+        '<p>We are a small team passionate about creating thoughtful, high-quality products that last.</p>' +
+        '<p>Every item in our collection is designed with care and made to be worn and loved for years. We believe in fair pricing, transparent sourcing, and treating our customers the way we would want to be treated.</p>' +
+        '<p>Thank you for supporting our store — we are glad you are here.</p>' },
+      { id: 'pg-contact', title: 'Contact Us', url: '/pages/contact', content:
+        '<p>Have a question about your order or one of our products? We would love to hear from you.</p>' +
+        '<p><strong>Email.</strong> support@example.com — we reply to every message within one business day.</p>' +
+        '<p><strong>Hours.</strong> Monday to Friday, 9am–5pm. Messages sent over the weekend are answered the next business day.</p>' },
     ],
     blogs: [
       { id: 'blog-journal', title: 'Journal', posts: [

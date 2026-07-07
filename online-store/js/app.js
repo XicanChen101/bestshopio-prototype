@@ -215,7 +215,29 @@
       // Thank-you page shares theme.checkout.settings; its own locked skeleton + zones.
       thankyou: ((D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || []).map(matSection),
     };
+    // Policy Links is a single fully-shared config across Checkout & Thank you: seed
+    // both instances from the union of their template seeds so they start identical.
+    // Ongoing edits are kept in sync by mirrorSharedSection() on every settings write.
+    const ckPL = theme.checkout.sections.find((s) => s.kind === 'checkout-policy-links');
+    const tyPL = theme.checkout.thankyou.find((s) => s.kind === 'checkout-policy-links');
+    if (ckPL && tyPL) {
+      const merged = Object.assign({}, tyPL.settings, ckPL.settings);
+      ckPL.settings = Object.assign({}, merged);
+      tyPL.settings = Object.assign({}, merged);
+    }
     return theme;
+  }
+
+  // Policy Links is fully shared across Checkout & Thank you. After a settings write to
+  // either instance, copy the whole settings object onto the sibling so both pages stay
+  // in sync in both directions (robust to clone/save/discard — re-syncs on each edit).
+  function mirrorSharedSection(settingsObj) {
+    const ck = ED && ED.theme && ED.theme.checkout; if (!ck) return;
+    const a = (ck.sections || []).find((s) => s.kind === 'checkout-policy-links');
+    const b = (ck.thankyou || []).find((s) => s.kind === 'checkout-policy-links');
+    if (!a || !b) return;
+    if (a.settings === settingsObj) Object.assign(b.settings, settingsObj);
+    else if (b.settings === settingsObj) Object.assign(a.settings, settingsObj);
   }
 
   function startEditor(handle) {
@@ -820,7 +842,7 @@
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + mainCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
         '</div>';
-    return '<div class="ckpage ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + topBar + inner + bottomHtml + '</div>';
+    return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + topBar + inner + bottomHtml + '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1061,7 +1083,7 @@
   function wireRight() {
     const form = document.querySelector('#os-form'); if (!form) return;
     const target = currentSettings(); if (!target) { wireRemove(form); return; }
-    const onChange = (k, v, rerenderPanel) => { target[k] = v; markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight(); };
+    const onChange = (k, v, rerenderPanel) => { target[k] = v; mirrorSharedSection(target); markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight(); };
     form.querySelectorAll('[data-control]').forEach((el) => {
       const k = el.getAttribute('data-fkey'); const ctl = el.getAttribute('data-control');
       if (ctl === 'text' || ctl === 'url' || ctl === 'number') {
@@ -1845,7 +1867,7 @@
   .os-row.active{background:#e6f0ff;color:var(--brand);font-weight:600}
   .os-row.active .os-tr-ico{color:var(--brand)}
   .os-row.hid .os-tr-name{text-decoration:line-through;opacity:.7}
-  .os-row.blk{padding-left:24px}
+  .os-row.blk{padding-left:40px}
   .os-tr-ico{width:18px;height:18px;flex:none;color:var(--ink-muted);display:inline-flex}.os-tr-ico.sm{width:15px;height:15px}
   .os-tr-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .os-row-caret{width:16px;display:inline-flex;color:var(--ink-muted);transition:transform .15s;flex:none}.os-row-caret.open{transform:rotate(90deg)}.os-row-caret.ghost{visibility:hidden}
@@ -2314,5 +2336,10 @@
   .ty-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .ty-actions>.os-sec{margin:0}
   .ckpage.mob .ty-actions{display:flex;flex-direction:column-reverse;align-items:stretch;gap:14px}
+  /* Thank-you page — extra breathing room between the main content and the bottom
+     Policy links / Footer band (scoped to .ty so Checkout layout is unchanged).
+     Uses margin so the inline mobile padding on .ckwrap doesn't override it. */
+  .ckpage.ty .ckwrap{margin-bottom:56px}
+  .ckpage.ty.mob .ckwrap{margin-bottom:40px}
   `;
 })();

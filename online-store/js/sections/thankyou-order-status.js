@@ -34,7 +34,7 @@
       const conf = (s.show_confirmation_number !== false && snap.confirmationNumber)
         ? '<div class="tyos-conf">Confirmation #' + esc(snap.confirmationNumber) + '</div>' : '';
       const card = s.success_message
-        ? '<div class="tyos-card"><span class="tyos-card-ico" style="color:' + iconColor + '">' + CHECK + '</span>' +
+        ? '<div class="tyos-card">' +
             '<div class="tyos-card-txt"><div class="tyos-success">' + esc(s.success_message) + '</div>' +
             (s.email_message ? '<div class="tyos-email">' + esc(s.email_message) + '</div>' : '') + '</div></div>'
         : (s.email_message ? '<div class="tyos-email solo">' + esc(s.email_message) + '</div>' : '');
@@ -54,9 +54,7 @@
   .tyos-head{min-width:0}
   .tyos-conf{font-size:var(--ck-small-fs);color:var(--ck-muted);letter-spacing:.02em;margin-bottom:4px;text-transform:uppercase}
   .tyos-thanks{font-family:var(--ck-heading-font);font-size:calc(var(--ck-heading-fs) + 8px);font-weight:var(--ck-fw-h);line-height:1.2;color:var(--ck-text);margin:0}
-  .tyos-card{display:flex;align-items:flex-start;gap:12px;margin-top:16px;padding:16px;border:1px solid var(--ck-divider);border-radius:8px;background:transparent}
-  .tyos-card-ico{flex:none;display:inline-flex;margin-top:1px}
-  .tyos-card-ico svg{width:20px;height:20px}
+  .tyos-card{margin-top:16px;padding:16px;border:1px solid var(--ck-divider);border-radius:8px;background:transparent}
   .tyos-card-txt{min-width:0}
   .tyos-success{font-size:var(--ck-base-fs);font-weight:var(--ck-fw-h);color:var(--ck-text);line-height:1.4}
   .tyos-email{font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.5;margin-top:3px}
