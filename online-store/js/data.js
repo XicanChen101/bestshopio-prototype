@@ -597,15 +597,20 @@
   // 'main' left column, 'summary' the right Order Summary column, 'bottom' the
   // full-bleed band (policy links → footer). Order status stays pinned to the top;
   // nothing can be inserted above it (PRD §9.3, §9.4).
+  // The six content & trust components that may live in the Order details / Contact us /
+  // Order summary zones (PRD §9.2). Header / Order status only allow Static content;
+  // Policy Links only Testimonials; Page bottom only Footer.
+  const TY_SIX = ['checkout-trust-badges', 'checkout-static-content', 'checkout-payment-icons',
+    'checkout-trustpilot', 'checkout-review-card', 'checkout-fb-comments'];
   const THANKYOU_ZONES = [
     { id: 'announce', label: 'Above header', after: null, col: 'announce', allow: ['announcement-bar'] },
-    { id: 'header', label: 'Below header', after: 'checkout-header', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges'] },
-    { id: 'status', label: 'Below Order status', after: 'thankyou-order-status', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges'] },
-    { id: 'details', label: 'Below Order details', after: 'thankyou-order-details', col: 'main', allow: ['checkout-static-content', 'checkout-trust-badges', 'checkout-review-card'] },
-    { id: 'continue', label: 'Below Continue shopping', after: 'thankyou-contact-us', col: 'main', allow: ['checkout-static-content', 'checkout-trustpilot', 'checkout-review-card', 'checkout-fb-comments'] },
-    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: ['checkout-static-content', 'checkout-trust-badges', 'checkout-review-card', 'checkout-payment-icons'] },
+    { id: 'header', label: 'Below header', after: 'checkout-header', col: 'main', allow: ['checkout-static-content'] },
+    { id: 'status', label: 'Below Order status', after: 'thankyou-order-status', col: 'main', allow: ['checkout-static-content'] },
+    { id: 'details', label: 'Below Order details', after: 'thankyou-order-details', col: 'main', allow: TY_SIX.slice() },
+    { id: 'continue', label: 'Below Contact us', after: 'thankyou-contact-us', col: 'main', allow: TY_SIX.slice() },
+    { id: 'summary', label: 'Below Order Summary', after: 'checkout-order-summary', col: 'summary', allow: TY_SIX.slice() },
     // policytop is listed before 'bottom' so drag-onto-policy-links resolves here first.
-    { id: 'policytop', label: 'Above policy links', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-testimonials', 'checkout-trustpilot', 'checkout-fb-comments', 'checkout-static-content'] },
+    { id: 'policytop', label: 'Below Policy Links', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-testimonials'] },
     { id: 'bottom', label: 'Page bottom', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-footer'] },
   ];
 
@@ -631,28 +636,32 @@
       { id: 'ty-policy', kind: 'checkout-policy-links', settings: {
         refund_policy_page: 'pg-refund', privacy_policy_page: 'pg-privacy', terms_of_service_page: 'pg-terms', contact_page: 'pg-contact',
       } },
-      { id: 'ty-footer', kind: 'checkout-footer', zone: 'bottom' },
     ],
   };
 
   // Add-component catalog for the Thank-you editor (PRD §7, §9.2). Only reusable
   // content & trust enhancement components — NO commerce boosters (PRD §8).
+  // Each entry carries an optional `defaultZone` — the Thank-you page's own default
+  // add position (PRD §9.5). This is page-scoped (looked up by addCheckoutComponent
+  // in the active page's catalog) so it never disturbs the Checkout page's defaults,
+  // which come from each section's shared `def.defaultZone`.
   const THANKYOU_CATALOG = [
     { label: 'Reviews & social proof', entries: [
-      { kind: 'checkout-trustpilot', name: 'Trustpilot Review', desc: 'Trustpilot-style rating & reviews (static)' },
-      { kind: 'checkout-review-card', name: 'Review card', desc: 'Expert / media endorsement cards' },
-      { kind: 'checkout-testimonials', name: 'Testimonials', desc: 'Customer reviews (bottom area only)' },
-      { kind: 'checkout-fb-comments', name: 'Facebook-style Comments', desc: 'Social-proof comment thread' },
+      { kind: 'checkout-trustpilot', name: 'Trustpilot Review', desc: 'Trustpilot-style rating & reviews (static)', defaultZone: 'summary' },
+      { kind: 'checkout-review-card', name: 'Review card', desc: 'Expert / media endorsement cards', defaultZone: 'summary' },
+      { kind: 'checkout-testimonials', name: 'Testimonials', desc: 'Customer reviews (bottom area only)', defaultZone: 'policytop' },
+      { kind: 'checkout-fb-comments', name: 'Facebook-style Comments', desc: 'Social-proof comment thread', defaultZone: 'summary' },
     ] },
     { label: 'Trust & security', entries: [
-      { kind: 'checkout-trust-badges', name: 'Trust badges', desc: 'Guarantee / security / shipping badges' },
-      { kind: 'checkout-payment-icons', name: 'Payment Icons', desc: 'Accepted-payment brand badges' },
+      { kind: 'checkout-trust-badges', name: 'Trust badges', desc: 'Guarantee / security / shipping badges', defaultZone: 'summary' },
+      { kind: 'checkout-payment-icons', name: 'Payment Icons', desc: 'Accepted-payment brand badges', defaultZone: 'summary' },
     ] },
     { label: 'Promotion & urgency', entries: [
-      { kind: 'announcement-bar', name: 'Announcement Bar', desc: 'Post-purchase notice / next-order offer (above header)' },
+      { kind: 'announcement-bar', name: 'Announcement Bar', desc: 'Post-purchase notice / next-order offer (above header)', defaultZone: 'announce' },
     ] },
     { label: 'Content & structure', entries: [
-      { kind: 'checkout-static-content', name: 'Static content', desc: 'Order-processing / shipping / support notice' },
+      { kind: 'checkout-static-content', name: 'Static content', desc: 'Order-processing / shipping / support notice', defaultZone: 'summary' },
+      { kind: 'checkout-footer', name: 'Footer', desc: 'Thank-you footer (bottom of page only)', defaultZone: 'bottom' },
     ] },
   ];
 

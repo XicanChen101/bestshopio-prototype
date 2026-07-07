@@ -815,7 +815,11 @@
     const summaryZoneInner = zoneHtml('summary');
     const summaryZoneHtml = summaryZoneInner ? '<div class="cksz">' + summaryZoneInner + '</div>' : '';
 
-    // Main column building blocks (Order status pinned at top; nothing above it).
+    const L = tk.layout || {};
+    // Main column building blocks. The 'header' zone (Below header) sits at the very top of
+    // the main column — below the page header, above Order status (PRD §9.2). Order status
+    // stays pinned right after it; nothing renders above the header zone in this column.
+    const headerZoneHtml = zoneHtml('header');
     const statusB = wrap(byKind('thankyou-order-status')) + zoneHtml('status');
     const detailsB = wrap(byKind('thankyou-order-details')) + zoneHtml('details');
     const continueSec = byKind('thankyou-continue-shopping');
@@ -825,19 +829,25 @@
     const continueZone = zoneHtml('continue');
 
     const announceHtml = zoneHtml('announce');
-    // Bottom band: policytop items → Policy links → Footer (Footer pinned last).
-    const bottomInner = zoneHtml('policytop') + wrap(byKind('checkout-policy-links')) + wrap(byKind('checkout-footer'));
+    // Bottom band: policytop items → Policy links → Footer (Footer pinned last, and only
+    // present when the merchant added it from the catalog). The Policy links are wrapped in a
+    // centered column that matches the page content width, so their divider + links align with
+    // the content above and get comfortable breathing room beneath them (Shopify-style). The
+    // policytop band and the Footer stay full-bleed.
+    const polSec = byKind('checkout-policy-links');
+    const policyHtml = (polSec && !polSec.hidden)
+      ? '<div class="ty-policywrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px">' + wrap(polSec) + '</div>' : '';
+    const bottomInner = zoneHtml('policytop') + policyHtml + wrap(byKind('checkout-footer'));
     const bottomHtml = bottomInner ? '<div class="ckbottom">' + bottomInner + '</div>' : '';
 
     const vars = checkoutVars(tk);
     const sumBg = sumSec && sumSec.settings && sumSec.settings.background_color;
-    const L = tk.layout || {};
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
 
-    const mainCol = statusB + detailsB + actionsPC + continueZone;
+    const mainCol = headerZoneHtml + statusB + detailsB + actionsPC + continueZone;
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
-          statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summary + summaryZoneHtml + '</div>')
+          headerZoneHtml + statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summary + summaryZoneHtml + '</div>')
       : '<div class="ckwrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;gap:' + (L.column_gap || 40) + 'px">' +
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + mainCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
@@ -1369,10 +1379,16 @@
   function addCheckoutComponent(kind, zoneId) {
     const def = SECTIONS[kind]; if (!def) { toast('“' + kind + '” isn’t available yet', 'err'); return; }
     if (isSingletonKind(kind) && pageSections().some((s) => s.kind === kind)) { toast('Only one ' + def.name + ' allowed', 'err'); return; }
-    // Default zone: an explicit request wins, else the component's declared defaultZone (if it
-    // allows this kind), else the first zone that allows it. The merchant can drag it elsewhere.
+    // Default zone (page-aware): an explicit request wins, else the CURRENT page's catalog
+    // entry `defaultZone` (Thank-you defines its own per PRD §9.5), else the section's shared
+    // `def.defaultZone` (Checkout's source of truth), else the first zone that allows it. The
+    // merchant can always drag it elsewhere. Keeping the page-catalog default first means
+    // Thank-you can override without disturbing Checkout, which has no catalog defaultZone.
     const allowed = allowedZonesForKind(kind);
+    let catDefault = null;
+    ckCatalog().forEach((g) => (g.entries || []).forEach((e) => { if (e.kind === kind && e.defaultZone) catDefault = e.defaultZone; }));
     const zid = (zoneId && allowed.indexOf(zoneId) >= 0) ? zoneId
+      : (catDefault && allowed.indexOf(catDefault) >= 0) ? catDefault
       : (def.defaultZone && allowed.indexOf(def.defaultZone) >= 0) ? def.defaultZone
       : allowed[0];
     const zone = ckZone(zid); if (!zone) { toast('That component can’t be placed', 'err'); return; }
@@ -2336,10 +2352,13 @@
   .ty-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .ty-actions>.os-sec{margin:0}
   .ckpage.mob .ty-actions{display:flex;flex-direction:column-reverse;align-items:stretch;gap:14px}
-  /* Thank-you page — extra breathing room between the main content and the bottom
-     Policy links / Footer band (scoped to .ty so Checkout layout is unchanged).
-     Uses margin so the inline mobile padding on .ckwrap doesn't override it. */
-  .ckpage.ty .ckwrap{margin-bottom:56px}
-  .ckpage.ty.mob .ckwrap{margin-bottom:40px}
+  /* Thank-you page — Policy links sit in a centered column aligned with the page content
+     (max-width set inline to match .ckwrap; padding matches the .ckcol.main inset), so the
+     divider + links line up with the content above. Padding beneath gives comfortable
+     breathing room below the links before the page edge / Footer, matching Shopify. Scoped
+     to .ty so the Checkout layout is unchanged; the policytop band + Footer stay full-bleed. */
+  .ckpage.ty .ty-policywrap{margin:0 auto;width:100%;box-sizing:border-box;padding:0 48px 56px}
+  .ckpage.ty .ty-policywrap>.os-sec{width:100%}
+  .ckpage.ty.mob .ty-policywrap{padding:0 var(--ck-mob-pad,18px) 40px}
   `;
 })();
