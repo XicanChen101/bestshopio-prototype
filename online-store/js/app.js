@@ -2278,6 +2278,14 @@
   .ck-summary.mob.collapsed .ck-when-expanded{display:none}
   .ck-summary.mob .ck-summary-body{margin-top:16px}
   .ck-summary.mob.collapsed .ck-summary-body{display:none}
+  /* Thank-you Shopify-style collapsed header: "Order summary ⌄" left, total right (no
+     thumbnail / item count). Only emitted on the Thank-you page (snapshot). */
+  .ck-tymsum-head{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;background:none;border:0;cursor:pointer;font-family:inherit;text-align:left;padding:0}
+  .ck-tymsum-title{display:inline-flex;align-items:center;gap:8px;font-size:var(--ck-base-fs);font-weight:500;color:var(--ck-text)}
+  .ck-tymsum-chev{font-size:12px;color:var(--ck-sum-muted);transition:transform .15s}
+  .ck-summary.mob.tymob:not(.collapsed) .ck-tymsum-chev{transform:rotate(180deg)}
+  .ck-tymsum-total{font-size:18px;font-weight:700;display:inline-flex;align-items:baseline;gap:6px}
+  .ck-tymsum-total .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);text-transform:uppercase}
   .ck-summary.mob .ck-savings{text-transform:uppercase;font-weight:600;letter-spacing:.02em}
   .ck-line-flag{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:999px;background:var(--ck-divider);color:var(--ck-sum-muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
   /* Item 1 — signed-in Contact account chip + kebab popover */

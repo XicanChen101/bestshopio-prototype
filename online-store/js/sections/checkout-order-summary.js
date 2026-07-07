@@ -168,6 +168,18 @@
       if (ctx.mob) {
         const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
         const head = s.heading || 'Order summary';
+        // Thank-you (snapshot present) uses a clean Shopify-style collapsed header:
+        // "Order summary ⌄" on the left, grand total on the right — no thumbnail or item
+        // count. Gated on `snap` so the Checkout mobile recap card below is untouched.
+        if (snap) {
+          return '<div class="ck-summary mob tymob' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + '">' +
+            '<button class="ck-tymsum-head" type="button" data-ck-sum-toggle>' +
+              '<span class="ck-tymsum-title">' + esc(head) + '<span class="ck-tymsum-chev">▾</span></span>' +
+              '<span class="ck-tymsum-total" style="color:' + totalColor + '"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span>' +
+            '</button>' +
+            '<div class="ck-summary-body">' + linesBlk + totals + '</div>' +
+          '</div>';
+        }
         const thumb = cart[0] ? '<div class="ck-msum-thumb" style="background-image:url(' + esc(cart[0].image) + ')"></div>' : '';
         const savLine = savings > 0 ? '<div class="ck-msum-sav">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
         return '<div class="ck-summary mob' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + '">' +
