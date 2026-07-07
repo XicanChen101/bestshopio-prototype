@@ -2220,10 +2220,62 @@
   .ck-acct-pop[hidden]{display:none}
   .ck-acct-pop-item{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 12px;border-radius:6px;font-family:inherit;font-size:var(--ck-base-fs);color:var(--ck-text);cursor:pointer}
   .ck-acct-pop-item:hover{background:rgba(0,0,0,.05)}
-  /* Item 1 — signed-in Delivery: filled fields + address suggestion */
-  .ck-input.ck-filled{background:#eef2fb}
-  .ck-didyoumean{margin-top:6px;font-size:var(--ck-small-fs);color:var(--ck-muted);line-height:1.4}
-  .ck-didyoumean b{color:var(--ck-text);font-weight:600}
+  /* Item 1 — signed-in Delivery: bordered account card (Ship to + Shipping accordions) */
+  .ck-addr-card{border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);overflow:hidden}
+  .ck-accord+.ck-accord{border-top:1px solid var(--ck-input-border)}
+  .ck-accord-head{display:flex;align-items:flex-start;gap:16px;width:100%;padding:16px;background:none;border:0;cursor:pointer;font-family:inherit;text-align:left}
+  .ck-accord-lbl{flex:0 0 auto;min-width:72px;color:var(--ck-muted);font-size:var(--ck-base-fs);padding-top:1px}
+  .ck-accord-val{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .ck-accord-val .nm{font-weight:600;color:var(--ck-text);line-height:1.4}
+  .ck-accord-val .ad{color:var(--ck-text);line-height:1.4}
+  .ck-accord-chev{flex:none;color:var(--ck-muted);font-size:13px;line-height:1;padding-top:2px;transition:transform .15s}
+  .ck-accord.open .ck-accord-chev{transform:rotate(180deg)}
+  .ck-accord.open .ck-accord-val{display:none}
+  .ck-accord-body{display:none;padding:0 16px 14px}
+  .ck-accord.open .ck-accord-body{display:block}
+  .ck-addr-list{display:flex;flex-direction:column;gap:2px}
+  .ck-addr-row{position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:10px;cursor:pointer}
+  .ck-addr-row.sel{background:#eef4ff}
+  .ck-addr-dot{flex:none;display:inline-flex;align-items:center;padding-top:1px}
+  .ck-addr-dot input{width:18px;height:18px;margin:0;accent-color:#2b74ff;cursor:pointer}
+  .ck-addr-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding-right:28px}
+  .ck-addr-name{font-weight:600;color:var(--ck-text);line-height:1.35}
+  .ck-addr-sub{color:var(--ck-text);font-size:var(--ck-base-fs);line-height:1.35}
+  .ck-addr-pill{align-self:flex-start;display:inline-block;background:#4a4d52;color:#fff;font-size:11px;font-weight:600;border-radius:6px;padding:3px 9px;margin-top:2px}
+  .ck-addr-kebab{position:absolute;top:8px;right:6px;flex:none;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;background:none;color:var(--ck-muted);border-radius:6px;cursor:pointer}
+  .ck-addr-kebab:hover{background:rgba(0,0,0,.06);color:var(--ck-text)}
+  .ck-mini-pop{position:absolute;top:36px;right:6px;z-index:10;min-width:96px;background:#fff;border:1px solid var(--ck-input-border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.14);padding:5px;display:flex;flex-direction:column}
+  .ck-mini-pop button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 12px;border-radius:6px;font-family:inherit;font-size:var(--ck-base-fs);cursor:pointer}
+  .ck-mini-edit{color:#2b74ff}
+  .ck-mini-del{color:#e11900}
+  .ck-mini-pop button:hover{background:rgba(0,0,0,.05)}
+  .ck-addr-add{display:inline-flex;align-items:center;gap:8px;margin:6px 0 2px;padding:10px 12px;color:#2b74ff;font-size:var(--ck-base-fs);font-weight:500;cursor:pointer}
+  .ck-addr-add .plus{font-size:17px;line-height:1;font-weight:400}
+  /* Item 1 — Add / Edit address modal (centered overlay on top of the whole preview) */
+  .pop-layer.ck-modal-layer{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);pointer-events:auto;padding:20px;box-sizing:border-box}
+  .ck-modal{pointer-events:auto;width:100%;max-width:620px;max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.32);font-family:var(--ck-body-font);font-size:var(--ck-base-fs);color:var(--ck-text)}
+  .ck-modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 4px}
+  .ck-modal-head h4{margin:0;font-family:var(--ck-heading-font);font-size:20px;font-weight:700;color:var(--ck-text)}
+  .ck-modal-x{border:0;background:none;color:var(--ck-muted);cursor:pointer;display:inline-flex;padding:4px}
+  .ck-modal-x:hover{color:var(--ck-text)}
+  .ck-modal-body{display:flex;flex-direction:column;gap:12px;padding:16px 20px}
+  .ck-fl{display:flex;flex-direction:column;border:1px solid var(--ck-input-border);border-radius:9px;padding:8px 12px;box-sizing:border-box;background:#fff}
+  .ck-fl-lbl{font-size:11px;color:var(--ck-muted);line-height:1.25}
+  .ck-fl-in{border:0;outline:none;background:none;font-family:inherit;font-size:14px;color:var(--ck-text);padding:2px 0 0;width:100%;box-sizing:border-box}
+  .ck-fl-wrap{position:relative;display:flex;align-items:center}
+  .ck-fl-wrap .ck-fl-in{-webkit-appearance:none;appearance:none;padding-right:22px}
+  .ck-fl-chev{position:absolute;right:0;top:2px;color:var(--ck-muted);font-size:12px;pointer-events:none}
+  .ck-fl-ricon{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--ck-muted);display:inline-flex}
+  .ck-fl-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ck-fl-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .ck-modal-check{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ck-text);cursor:pointer;margin-top:2px}
+  .ck-modal-check input{width:18px;height:18px;accent-color:#2b74ff;cursor:pointer}
+  .ck-modal-foot{display:flex;gap:12px;padding:4px 20px 20px}
+  .ck-modal-cancel{flex:0 0 40%;height:48px;border:1px solid var(--ck-input-border);border-radius:9px;background:#fff;color:#2b74ff;font-weight:600;font-size:15px;font-family:inherit;cursor:pointer}
+  .ck-modal-cancel:hover{background:#f6f8ff}
+  .ck-modal-save{flex:1;height:48px;border:0;border-radius:9px;background:#2b74ff;color:#fff;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer}
+  .ck-modal-save:hover{background:#1f5fe0}
+  @media(max-width:600px){.ck-fl-row3,.ck-fl-row2{grid-template-columns:1fr}.ck-modal-foot{flex-direction:column-reverse}.ck-modal-cancel{flex:1}}
   /* Item 3 — shipping method description line */
   .ck-radio .nm-t{color:var(--ck-text)}
   .ck-radio .desc{font-size:var(--ck-small-fs);color:var(--ck-muted);margin-top:2px}

@@ -498,11 +498,18 @@
     tax: 7.34,
     // Signed-in demo account (Item 1). The signed-in flag itself is a runtime toggle
     // shared by Contact + Delivery (OS.ckState['ck-account']), default signed OUT.
+    // Multiple saved addresses power the Delivery "Ship to" radio list; the one with
+    // default:true is pre-selected. line1 = street, line2 = "city/region zip, country".
     account: {
-      email: 'cxc8697@gmail.com', firstName: 'Otto', lastName: 'Chen',
-      country: 'United States', address: '4073 Riverside Drive', apartment: '',
-      city: 'COLUMBUS', state: 'Kansas', zip: '66725', phone: '',
-      suggestion: '4073 N Riverside Dr',
+      email: 'cxc8697@gmail.com',
+      addresses: [
+        { id: 'a1', name: 'Xican Chen', line1: '31972 NW Pacific Coast Hwy', line2: 'Waldport OR 97394, US', phone: '4153334567', default: true },
+        { id: 'a2', name: 'Xican Chen', line1: '10th arrondissement of Paris', line2: '75010 Paris, FR', phone: '100000000' },
+        { id: 'a3', name: 'Xican Chen', line1: 'dfdfdf Benar Road Shankar Vihar Extension Rani Bagh', line2: '302012 Jaipur RJ, IN', phone: '4153334567' },
+        { id: 'a4', name: 'Xican Chen', line1: '670 North Commercial St', line2: 'Manchester NH 03101, US', phone: '4153334567' },
+        { id: 'a5', name: 'HK', line1: '', line2: '' },
+      ],
+      shippingSummary: 'Estimated Delivery Time: 4-8 Business Days · FREE',
     },
   };
 

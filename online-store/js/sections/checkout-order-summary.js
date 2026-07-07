@@ -50,7 +50,10 @@
       const sel = ctx.selectedBlockId;
 
       const subtotal = snap ? (snap.subtotal != null ? snap.subtotal : cart.reduce((t, l) => t + l.price * l.qty, 0)) : cart.reduce((t, l) => t + l.price * l.qty, 0);
-      const ship = (mock.shippingMethods || []).find((m) => m.id === mock.selectedShipping) || (mock.shippingMethods || [])[0] || { price: 0 };
+      // Shipping selection is shared runtime state (Item 1/3) so the summary follows
+      // whichever method is chosen in the Delivery card / Shipping Method section.
+      const shipId = ((OS.ckState || {})['ck-shipping'] || {}).id || mock.selectedShipping;
+      const ship = (mock.shippingMethods || []).find((m) => m.id === shipId) || (mock.shippingMethods || [])[0] || { price: 0 };
       const shipPrice = snap ? (snap.shipping || 0) : (ship.price || 0);
       // Applied coupon lives in a shared runtime key so every summary surface (PC,
       // mobile, top bar) reflects the same discount. Default: none applied → no discount.
