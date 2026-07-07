@@ -620,7 +620,6 @@
   const THANKYOU_TEMPLATE = {
     sections: [
       { id: 'ty-header', kind: 'checkout-header' },
-      { id: 'ty-summary-bar', kind: 'checkout-order-summary-bar' },
       { id: 'ty-status', kind: 'thankyou-order-status' },
       { id: 'ty-details', kind: 'thankyou-order-details' },
       { id: 'ty-continue', kind: 'thankyou-continue-shopping' },

@@ -811,9 +811,13 @@
     const zoneHtml = (z) => secs.filter((s) => inZone(s, z)).map((s) => wrap(s)).join('');
 
     const header = wrap(byKind('checkout-header'), true);
-    const topBar = mob ? wrap(byKind('checkout-order-summary-bar')) : '';
     const sumSec = byKind('checkout-order-summary');
     const summary = wrap(sumSec);
+    // Thank-you uses a SINGLE Order Summary component for both viewports (no separate
+    // mobile bar). On mobile it renders full-bleed at the very top (under the header),
+    // collapsed — reusing the component's own mobile recap form. On desktop it stays in
+    // the right column. (Checkout keeps its separate top bar; this only touches Thank you.)
+    const mobTopSummary = mob ? ('<div class="ty-topsum">' + summary + '</div>') : '';
     const summaryZoneInner = zoneHtml('summary');
     const summaryZoneHtml = summaryZoneInner ? '<div class="cksz">' + summaryZoneInner + '</div>' : '';
 
@@ -848,10 +852,9 @@
     const pageStyle = vars + (sumBg ? ';--ck-sum-bg:' + sumBg : '') + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
 
     const mainCol = headerZoneHtml + statusB + detailsB + actionsPC + continueZone;
-    // Mobile mirrors Shopify's Thank-you page: the ONLY order summary is the top bar
-    // (checkout-order-summary-bar, expandable to full detail). The full right-column
-    // Order Summary is desktop-only here — so we drop `summary` and keep just its zone
-    // add-ons. (Checkout mobile still shows the in-body summary; the two pages differ.)
+    // Mobile mirrors Shopify's Thank-you page: the sole Order Summary sits full-bleed at
+    // the top (mobTopSummary, rendered above `inner`). The body carries only its zone
+    // add-ons ("Below Order summary" components stay in the content flow, not up top).
     const inner = mob
       ? ('<div class="ckwrap mob" style="padding:' + (L.section_spacing || 24) + 'px ' + (L.mobile_page_padding || 18) + 'px">' +
           headerZoneHtml + statusB + detailsB + wrap(continueSec) + wrap(contactSec) + continueZone + summaryZoneHtml + '</div>')
@@ -859,7 +862,7 @@
           '<div class="ckcol main" style="flex:0 0 calc(' + (L.main_column_width || 58) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + mainCol + '</div>' +
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
         '</div>';
-    return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + topBar + inner + bottomHtml + '</div>';
+    return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + mobTopSummary + inner + bottomHtml + '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -2249,6 +2252,10 @@
   .ck-trow.grand .cur{font-size:12px;font-weight:600;color:var(--ck-sum-muted);margin-right:5px;text-transform:uppercase;letter-spacing:.02em}
   /* mobile order recap — collapsed = Shopify "Add discount" pill + total bar; expanded = full summary */
   .ck-summary.mob{border-radius:12px;padding:16px;border:1px solid var(--ck-divider)}
+  /* Thank-you mobile: the single Order Summary sits full-bleed at the very top (under the
+     header), edge-to-edge with a bottom divider instead of the card border/radius. */
+  .ckpage.ty.mob .ty-topsum .os-sec{margin:0}
+  .ckpage.ty.mob .ty-topsum .ck-summary.mob{border:0;border-bottom:1px solid var(--ck-divider);border-radius:0;padding:14px var(--ck-mob-pad,18px)}
   .ck-msum-adddisc{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid var(--ck-divider);border-radius:9px;padding:9px 13px;margin-bottom:14px;font-size:var(--ck-small-fs);font-weight:500;color:var(--ck-text);cursor:pointer;font-family:inherit;line-height:1}
   .ck-msum-adddisc .ck-tag-i{color:var(--ck-sum-muted)}
   .ck-summary.mob:not(.collapsed) .ck-msum-adddisc{display:none}
