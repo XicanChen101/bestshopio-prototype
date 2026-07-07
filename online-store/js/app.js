@@ -829,15 +829,16 @@
     const continueZone = zoneHtml('continue');
 
     const announceHtml = zoneHtml('announce');
-    // Bottom band: policytop items → Policy links → Footer (Footer pinned last, and only
-    // present when the merchant added it from the catalog). The Policy links are wrapped in a
-    // centered column that matches the page content width, so their divider + links align with
-    // the content above and get comfortable breathing room beneath them (Shopify-style). The
-    // policytop band and the Footer stay full-bleed.
+    // Bottom band: Policy links → Testimonials (policytop zone, i.e. below Policy links) →
+    // Footer (pinned last, and only present when the merchant added it from the catalog).
+    // Testimonials sit below Policy links and above the Footer, matching Checkout (PRD §9.2).
+    // The Policy links are wrapped in a centered column that matches the page content width, so
+    // their divider + links align with the content above and get comfortable breathing room
+    // beneath them (Shopify-style). The Testimonials band and the Footer stay full-bleed.
     const polSec = byKind('checkout-policy-links');
     const policyHtml = (polSec && !polSec.hidden)
       ? '<div class="ty-policywrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px">' + wrap(polSec) + '</div>' : '';
-    const bottomInner = zoneHtml('policytop') + policyHtml + wrap(byKind('checkout-footer'));
+    const bottomInner = policyHtml + zoneHtml('policytop') + wrap(byKind('checkout-footer'));
     const bottomHtml = bottomInner ? '<div class="ckbottom">' + bottomInner + '</div>' : '';
 
     const vars = checkoutVars(tk);
