@@ -41,11 +41,14 @@
   ];
 
   // ---------- page-type templates (theme-editor PAGE_OPTIONS) ----------
+  // `multi:true` => this page type can hold several named templates (Shopify shows a
+  // submenu + "Assigned to N …" + Create template). Single types keep exactly one
+  // template and are picked directly (no submenu). `noun` labels the assignment count.
   const PAGE_OPTIONS = [
     { value: 'home',        label: 'Home page' },
-    { value: 'collection',  label: 'Collection page' },
-    { value: 'collections', label: 'Collection list page' },
-    { value: 'product',     label: 'Product page' },
+    { value: 'product',     label: 'Products',        multi: true, noun: 'products' },
+    { value: 'collection',  label: 'Collections',     multi: true, noun: 'collections' },
+    { value: 'collections', label: 'Collections list' },
   ];
 
   // ---------- Add-Section catalog (Shopify-style popover; 5 groups) ----------
@@ -313,25 +316,52 @@
     announcement: { hidden: false, kind: 'announcement-bar', settings: {} },
     header: { hidden: false, kind: 'header', settings: {} },
     footer: { hidden: false, kind: 'footer', settings: {} },
+    // Multi-template shape: each page type holds a `list` of named templates. `id:'default'`
+    // is the built-in fallback (can't be deleted). `assigned` is a mock count shown in the
+    // selector submenu ("Assigned to N products"). Single types (home / collections) simply
+    // keep a one-item list. Extra product/collection templates seed the multi-template UX.
     templates: {
-      home: { sections: [
-        { id: 'sec-home-slideshow', kind: 'slideshow' },
-        { id: 'sec-home-iwt', kind: 'media-with-text' },
-        { id: 'sec-home-fc', kind: 'featured-collection' },
-        { id: 'sec-home-testi', kind: 'testimonial' },
-        { id: 'sec-home-faq', kind: 'faq' },
-        { id: 'sec-home-news', kind: 'newsletter' },
+      home: { list: [
+        { id: 'default', name: 'Home page', assigned: '—', sections: [
+          { id: 'sec-home-slideshow', kind: 'slideshow' },
+          { id: 'sec-home-iwt', kind: 'media-with-text' },
+          { id: 'sec-home-fc', kind: 'featured-collection' },
+          { id: 'sec-home-testi', kind: 'testimonial' },
+          { id: 'sec-home-faq', kind: 'faq' },
+          { id: 'sec-home-news', kind: 'newsletter' },
+        ] },
       ] },
-      collection: { sections: [
-        { id: 'sec-col-banner', kind: 'collection-banner' },
-        { id: 'sec-col-list', kind: 'collection-list' },
-        { id: 'sec-col-page', kind: 'collection-page' },
+      product: { list: [
+        { id: 'default', name: 'Default product', assigned: '100+', sections: [
+          { kind: 'media-with-text' },
+        ] },
+        { id: 'buy-2-for-69', name: 'buy-2-for-69', basedOn: 'default', assigned: 1, sections: [
+          { kind: 'media-with-text' }, { kind: 'faq' },
+        ] },
+        { id: 'dress-size-image', name: 'dress-size-image', basedOn: 'default', assigned: 24, sections: [
+          { kind: 'media-with-text' }, { kind: 'media-grid' },
+        ] },
+        { id: 'explainer-template', name: 'explainer-template', basedOn: 'default', assigned: 0, sections: [
+          { kind: 'media-with-text' }, { kind: 'feature-cards' },
+        ] },
+        { id: 'pre-order', name: 'pre-order', basedOn: 'default', assigned: 0, sections: [
+          { kind: 'media-with-text' }, { kind: 'newsletter' },
+        ] },
       ] },
-      collections: { sections: [
-        { id: 'sec-cols-list', kind: 'list-collections' },
+      collection: { list: [
+        { id: 'default', name: 'Default collection', assigned: '100+', sections: [
+          { id: 'sec-col-banner', kind: 'collection-banner' },
+          { id: 'sec-col-list', kind: 'collection-list' },
+          { id: 'sec-col-page', kind: 'collection-page' },
+        ] },
+        { id: 'sale-2026', name: 'sale-2026', basedOn: 'default', assigned: 3, sections: [
+          { kind: 'collection-banner' }, { kind: 'collection-page' },
+        ] },
       ] },
-      product: { sections: [
-        { id: 'sec-prod-iwt', kind: 'media-with-text' },
+      collections: { list: [
+        { id: 'default', name: 'Collections list', assigned: '—', sections: [
+          { id: 'sec-cols-list', kind: 'list-collections' },
+        ] },
       ] },
     },
   };
