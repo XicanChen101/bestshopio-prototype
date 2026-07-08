@@ -2125,8 +2125,27 @@
   }
 
   // -------------------------------------------------------------- popover utils
-  function closePops() { document.querySelectorAll('.pop-layer').forEach((p) => p.remove()); }
-  function closeOnOutside(pop, anchor) { setTimeout(() => document.addEventListener('mousedown', function hh(e) { if (!pop.contains(e.target) && (!anchor || !anchor.contains(e.target))) { closePops(); document.removeEventListener('mousedown', hh); } }), 0); document.addEventListener('keydown', function kk(e) { if (e.key === 'Escape') { closePops(); document.removeEventListener('keydown', kk); } }); }
+  // Registered teardown fns for any open popovers' document-level listeners. closePops() is the
+  // single close path, so it must always run these — otherwise a dismissed popover's outside/Esc
+  // handlers stay bound to document, still referencing a detached node, and later fire against a
+  // freshly opened popover (treating every click as "outside") — which made the selector vanish
+  // on any click after an environment switch.
+  let _popCleanups = [];
+  function closePops() {
+    _popCleanups.forEach((fn) => { try { fn(); } catch (e) {} });
+    _popCleanups = [];
+    document.querySelectorAll('.pop-layer').forEach((p) => p.remove());
+  }
+  function closeOnOutside(pop, anchor) {
+    let added = false;
+    function hh(e) { if (!pop.contains(e.target) && (!anchor || !anchor.contains(e.target))) closePops(); }
+    function kk(e) { if (e.key === 'Escape') closePops(); }
+    // Defer binding the outside-click handler so the click that opened the popover doesn't
+    // immediately close it; clearTimeout guards the case where it's closed before that fires.
+    const t = setTimeout(() => { document.addEventListener('mousedown', hh); added = true; }, 0);
+    document.addEventListener('keydown', kk);
+    _popCleanups.push(() => { clearTimeout(t); if (added) document.removeEventListener('mousedown', hh); document.removeEventListener('keydown', kk); });
+  }
   function positionPop(pop, anchor, w, hh) {
     const r = anchor.getBoundingClientRect(); pop.style.width = w + 'px';
     let left = Math.min(r.left, window.innerWidth - w - 16); let top = Math.min(Math.max(r.top, 64), window.innerHeight - hh - 16);
