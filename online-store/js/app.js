@@ -1697,17 +1697,16 @@
   // Shopify-style popover: page types at root (multi types drill into a template submenu with
   // "Assigned to N …" + Create template); a "Checkout theme" jump; and, on the checkout
   // surface, the Checkout / Thank you pages with a back link to the online store.
-  function openPageSelector(anchor) {
+  function openPageSelector(anchor, forceRoot) {
     closePops();
     const layer = h('<div class="pop-layer"></div>');
     const pop = h('<div class="os-pkpop os-pgpop"></div>');
     layer.appendChild(pop); document.body.appendChild(layer);
-    // env: which environment's menus the popover is browsing — 'os' (online store) or 'ck'
-    // (checkout theme). Independent of the editor surface: navigating to the other env's menu
-    // (PRD §5.1/§5.2 jump links) only switches the actual surface once a leaf is chosen.
-    // level: 'root' (env's first-level menu) | <page type> (a template list).
-    let env = isCheckout() ? 'ck' : 'os';
-    let level = isCheckout() ? ED.checkoutPage : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root');
+    // env: which environment's menus the popover shows — always the current editor surface
+    // ('os' online store / 'ck' checkout theme). Jump links actually enter the other editor
+    // and reopen this popover on its first-level menu (forceRoot). level: 'root' | <page type>.
+    const env = isCheckout() ? 'ck' : 'os';
+    let level = forceRoot ? 'root' : (isCheckout() ? ED.checkoutPage : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root'));
     let query = '';
 
     const rootTypes = () => (env === 'ck') ? (D.CHECKOUT_PAGES || []) : D.PAGE_OPTIONS;
@@ -1801,7 +1800,9 @@
     pop.addEventListener('click', (e) => {
       if (e.target.closest('[data-back]')) { level = 'root'; query = ''; draw(); return; }
       const jump = e.target.closest('[data-jump]');
-      if (jump) { env = jump.getAttribute('data-jump'); level = 'root'; query = ''; draw(); return; }
+      // Jump = enter the OTHER editor environment, then reopen this popover on its
+      // first-level menu (§5.1/§5.2) — no drilling into a specific template list.
+      if (jump) { closePops(); enterEnv(jump.getAttribute('data-jump')); return; }
       const tplRow = e.target.closest('[data-tpl]');
       if (tplRow) { const pt = tplRow.getAttribute('data-tpl-pt'); const id = tplRow.getAttribute('data-tpl'); closePops(); if (env === 'ck') switchCheckoutTemplate(pt, id); else switchPage(pt, id); return; }
       const typeRow = e.target.closest('[data-type]');
@@ -1928,6 +1929,29 @@
       ED.surface = 'checkout'; ED.checkoutPage = pt; ED.ckTplSel[pt] = id;
       ED.selection = defaultSelection(); ED.leftMode = 'sections'; syncSurfaceHash(); rerender();
     });
+  }
+  // Enter the other editor environment from the page selector's jump link (§5.1/§5.2).
+  // Switching to Checkout theme actually loads the Checkout editor (default: Checkout page,
+  // last-used template), then reopens the popover on the environment's FIRST-LEVEL menu —
+  // it does NOT drill into a specific template list. Same for the reverse "Online store theme".
+  function enterEnv(target) {
+    const toCk = target === 'ck';
+    if (toCk === isCheckout()) { reopenSelectorAtRoot(); return; }
+    confirmSwitchTemplate(() => {
+      if (toCk) {
+        ED.surface = 'checkout';
+        if (!isCkType(ED.checkoutPage)) ED.checkoutPage = 'checkout';
+      } else {
+        ED.surface = 'online-store';
+      }
+      ED.selection = defaultSelection(); ED.leftMode = 'sections'; syncSurfaceHash(); rerender();
+      reopenSelectorAtRoot();
+    });
+  }
+  // Reopen the page selector on its first-level menu after an environment switch, once the
+  // rebuilt toolbar (and its #t-page anchor) exists.
+  function reopenSelectorAtRoot() {
+    setTimeout(() => { const btn = document.getElementById('t-page'); if (btn) openPageSelector(btn, true); }, 0);
   }
   function defaultSelection() {
     // Upsell/Downsell have no editable components this round — land on a neutral selection
