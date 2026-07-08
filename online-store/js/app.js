@@ -757,6 +757,12 @@
     // sits under the Order Summary; all other zones live in the main/left column at
     // their stored position (insertion keeps array order correct).
     const SKIP = { 'checkout-header': 1, 'checkout-order-summary': 1, 'checkout-order-summary-bar': 1 };
+    // Signed in: the Delivery card already integrates the shipping-method chooser (its
+    // "Shipping" accordion, checkout-shipping-info), so the standalone Shipping Method
+    // section is redundant and omitted. Signed out keeps it — the plain address form has
+    // no integrated picker. Selection stays shared via OS.ckState['ck-shipping'].
+    const acctSignedIn = !!(((OS.ckState || {})['ck-account']) || {}).signedIn;
+    if (acctSignedIn) SKIP['checkout-shipping-method'] = 1;
     const inZone = (s, z) => isCheckoutAddable(s.kind) && s.zone === z;
     const isSummaryZone = (s) => inZone(s, 'summary');
     // Content-PRD zones outside the two-column body: 'announce' (full-bleed top, above the
