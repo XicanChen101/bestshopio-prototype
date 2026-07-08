@@ -373,10 +373,36 @@
   // ==========================================================================
 
   // Checkout editor page selector — both transaction pages share one theme (Thank you PRD §23.1).
+  // Checkout theme is its own editing environment with FOUR multi-template page types
+  // (PRD §3.2/§5.2). Each feeds Funnel nodes, so their usage reads "Used by X funnel nodes".
   const CHECKOUT_PAGES = [
-    { value: 'checkout', label: 'Checkout' },
-    { value: 'thankyou', label: 'Thank you' },
+    { value: 'checkout', label: 'Checkout',  multi: true },
+    { value: 'upsell',   label: 'Upsell',    multi: true },
+    { value: 'downsell', label: 'Downsell',  multi: true },
+    { value: 'thankyou', label: 'Thank you', multi: true },
   ];
+
+  // Seed template lists per checkout page type (PRD §6.3/§6.4). `isDefault` marks the
+  // built-in fallback (can't be renamed/deleted); `used` is a mock funnel-node count.
+  // Upsell/Downsell have no editor preview this round (PRD §16.2) — placeholder sections.
+  const CHECKOUT_TEMPLATE_SETS = {
+    checkout: [
+      { id: 'standard', name: 'Standard', isDefault: true, used: 3 },
+      { id: 'conversion', name: 'Conversion', used: 1 },
+    ],
+    upsell: [
+      { id: 'one-click-upsell', name: 'One-click upsell', isDefault: true, used: 2 },
+      { id: 'subscription-upsell', name: 'Subscription upsell', used: 0 },
+    ],
+    downsell: [
+      { id: 'standard-downsell', name: 'Standard', isDefault: true, used: 1 },
+      { id: 'save-offer', name: 'Save offer', used: 0 },
+    ],
+    thankyou: [
+      { id: 'standard', name: 'Standard', isDefault: true, used: 5 },
+      { id: 'survey-thankyou', name: 'Survey thank-you', used: 1 },
+    ],
+  };
 
   const FONT_CK = ['Default', 'Inter', 'Manrope', 'Playfair Display', 'Georgia', 'system-ui'].map((v) => ({ value: v, label: v }));
 
@@ -726,7 +752,7 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
+    CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
     THANKYOU_TEMPLATE, THANKYOU_ZONES, THANKYOU_CATALOG, THANKYOU_SNAPSHOT,
   };
 })();

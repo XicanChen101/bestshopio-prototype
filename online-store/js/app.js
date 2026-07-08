@@ -45,6 +45,7 @@
     plus: svg('<path d="M12 5v14M5 12h14"/>', 14),
     x: svg('<path d="M18 6 6 18M6 6l12 12"/>', 14),
     search: svg('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>', 14),
     cart: svg('<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/>'),
     user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
     menu: svg('<path d="M3 12h18M3 6h18M3 18h18"/>'),
@@ -211,56 +212,28 @@
     // template's section seeds run through matSection (auto-assigning ids when absent).
     Object.keys(T.templates).forEach((pg) => {
       theme.templates[pg] = { list: T.templates[pg].list.map((t) => ({
-        id: t.id, name: t.name, assigned: t.assigned, basedOn: t.basedOn,
+        id: t.id, name: t.name, assigned: t.assigned, basedOn: t.basedOn, isDefault: t.isDefault || t.id === 'default',
         sections: (t.sections || []).map(matSection),
       })) };
     });
-    // Checkout surface — a multi-template list too. Each checkout template bundles a full
-    // Checkout + Thank you pair sharing ONE settings object (they share styles today).
-    // 'default' is the built-in fallback; extra templates are assigned to products (like
-    // online-store templates) so a product can pair a product-page + a checkout template.
-    theme.checkout = { list: [
-      buildCkTemplate('default', 'Default checkout', '100+'),
-      buildCkTemplate('express', 'Express checkout', 6),
-    ] };
-    return theme;
-  }
-  // Build one checkout template (fresh section/thankyou instances from the seeds, so each
-  // template is independent) with its own settings copy, keeping Policy Links in sync.
-  function buildCkTemplate(id, name, assigned) {
-    const t = {
-      id: id, name: name, assigned: assigned,
-      settings: buildCkSettingsDefaults(),
-      sections: ((D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || []).map(matSection),
-      thankyou: ((D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || []).map(matSection),
+    // Checkout theme is its own environment: ONE shared settings object + four multi-template
+    // page types (Checkout / Upsell / Downsell / Thank you), each a `list` mirroring the
+    // online-store types (PRD §3.2/§5.2). Upsell/Downsell have no preview this round, so their
+    // seeds start with empty sections. Each template feeds Funnel nodes (`used` count).
+    const ckBase = {
+      checkout: (D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || [],
+      thankyou: (D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || [],
+      upsell: [], downsell: [],
     };
-    syncPolicyLinks(t);
-    return t;
-  }
-
-  // Policy Links is a single fully-shared config across a checkout template's Checkout &
-  // Thank you pages: seed both instances from the union of their seeds so they start
-  // identical. Ongoing edits stay in sync via mirrorSharedSection() on every settings write.
-  function syncPolicyLinks(ckTpl) {
-    const ckPL = (ckTpl.sections || []).find((s) => s.kind === 'checkout-policy-links');
-    const tyPL = (ckTpl.thankyou || []).find((s) => s.kind === 'checkout-policy-links');
-    if (ckPL && tyPL) {
-      const merged = Object.assign({}, tyPL.settings, ckPL.settings);
-      ckPL.settings = Object.assign({}, merged);
-      tyPL.settings = Object.assign({}, merged);
-    }
-  }
-
-  // Policy Links is fully shared across Checkout & Thank you. After a settings write to
-  // either instance, copy the whole settings object onto the sibling so both pages stay
-  // in sync in both directions (robust to clone/save/discard — re-syncs on each edit).
-  function mirrorSharedSection(settingsObj) {
-    const t = (ED && ED.theme && ED.theme.checkout && ED.theme.checkout.list) ? curCk() : null; if (!t) return;
-    const a = (t.sections || []).find((s) => s.kind === 'checkout-policy-links');
-    const b = (t.thankyou || []).find((s) => s.kind === 'checkout-policy-links');
-    if (!a || !b) return;
-    if (a.settings === settingsObj) Object.assign(b.settings, settingsObj);
-    else if (b.settings === settingsObj) Object.assign(a.settings, settingsObj);
+    const ckTemplates = {};
+    Object.keys(D.CHECKOUT_TEMPLATE_SETS || {}).forEach((pt) => {
+      ckTemplates[pt] = { list: (D.CHECKOUT_TEMPLATE_SETS[pt] || []).map((s) => ({
+        id: s.id, name: s.name, isDefault: !!s.isDefault, used: s.used, basedOn: s.basedOn,
+        sections: (ckBase[pt] || []).map(matSection),
+      })) };
+    });
+    theme.checkout = { settings: buildCkSettingsDefaults(), templates: ckTemplates };
+    return theme;
   }
 
   function startEditor(handle) {
@@ -274,8 +247,8 @@
       surface: 'online-store',         // 'online-store' | 'checkout'
       checkoutPage: 'checkout',
       currentPage: 'home',
-      tplSel: {},                      // { [pageType]: templateId } — active template per type (empty ⇒ first/'default')
-      ckTpl: 'default',                // active checkout template id
+      tplSel: {},                      // { [pageType]: templateId } — active online-store template per type
+      ckTplSel: {},                    // { checkout|upsell|downsell|thankyou: templateId } — active checkout template per type
       device: 'desktop',
       leftMode: 'sections',            // 'sections' | 'settings'
       selection: { kind: 'header' },   // announcement|header|footer | {kind:'section',sectionId} | {kind:'block',sectionId,blockId}
@@ -386,23 +359,62 @@
   const sGroups = () => isCheckout() ? (D.CHECKOUT_SETTINGS_GROUPS || []) : D.SETTINGS_GROUPS;
   const sExpKey = (k) => (isCheckout() ? 'ck:' : '') + k;
   // ---- multi-template accessors -------------------------------------------------
-  // Which template is active is editor-session state (ED.tplSel / ED.ckTpl), NOT theme
+  // Which template is active is editor-session state (ED.tplSel / ED.ckTplSel), NOT theme
   // content, so navigating between templates never marks the theme dirty. Falls back to
-  // the first (default) template when the stored selection is missing.
+  // the default template (isDefault, else first) when the stored selection is missing.
+  const CK_TYPES = ['checkout', 'upsell', 'downsell', 'thankyou'];
+  const defaultOf = (group) => (group.list.find((t) => t.isDefault) || group.list[0]);
   const tplGroup = () => ED.theme.templates[ED.currentPage];
-  const curTplId = () => { const g = tplGroup(); const id = ED.tplSel[ED.currentPage]; return (id && g.list.some((t) => t.id === id)) ? id : (g.list[0] || {}).id; };
+  const curTplId = () => { const g = tplGroup(); const id = ED.tplSel[ED.currentPage]; return (id && g.list.some((t) => t.id === id)) ? id : (defaultOf(g) || {}).id; };
   const curTpl = () => { const g = tplGroup(); return g.list.find((t) => t.id === curTplId()) || g.list[0]; };
-  const ckList = () => ED.theme.checkout.list;
-  const curCk = () => ckList().find((t) => t.id === ED.ckTpl) || ckList()[0];
-  const settingsObj = () => isCheckout() ? curCk().settings : ED.theme.settings;
+  // Checkout theme: each of the four page types has its own template list.
+  const ckGroupOf = (pt) => ED.theme.checkout.templates[pt];
+  const ckGroup = () => ckGroupOf(ED.checkoutPage);
+  const curCkTplId = () => { const g = ckGroup(); const id = ED.ckTplSel[ED.checkoutPage]; return (id && g.list.some((t) => t.id === id)) ? id : (defaultOf(g) || {}).id; };
+  const curCkTpl = () => { const g = ckGroup(); return g.list.find((t) => t.id === curCkTplId()) || g.list[0]; };
+  const settingsObj = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
   const isDirty = () => !eq(ED.theme, ED.savedTheme);
   const hasDraft = () => !eq(ED.savedTheme, ED.publishedTheme);
   const status = () => isDirty() ? 'unsaved' : hasDraft() ? 'draft' : 'saved';
-  // Checkout surface has two pages sharing one theme: Checkout and Thank you (Thank you PRD §23.1).
+  // Checkout theme page types (Thank you PRD §23.1; multi-template PRD §5.2).
   const isThankyou = () => isCheckout() && ED.checkoutPage === 'thankyou';
-  const pageSections = () => isCheckout() ? (isThankyou() ? curCk().thankyou : curCk().sections) : curTpl().sections;
-  const pageLabel = () => isCheckout() ? (isThankyou() ? 'Thank you' : 'Checkout') : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
-  const tokens = () => isCheckout() ? curCk().settings : ED.theme.settings;
+  const isUpsell = () => isCheckout() && ED.checkoutPage === 'upsell';
+  const isDownsell = () => isCheckout() && ED.checkoutPage === 'downsell';
+  const ckPageLabel = (pt) => (D.CHECKOUT_PAGES.find((p) => p.value === pt) || {}).label || pt;
+  const pageSections = () => isCheckout() ? curCkTpl().sections : curTpl().sections;
+  const pageLabel = () => isCheckout() ? ckPageLabel(ED.checkoutPage) : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
+  const tokens = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
+  const isCkType = (pt) => CK_TYPES.indexOf(pt) >= 0;
+  const isDefaultTpl = (t) => !!(t && t.isDefault);
+  // The usage count for a template lives in `assigned` (online store) or `used` (checkout).
+  const tplCount = (pt, t) => isCkType(pt) ? t.used : t.assigned;
+  const tplInUse = (pt, t) => { const c = tplCount(pt, t); return typeof c === 'number' && c > 0; };
+  // Usage descriptor per PRD §7.1: online store "Assigned to X products/collections",
+  // checkout theme "Used by X funnel nodes". Empty for defaults with unknown counts.
+  function usageText(pt, count) {
+    if (count === '—' || count == null || count === '') return '';
+    let base;
+    if (isCkType(pt)) base = 'funnel node';
+    else { const po = D.PAGE_OPTIONS.find((p) => p.value === pt) || {}; base = (po.noun || 'items').replace(/s$/, ''); }
+    const verb = isCkType(pt) ? 'Used by' : 'Assigned to';
+    const plural = (Number(count) === 1) ? base : base + 's';
+    return verb + ' ' + count + ' ' + plural;
+  }
+  // §8.2 unsaved-changes gate for switching templates (Save / Discard / Cancel).
+  function confirmSwitchTemplate(proceed) {
+    if (!ED || !isDirty()) { proceed(); return; }
+    const back = h('<div class="modal-backdrop" style="z-index:240"></div>');
+    const m = h('<div class="modal"></div>');
+    m.innerHTML = '<div class="modal-head">Unsaved changes</div>' +
+      '<div class="modal-body"><div class="subtle" style="font-size:13.5px;line-height:1.6">You have unsaved changes. Save or discard your changes before switching templates.</div></div>' +
+      '<div class="modal-foot"><button class="btn btn-default" data-cancel>Cancel</button><button class="btn btn-default" data-discard>Discard</button><button class="btn btn-primary" data-save>Save</button></div>';
+    back.appendChild(m); document.body.appendChild(back);
+    const close = () => back.remove();
+    m.querySelector('[data-cancel]').onclick = close;
+    back.onclick = (e) => { if (e.target === back) close(); };
+    m.querySelector('[data-discard]').onclick = () => { close(); ED.theme = clone(ED.savedTheme); proceed(); };
+    m.querySelector('[data-save]').onclick = () => { close(); ED.savedTheme = clone(ED.theme); ED.meta.updated_time = nowStr(); proceed(); };
+  }
 
   // ==========================================================================
   //  THEME LIST  (#/online-store)
@@ -441,7 +453,7 @@
     // Entered via a route that pins a surface (e.g. #/checkout) — align the editor to it.
     if (surface && ED.surface !== surface) {
       ED.surface = surface;
-      if (surface === 'checkout') ED.checkoutPage = (page === 'thankyou') ? 'thankyou' : 'checkout';
+      if (surface === 'checkout') ED.checkoutPage = (CK_TYPES.indexOf(page) >= 0) ? page : 'checkout';
       ED.leftMode = 'sections';
       ED.selection = defaultSelection();
     } else if (surface === 'checkout' && page && ED.checkoutPage !== page) {
@@ -502,8 +514,8 @@
   // Trigger label: page/template on the online-store surface, page name on checkout.
   function pageMenuLabel() {
     if (isCheckout()) {
-      const page = isThankyou() ? 'Thank you' : 'Checkout';
-      return (ckList().length > 1) ? (curCk().name + ' · ' + page) : page;
+      const t = curCkTpl();
+      return ckPageLabel(ED.checkoutPage) + ' · ' + ((t && t.name) || 'Default');
     }
     const po = D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {};
     if (po.multi) { const t = curTpl(); return po.label + ' · ' + ((t && t.name) || 'Default'); }
@@ -516,7 +528,12 @@
     if (v === 'product') return s('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V5a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/>');
     if (v === 'collection') return s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>');
     if (v === 'collections') return s('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>');
+    if (v === 'checkout') return I.cart;
+    if (v === 'upsell') return s('<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>');
+    if (v === 'downsell') return s('<path d="M3 7l6 6 4-4 8 8"/><path d="M17 17h4v-4"/>');
+    if (v === 'thankyou') return s('<path d="M20 6 9 17l-5-5"/>');
     if (v === '__checkout__') return I.cart;
+    if (v === '__online__') return s('<path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>');
     return I.layers;
   }
   function wireTop() {
@@ -551,7 +568,11 @@
   // Checkout tree — required components are locked; commerce components (PRD §14.1)
   // can be added / hidden / deleted / reordered.
   function checkoutTreeHtml() {
-    let html = '<div class="os-grp-head" style="cursor:default">' + (isThankyou() ? 'Thank you' : 'Checkout') + ' Template</div>';
+    if (isUpsell() || isDownsell()) {
+      return '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>' +
+        '<div class="os-tree-note">' + esc(ckPageLabel(ED.checkoutPage)) + ' offer pages feed Funnel nodes. Their component editor isn\u2019t available in this release \u2014 manage templates from the page selector above.</div>';
+    }
+    let html = '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
     let nAdd = 0; ckCatalog().forEach((g) => nAdd += g.entries.length);
     html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add section <span class="os-add-n">(' + nAdd + ')</span></div>';
@@ -756,12 +777,29 @@
   // -------------------------------------------------------------- CENTER (preview canvas)
   function centerPanel() {
     const c = h('<div class="os-center"></div>');
+    const hint = usageScopeHint();
     c.innerHTML = '<div class="os-canvas-bar">Live preview · ' + esc(pageLabel()) + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile') + '</div>' +
+      (hint ? '<div class="os-scope-hint">' + I.info + '<span>' + esc(hint) + '</span></div>' : '') +
       '<div class="os-canvas-scroll" id="os-cscroll"><div class="os-frame ' + ED.device + '" id="os-frame">' + canvasHtml() + '</div></div>';
     return c;
   }
+  // Editor-top usage-scope reminder (PRD §13): shown when the active multi-template is used
+  // by more than one object, so merchants know edits apply to every assigned product / node.
+  function usageScopeHint() {
+    let pt, t, count;
+    if (isCheckout()) { pt = ED.checkoutPage; t = curCkTpl(); count = t && t.used; }
+    else { pt = ED.currentPage; t = curTpl(); count = t && t.assigned; }
+    if (!t || typeof count !== 'number' || count <= 0) return '';
+    if (isCkType(pt)) return 'This template is used by ' + count + ' funnel node' + (count === 1 ? '' : 's') + '. Changes will apply to all nodes using this template.';
+    const noun = (D.PAGE_OPTIONS.find((p) => p.value === pt) || {}).noun || 'items';
+    return 'This template is assigned to ' + count + ' ' + noun + '. Changes will apply to all assigned ' + noun + '.';
+  }
   function canvasHtml() {
-    if (isCheckout()) return isThankyou() ? thankyouCanvasHtml() : checkoutCanvasHtml();
+    if (isCheckout()) {
+      if (isThankyou()) return thankyouCanvasHtml();
+      if (isUpsell() || isDownsell()) return ckPlaceholderCanvas();
+      return checkoutCanvasHtml();
+    }
     let html = '';
     const secs = pageSections().filter((s) => !s.hidden);
     const first = secs[0];
@@ -785,7 +823,7 @@
   // collapsed Order Summary on top (PRD §7). Each component is still a selectable
   // `.os-sec`, so the shared wireCanvas()/hydrate() pipeline works unchanged.
   function checkoutCanvasHtml() {
-    const tk = curCk().settings; const mob = ED.device === 'mobile';
+    const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
     const secs = pageSections();
     // Live add-on contributions, shared by every Order Summary surface this render.
     CK_ADDONS = computeCheckoutAddons(secs);
@@ -852,7 +890,7 @@
   // summary-zone components. Full-bleed announce band on top; Policy links + Footer
   // in the full-bleed bottom band. Reuses wrapSection / checkoutVars / hydrate.
   function thankyouCanvasHtml() {
-    const tk = curCk().settings; const mob = ED.device === 'mobile';
+    const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
     const secs = pageSections();
     CK_ADDONS = { rows: [], lines: [] }; // no commerce components on Thank you
     const byKind = (k) => secs.find((s) => s.kind === k);
@@ -913,6 +951,20 @@
           '<div class="ckcol side" style="flex:0 0 calc(' + (L.summary_column_width || 42) + '% - ' + ((L.column_gap || 40) / 2) + 'px)">' + summary + summaryZoneHtml + '</div>' +
         '</div>';
     return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + mobTopSummary + inner + bottomHtml + '</div>';
+  }
+  // Upsell / Downsell pages have no editor preview this round (multi-template PRD §16.2):
+  // the model, selector, template list and create/rename/duplicate/delete all work, but the
+  // canvas shows a placeholder rather than a live post-purchase offer preview.
+  function ckPlaceholderCanvas() {
+    const label = ckPageLabel(ED.checkoutPage);
+    const tpl = curCkTpl();
+    return '<div class="os-ck-ph">' +
+      '<div class="os-ck-ph-card">' +
+        '<div class="os-ck-ph-badge">' + esc(label) + '</div>' +
+        '<div class="os-ck-ph-title">' + esc((tpl && tpl.name) || label) + '</div>' +
+        '<p class="os-ck-ph-desc">This ' + esc(label.toLowerCase()) + ' offer page is used by Funnel nodes. ' +
+        'A live preview isn\u2019t available in this release \u2014 you can still create, rename, duplicate and assign templates here.</p>' +
+      '</div></div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1153,7 +1205,7 @@
   function wireRight() {
     const form = document.querySelector('#os-form'); if (!form) return;
     const target = currentSettings(); if (!target) { wireRemove(form); return; }
-    const onChange = (k, v, rerenderPanel) => { target[k] = v; mirrorSharedSection(target); markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight(); };
+    const onChange = (k, v, rerenderPanel) => { target[k] = v; markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight(); };
     form.querySelectorAll('[data-control]').forEach((el) => {
       const k = el.getAttribute('data-fkey'); const ctl = el.getAttribute('data-control');
       if (ctl === 'text' || ctl === 'url' || ctl === 'number') {
@@ -1652,70 +1704,55 @@
     const layer = h('<div class="pop-layer"></div>');
     const pop = h('<div class="os-pkpop os-pgpop"></div>');
     layer.appendChild(pop); document.body.appendChild(layer);
-    // view: 'root' | <multi pageType> | 'checkout'. Open directly on the relevant sub-view.
-    let view = isCheckout() ? 'checkout' : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root');
+    // view: 'root' (online store menu) | 'ck-root' (checkout theme menu) | <page type>
+    // (an online-store or checkout template list). Open directly on the current page's list.
+    let view = isCheckout() ? ED.checkoutPage : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root');
     let query = '';
+
+    const kebabSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
 
     function draw() {
       const q = query.trim().toLowerCase();
       let html = '';
-      if (view === 'root') {
-        html += '<div class="os-pkpop-search"><span class="os-pkpop-ico">' + I.search + '</span><input type="text" id="pg-q" placeholder="Search online store" autocomplete="off"></div>';
+      if (view === 'root' || view === 'ck-root') {
+        // Root menu — one per editing environment (PRD §5.1/§5.2). Both list their page
+        // types (multi types drill in) plus a jump link to the other environment.
+        const ck = view === 'ck-root';
+        const types = ck ? (D.CHECKOUT_PAGES || []) : D.PAGE_OPTIONS;
+        html += '<div class="os-pkpop-search"><span class="os-pkpop-ico">' + I.search + '</span><input type="text" id="pg-q" placeholder="' + (ck ? 'Search checkout theme' : 'Search online store') + '" autocomplete="off"></div>';
         html += '<div class="os-pkpop-list">';
-        D.PAGE_OPTIONS.forEach((p) => {
+        types.forEach((p) => {
           if (q && p.label.toLowerCase().indexOf(q) < 0) return;
-          const on = !isCheckout() && p.value === ED.currentPage;
-          html += '<div class="os-pg-row' + (on ? ' on' : '') + '" data-pt="' + esc(p.value) + '"' + (p.multi ? ' data-multi="1"' : '') + '>' +
+          const on = ck ? (isCheckout() && p.value === ED.checkoutPage) : (!isCheckout() && p.value === ED.currentPage);
+          html += '<div class="os-pg-row' + (on ? ' on' : '') + '" data-pt="' + esc(p.value) + '"' + (p.multi ? ' data-multi="1"' : '') + (ck ? ' data-ck="1"' : '') + '>' +
             '<span class="os-pg-ico">' + pageIco(p.value) + '</span>' +
             '<span class="os-pg-name">' + esc(p.label) + '</span>' +
             (p.multi ? '<span class="os-pg-arrow">' + I.chevR + '</span>' : '') +
           '</div>';
         });
         html += '<div class="os-pg-sep"></div>';
-        html += '<div class="os-pg-row" data-jump-ck><span class="os-pg-ico">' + I.cart + '</span><span class="os-pg-name">Checkout theme</span><span class="os-pg-arrow">' + I.chevR + '</span></div>';
-        html += '</div>';
-      } else if (view === 'checkout') {
-        html += '<div class="os-pg-back" data-jump-os>' + I.back + ' Online store theme</div>';
-        html += '<div class="os-pkpop-list">';
-        // Checkout templates (multi) — each bundles a Checkout + Thank you pair and is
-        // assigned to products, like online-store templates.
-        const cg = ED.theme.checkout; const activeCk = curCk().id;
-        html += '<div class="os-pg-grouplbl">Templates</div>';
-        cg.list.forEach((t) => {
-          if (q && t.name.toLowerCase().indexOf(q) < 0) return;
-          const on = isCheckout() && t.id === activeCk;
-          const nn = (t.assigned === 1) ? 'product' : 'products';
-          const cnt = (t.assigned === '—' || t.assigned == null) ? '' : '<span class="os-pg-sub">Assigned to ' + esc(String(t.assigned)) + ' ' + nn + '</span>';
-          html += '<div class="os-pg-row tpl' + (on ? ' on' : '') + '" data-cktpl="' + esc(t.id) + '">' +
-            '<span class="os-pg-ico">' + I.cart + '</span>' +
-            '<span class="os-pg-tplinfo"><span class="os-pg-name">' + esc(t.name) + '</span>' + cnt + '</span>' +
-            '<button class="os-pg-kebab" type="button" data-cktpl-menu="' + esc(t.id) + '" aria-label="Template options"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></button>' +
-          '</div>';
-        });
-        html += '<div class="os-pg-create" data-create-ck>' + I.plus + ' Create template</div>';
-        html += '<div class="os-pg-sep"></div>';
-        // Pages within the active checkout template.
-        html += '<div class="os-pg-grouplbl">Pages</div>';
-        (D.CHECKOUT_PAGES || []).forEach((p) => {
-          const on = isCheckout() && ED.checkoutPage === p.value;
-          html += '<div class="os-pg-row' + (on ? ' on' : '') + '" data-ckpage="' + esc(p.value) + '"><span class="os-pg-ico">' + (p.value === 'thankyou' ? I.eye : I.cart) + '</span><span class="os-pg-name">' + esc(p.label) + '</span></div>';
-        });
+        if (ck) html += '<div class="os-pg-row" data-jump-os><span class="os-pg-ico">' + pageIco('__online__') + '</span><span class="os-pg-name">Online store theme</span><span class="os-pg-arrow">' + I.chevR + '</span></div>';
+        else html += '<div class="os-pg-row" data-jump-ck><span class="os-pg-ico">' + I.cart + '</span><span class="os-pg-name">Checkout theme</span><span class="os-pg-arrow">' + I.chevR + '</span></div>';
         html += '</div>';
       } else {
-        const po = D.PAGE_OPTIONS.find((p) => p.value === view) || {};
-        const g = ED.theme.templates[view];
-        const activeId = (!isCheckout() && ED.currentPage === view) ? curTplId() : (ED.tplSel[view] || (g.list[0] || {}).id);
-        html += '<div class="os-pg-back" data-back="root">' + I.back + ' ' + esc(po.label) + '</div>';
+        // Template list for one page type (online store OR checkout). Shared markup: each
+        // row carries data-pt + data-tpl; checkout rows also carry data-ck.
+        const ck = isCkType(view);
+        const po = ck ? ((D.CHECKOUT_PAGES || []).find((p) => p.value === view) || {}) : (D.PAGE_OPTIONS.find((p) => p.value === view) || {});
+        const g = ck ? ckGroupOf(view) : ED.theme.templates[view];
+        const onType = ck ? (isCheckout() && ED.checkoutPage === view) : (!isCheckout() && ED.currentPage === view);
+        const activeId = onType ? (ck ? curCkTplId() : curTplId()) : ((ck ? ED.ckTplSel[view] : ED.tplSel[view]) || (defaultOf(g) || {}).id);
+        html += '<div class="os-pg-back" data-back="' + (ck ? 'ck-root' : 'root') + '">' + I.back + ' ' + esc(po.label) + '</div>';
         html += '<div class="os-pkpop-list">';
         g.list.forEach((t) => {
           if (q && t.name.toLowerCase().indexOf(q) < 0) return;
-          const on = t.id === activeId && !isCheckout() && ED.currentPage === view;
-          const nn = (t.assigned === 1) ? (po.noun || 'items').replace(/s$/, '') : (po.noun || 'items');
-          const cnt = (t.assigned === '—' || t.assigned == null) ? '' : '<span class="os-pg-sub">Assigned to ' + esc(String(t.assigned)) + ' ' + esc(nn) + '</span>';
-          html += '<div class="os-pg-row tpl' + (on ? ' on' : '') + '" data-pt="' + esc(view) + '" data-tpl="' + esc(t.id) + '">' +
-            '<span class="os-pg-ico">' + I.layers + '</span>' +
+          const on = onType && t.id === activeId;
+          const cntTxt = usageText(view, tplCount(view, t));
+          const cnt = cntTxt ? '<span class="os-pg-sub">' + esc(cntTxt) + '</span>' : '';
+          html += '<div class="os-pg-row tpl' + (on ? ' on' : '') + '" data-pt="' + esc(view) + '" data-tpl="' + esc(t.id) + '"' + (ck ? ' data-ck="1"' : '') + '>' +
+            '<span class="os-pg-ico">' + pageIco(ck ? view : '') + '</span>' +
             '<span class="os-pg-tplinfo"><span class="os-pg-name">' + esc(t.name) + '</span>' + cnt + '</span>' +
-            '<button class="os-pg-kebab" type="button" data-tpl-menu="' + esc(t.id) + '" aria-label="Template options"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></button>' +
+            '<button class="os-pg-kebab" type="button" data-tpl-menu="' + esc(t.id) + '" aria-label="Template options">' + kebabSvg + '</button>' +
           '</div>';
         });
         html += '<div class="os-pg-create" data-create="' + esc(view) + '">' + I.plus + ' Create template</div>';
@@ -1723,26 +1760,18 @@
       }
       pop.innerHTML = html;
       wire(); position();
-      if (view === 'root') { const qi = pop.querySelector('#pg-q'); if (qi) { qi.value = query; qi.oninput = () => { query = qi.value; draw(); }; setTimeout(() => qi.focus(), 0); } }
+      if (view === 'root' || view === 'ck-root') { const qi = pop.querySelector('#pg-q'); if (qi) { qi.value = query; qi.oninput = () => { query = qi.value; draw(); }; setTimeout(() => qi.focus(), 0); } }
     }
     function wire() {
       pop.querySelectorAll('[data-back]').forEach((b) => b.onclick = () => { view = b.getAttribute('data-back'); query = ''; draw(); });
       const jck = pop.querySelector('[data-jump-ck]'); if (jck) jck.onclick = () => { closePops(); switchSurface('checkout'); };
       const jos = pop.querySelector('[data-jump-os]'); if (jos) jos.onclick = () => { closePops(); switchSurface('online-store'); };
-      pop.querySelectorAll('[data-ckpage]').forEach((b) => b.onclick = () => { const v = b.getAttribute('data-ckpage'); closePops(); if (isCheckout()) switchCheckoutPage(v); });
-      pop.querySelectorAll('[data-cktpl]').forEach((b) => b.onclick = (e) => {
-        if (e.target.closest('[data-cktpl-menu]') || e.target.closest('.os-pg-menu')) return;
-        closePops(); switchCheckoutTemplate(b.getAttribute('data-cktpl'));
-      });
-      pop.querySelectorAll('[data-cktpl-menu]').forEach((kb) => kb.onclick = (e) => {
-        e.preventDefault(); e.stopPropagation(); openTplMenu(kb, 'checkout', kb.getAttribute('data-cktpl-menu'));
-      });
-      const crc = pop.querySelector('[data-create-ck]'); if (crc) crc.onclick = () => { closePops(); openCreateTemplate('checkout'); };
       pop.querySelectorAll('.os-pg-row[data-pt]').forEach((b) => b.onclick = (e) => {
         if (e.target.closest('[data-tpl-menu]') || e.target.closest('.os-pg-menu')) return;
-        const pt = b.getAttribute('data-pt'); const tpl = b.getAttribute('data-tpl');
-        if (b.getAttribute('data-multi') && !tpl) { view = pt; query = ''; draw(); return; }
-        closePops(); switchPage(pt, tpl || null);
+        const pt = b.getAttribute('data-pt'); const tpl = b.getAttribute('data-tpl'); const ck = b.getAttribute('data-ck');
+        if (b.getAttribute('data-multi') && !tpl) { view = pt; query = ''; draw(); return; } // drill into type
+        closePops();
+        if (ck) switchCheckoutTemplate(pt, tpl); else switchPage(pt, tpl || null);
       });
       pop.querySelectorAll('[data-tpl-menu]').forEach((kb) => kb.onclick = (e) => {
         e.preventDefault(); e.stopPropagation();
@@ -1756,7 +1785,8 @@
       const existing = kebab.parentNode.querySelector('.os-pg-menu');
       pop.querySelectorAll('.os-pg-menu').forEach((x) => x.remove());
       if (existing) return; // toggle off if it was open on this row
-      const isDefault = id === 'default';
+      const g = tplGroupOf(pt); const t = g && g.list.find((x) => x.id === id);
+      const isDefault = isDefaultTpl(t);
       const menu = document.createElement('div'); menu.className = 'os-pg-menu';
       menu.innerHTML =
         (isDefault ? '' : '<button type="button" data-act="rename">Rename</button>') +
@@ -1782,15 +1812,17 @@
   // page type still re-renders (pt equals currentPage but the template changed).
   function switchPage(pt, tplId) {
     const changed = (pt !== ED.currentPage) || (tplId && tplId !== curTplId());
-    ED.currentPage = pt;
-    if (tplId) ED.tplSel[pt] = tplId;
-    if (!changed) return;
-    if (ED.selection.kind === 'section' || ED.selection.kind === 'block') ED.selection = { kind: 'header' };
-    ED.leftMode = 'sections'; rerender();
+    if (!changed) { ED.currentPage = pt; if (tplId) ED.tplSel[pt] = tplId; return; }
+    confirmSwitchTemplate(() => {
+      ED.currentPage = pt;
+      if (tplId) ED.tplSel[pt] = tplId;
+      if (ED.selection.kind === 'section' || ED.selection.kind === 'block') ED.selection = { kind: 'header' };
+      ED.leftMode = 'sections'; rerender();
+    });
   }
-  // The template group for a page type. 'checkout' resolves to the checkout list (whose
-  // templates bundle a Checkout + Thank you pair); everything else is an online-store type.
-  function tplGroupOf(pt) { return pt === 'checkout' ? ED.theme.checkout : ED.theme.templates[pt]; }
+  // The template group for a page type. Checkout page types (checkout/upsell/downsell/
+  // thankyou) resolve to the checkout theme's per-type lists; everything else is online store.
+  function tplGroupOf(pt) { return isCkType(pt) ? ED.theme.checkout.templates[pt] : ED.theme.templates[pt]; }
   // Deep-clone a section instance with fresh ids (section + blocks) so a cloned template's
   // sections are independent instances (selecting/editing one never affects the source).
   function cloneSectionInstance(s) {
@@ -1798,23 +1830,28 @@
     if (c.blocks) c.blocks = c.blocks.map((b) => { const bc = clone(b); bc.id = uid('blk'); return bc; });
     return c;
   }
-  // Clone a whole template. Checkout templates also copy settings + the Thank you page.
+  // Clone a whole template — deep-copies the section structure with fresh ids. Checkout
+  // theme settings are shared at theme level (PRD §9.4 "Theme settings 引用"), so a cloned
+  // template only carries its own component structure. New templates start unused.
   function cloneTemplate(pt, src, id, name) {
-    if (pt === 'checkout') {
-      const t = { id: id, name: name, basedOn: src.id, assigned: 0, settings: clone(src.settings),
-        sections: (src.sections || []).map(cloneSectionInstance), thankyou: (src.thankyou || []).map(cloneSectionInstance) };
-      syncPolicyLinks(t); return t;
-    }
-    return { id: id, name: name, basedOn: src.id, assigned: 0, sections: (src.sections || []).map(cloneSectionInstance) };
+    const base = { id: id, name: name, basedOn: src.id, isDefault: false, sections: (src.sections || []).map(cloneSectionInstance) };
+    if (isCkType(pt)) base.used = 0; else base.assigned = 0;
+    return base;
   }
   // After adding/selecting a template, focus the editor on it (checkout jumps surface).
   function focusTemplate(pt, id) {
-    if (pt === 'checkout') {
-      ED.ckTpl = id; ED.surface = 'checkout'; ED.checkoutPage = 'checkout';
+    if (isCkType(pt)) {
+      ED.surface = 'checkout'; ED.checkoutPage = pt; ED.ckTplSel[pt] = id;
       ED.selection = defaultSelection(); ED.leftMode = 'sections'; syncSurfaceHash();
     } else {
       ED.currentPage = pt; ED.tplSel[pt] = id; ED.selection = { kind: 'header' }; ED.leftMode = 'sections';
     }
+  }
+  // Name uniqueness within a page type: trimmed + case-insensitive (PRD §10), optionally
+  // ignoring one template id (for rename). Returns true when the name is free to use.
+  function tplNameFree(g, name, ignoreId) {
+    const norm = String(name).trim().toLowerCase();
+    return !g.list.some((t) => t.id !== ignoreId && String(t.name).trim().toLowerCase() === norm);
   }
   // Slugify a template name into a unique id within its page-type list.
   function uniqueTplId(list, name) {
@@ -1838,6 +1875,7 @@
         '<label class="os-ct-field"><span class="os-ct-lbl">Name</span>' +
           '<span class="os-ct-inwrap"><input type="text" id="ct-name" maxlength="25" autocomplete="off" placeholder=""><span class="os-ct-count" id="ct-count">0/25</span></span>' +
         '</label>' +
+        '<div class="os-ct-err" id="ct-err" hidden></div>' +
         '<label class="os-ct-field"><span class="os-ct-lbl">Based on</span>' +
           '<span class="os-ct-selwrap"><select id="ct-base">' + opts + '</select><span class="os-ct-chev">▾</span></span>' +
         '</label>' +
@@ -1845,12 +1883,25 @@
       '<div class="modal-foot"><button class="btn btn-default" data-cancel>Cancel</button><button class="btn btn-primary" data-ok disabled>Create template</button></div>';
     back.appendChild(m); document.body.appendChild(back);
     const close = () => back.remove();
-    const nameEl = m.querySelector('#ct-name'); const countEl = m.querySelector('#ct-count'); const okBtn = m.querySelector('[data-ok]');
-    const sync = () => { countEl.textContent = nameEl.value.length + '/25'; okBtn.disabled = !nameEl.value.trim(); };
+    const nameEl = m.querySelector('#ct-name'); const countEl = m.querySelector('#ct-count'); const okBtn = m.querySelector('[data-ok]'); const errEl = m.querySelector('#ct-err');
+    // Live validation (PRD §9.4/§10/§17.1): required, ≤25 chars, unique per type (trim + case-insensitive).
+    const validity = () => {
+      const raw = nameEl.value; const name = raw.trim();
+      if (!name) return { ok: false, msg: '' };
+      if (raw.length > 25) return { ok: false, msg: 'Template name can\u2019t exceed 25 characters.' };
+      if (!tplNameFree(g, name)) return { ok: false, msg: 'A template with this name already exists.' };
+      return { ok: true, msg: '' };
+    };
+    const sync = () => {
+      countEl.textContent = nameEl.value.length + '/25';
+      const v = validity(); okBtn.disabled = !v.ok;
+      if (v.msg) { errEl.hidden = false; errEl.textContent = v.msg; } else { errEl.hidden = true; errEl.textContent = ''; }
+    };
     nameEl.oninput = sync; setTimeout(() => nameEl.focus(), 20);
     m.querySelector('[data-cancel]').onclick = close; back.onclick = (e) => { if (e.target === back) close(); };
     const create = () => {
-      const name = nameEl.value.trim(); if (!name) return;
+      const v = validity(); if (!v.ok) { sync(); return; }
+      const name = nameEl.value.trim();
       const baseId = m.querySelector('#ct-base').value;
       const base = g.list.find((t) => t.id === baseId) || g.list[0];
       const id = uniqueTplId(g.list, name);
@@ -1859,7 +1910,7 @@
       close(); rerender(); toast('Template “' + name + '” created');
     };
     okBtn.onclick = create;
-    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && nameEl.value.trim()) { e.preventDefault(); create(); } });
+    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !okBtn.disabled) { e.preventDefault(); create(); } });
   }
   // Rename a template (default template can't be renamed). Small single-field modal.
   function openRenameTemplate(pt, id) {
@@ -1873,18 +1924,30 @@
         '<label class="os-ct-field"><span class="os-ct-lbl">Name</span>' +
           '<span class="os-ct-inwrap"><input type="text" id="ct-name" maxlength="25" autocomplete="off"><span class="os-ct-count" id="ct-count">0/25</span></span>' +
         '</label>' +
+        '<div class="os-ct-err" id="ct-err" hidden></div>' +
       '</div>' +
       '<div class="modal-foot"><button class="btn btn-default" data-cancel>Cancel</button><button class="btn btn-primary" data-ok>Save</button></div>';
     back.appendChild(m); document.body.appendChild(back);
     const close = () => back.remove();
-    const nameEl = m.querySelector('#ct-name'); const countEl = m.querySelector('#ct-count'); const okBtn = m.querySelector('[data-ok]');
+    const nameEl = m.querySelector('#ct-name'); const countEl = m.querySelector('#ct-count'); const okBtn = m.querySelector('[data-ok]'); const errEl = m.querySelector('#ct-err');
     nameEl.value = t.name; countEl.textContent = nameEl.value.length + '/25';
-    const sync = () => { countEl.textContent = nameEl.value.length + '/25'; okBtn.disabled = !nameEl.value.trim(); };
-    nameEl.oninput = sync; setTimeout(() => { nameEl.focus(); nameEl.select(); }, 20);
+    // Rename can't collide with a sibling name (PRD §14.1 "名称重复 不允许保存"), ignoring self.
+    const validity = () => {
+      const name = nameEl.value.trim();
+      if (!name) return { ok: false, msg: '' };
+      if (!tplNameFree(g, name, id)) return { ok: false, msg: 'A template with this name already exists.' };
+      return { ok: true, msg: '' };
+    };
+    const sync = () => {
+      countEl.textContent = nameEl.value.length + '/25';
+      const v = validity(); okBtn.disabled = !v.ok;
+      if (v.msg) { errEl.hidden = false; errEl.textContent = v.msg; } else { errEl.hidden = true; errEl.textContent = ''; }
+    };
+    nameEl.oninput = sync; sync(); setTimeout(() => { nameEl.focus(); nameEl.select(); }, 20);
     m.querySelector('[data-cancel]').onclick = close; back.onclick = (e) => { if (e.target === back) close(); };
-    const save = () => { const v = nameEl.value.trim(); if (!v) return; t.name = v; close(); rerender(); };
+    const save = () => { const v = validity(); if (!v.ok) { sync(); return; } t.name = nameEl.value.trim(); close(); rerender(); toast('Template renamed'); };
     okBtn.onclick = save;
-    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && nameEl.value.trim()) { e.preventDefault(); save(); } });
+    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !okBtn.disabled) { e.preventDefault(); save(); } });
   }
   // Duplicate a template: clone its sections (fresh ids), name it "<name> copy", insert
   // right after the source, and switch to it.
@@ -1898,44 +1961,54 @@
     focusTemplate(pt, nid);
     rerender(); toast('Template duplicated');
   }
-  // Delete a template (default template can't be deleted). If the deleted template was the
-  // active one, fall back to the default template.
+  // Delete a template (PRD §14.2): default templates and templates still assigned to
+  // products/collections or used by funnel nodes can't be deleted. If the deleted template
+  // was active, fall back to the type's default.
   function deleteTemplate(pt, id) {
-    const g = tplGroupOf(pt); if (!g || id === 'default') return;
+    const g = tplGroupOf(pt); if (!g) return;
     const t = g.list.find((x) => x.id === id); if (!t) return;
+    if (isDefaultTpl(t)) { toast('Default templates can\u2019t be deleted.'); return; }
+    if (tplInUse(pt, t)) {
+      openConfirm({ title: 'Can\u2019t delete this template', okText: 'Got it',
+        body: isCkType(pt)
+          ? 'This template is used by ' + t.used + ' funnel node' + (t.used === 1 ? '' : 's') + '. Reassign those nodes before deleting this template.'
+          : 'This template is assigned to ' + t.assigned + ' ' + ((D.PAGE_OPTIONS.find((p) => p.value === pt) || {}).noun || 'items') + '. Reassign them before deleting this template.',
+        onOk: function () {} });
+      return;
+    }
     openConfirm({
       title: 'Delete template?',
-      body: 'Delete “' + t.name + '”? Products still assigned to it will fall back to the default template. This can\u2019t be undone.',
+      body: 'Are you sure you want to delete “' + t.name + '”? This action can\u2019t be undone.',
       okText: 'Delete', danger: true,
       onOk: () => {
         const i = g.list.findIndex((x) => x.id === id); if (i < 0) return;
         g.list.splice(i, 1);
-        if (pt === 'checkout') {
-          if (ED.ckTpl === id) ED.ckTpl = 'default';
-          if (isCheckout()) { ED.selection = defaultSelection(); ED.leftMode = 'sections'; }
+        const fb = (defaultOf(g) || {}).id;
+        if (isCkType(pt)) {
+          if ((ED.ckTplSel[pt] || (isCheckout() && ED.checkoutPage === pt ? curCkTplId() : null)) === id) ED.ckTplSel[pt] = fb;
+          if (isCheckout() && ED.checkoutPage === pt) { ED.selection = defaultSelection(); ED.leftMode = 'sections'; }
         } else {
-          if (ED.tplSel[pt] === id) ED.tplSel[pt] = 'default';
+          if (ED.tplSel[pt] === id) ED.tplSel[pt] = fb;
           if (ED.currentPage === pt) { ED.selection = { kind: 'header' }; ED.leftMode = 'sections'; }
         }
         rerender(); toast('Template deleted');
       },
     });
   }
-  // Select a checkout template (keeps the current Checkout/Thank you page).
-  function switchCheckoutTemplate(id) {
-    if (ED.ckTpl === id && isCheckout()) return;
-    ED.ckTpl = id;
-    if (!isCheckout()) { ED.surface = 'checkout'; ED.checkoutPage = 'checkout'; syncSurfaceHash(); }
-    ED.selection = defaultSelection(); ED.leftMode = 'sections'; rerender();
-  }
-  // Switch between the two checkout-surface pages (Checkout ↔ Thank you). Shared
-  // theme settings; each page has its own sections/zones (Thank you PRD §23.1).
-  function switchCheckoutPage(pt) {
-    if (pt === ED.checkoutPage) return;
-    ED.checkoutPage = pt; ED.leftMode = 'sections'; ED.selection = defaultSelection();
-    syncSurfaceHash(); rerender();
+  // Select a checkout template for a given checkout page type. Prompts for unsaved changes
+  // before switching (PRD §8.2), then jumps to that page type + template.
+  function switchCheckoutTemplate(pt, id) {
+    const same = isCheckout() && ED.checkoutPage === pt && curCkTplId() === id;
+    if (same) return;
+    confirmSwitchTemplate(() => {
+      ED.surface = 'checkout'; ED.checkoutPage = pt; ED.ckTplSel[pt] = id;
+      ED.selection = defaultSelection(); ED.leftMode = 'sections'; syncSurfaceHash(); rerender();
+    });
   }
   function defaultSelection() {
+    // Upsell/Downsell have no editable components this round — land on a neutral selection
+    // so the right panel shows its "nothing to edit" placeholder, not theme settings.
+    if (isUpsell() || isDownsell()) return { kind: 'ck-placeholder' };
     if (isCheckout()) { const s = pageSections()[0]; return s ? { kind: 'section', sectionId: s.id } : { kind: 'theme-settings' }; }
     return { kind: 'header' };
   }
@@ -1957,7 +2030,7 @@
   function syncSurfaceHash() {
     const handle = ED.meta.handle;
     const want = isCheckout()
-      ? ('#/checkout/' + encodeURIComponent(handle) + (isThankyou() ? '/thankyou' : ''))
+      ? ('#/checkout/' + encodeURIComponent(handle) + (ED.checkoutPage !== 'checkout' ? '/' + ED.checkoutPage : ''))
       : '#/online-store/edit/' + encodeURIComponent(handle);
     if (location.hash !== want) { try { history.replaceState(null, '', want); } catch (e) {} }
   }
@@ -2135,10 +2208,10 @@
     // opens the builder straight on the Checkout surface, no Online-store detour).
     const first = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
     if (first === 'checkout') {
-      // #/checkout, #/checkout/:handle, #/checkout/thankyou, #/checkout/:handle/thankyou
+      // #/checkout/:handle[/<checkout|upsell|downsell|thankyou>]
       const parts = (rest || '').split('/').filter(Boolean);
       let page = 'checkout';
-      const ti = parts.indexOf('thankyou'); if (ti >= 0) { page = 'thankyou'; parts.splice(ti, 1); }
+      ['thankyou', 'upsell', 'downsell', 'checkout'].forEach((pg) => { const i = parts.indexOf(pg); if (i >= 0) { page = pg; parts.splice(i, 1); } });
       const handle = parts[0] || (D.THEMES[0] && D.THEMES[0].handle) || 'aura';
       ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout', page));
       return;
@@ -2240,6 +2313,16 @@
   .os-ct-inwrap input:focus,.os-ct-selwrap select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-50)}
   .os-ct-count{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink-muted)}
   .os-ct-chev{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--ink-muted);pointer-events:none;font-size:11px}
+  .os-ct-err{margin:-6px 0 14px;font-size:12.5px;line-height:1.5;color:#d92d20}
+  /* Editor-top usage-scope hint (PRD §13) */
+  .os-scope-hint{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#fffaeb;border-bottom:1px solid #fde28a;color:#7a5b00;font-size:12.5px;line-height:1.45}
+  .os-scope-hint svg{flex:none;width:15px;height:15px;color:#dc9b00}
+  /* Upsell / Downsell placeholder canvas (no preview this round, PRD §16.2) */
+  .os-ck-ph{display:flex;align-items:center;justify-content:center;min-height:420px;padding:40px 24px}
+  .os-ck-ph-card{max-width:440px;text-align:center;background:#fff;border:1px solid var(--hair);border-radius:14px;padding:32px 28px;box-shadow:var(--float-shadow)}
+  .os-ck-ph-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);background:var(--brand-50);border-radius:999px;padding:4px 12px;margin-bottom:14px}
+  .os-ck-ph-title{font-size:19px;font-weight:600;color:var(--ink);margin-bottom:10px}
+  .os-ck-ph-desc{font-size:13.5px;line-height:1.6;color:var(--ink-muted);margin:0}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
   .os-dev{display:inline-flex;background:var(--panel);border-radius:8px;padding:3px;gap:2px}
   .os-dev button{width:32px;height:28px;border:0;background:none;color:var(--ink-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}

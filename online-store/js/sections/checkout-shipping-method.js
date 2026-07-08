@@ -20,8 +20,11 @@
         return '<div class="cksec ck-shipmethod"><h3 class="ck-h">' + esc(s.heading || 'Shipping method') + '</h3>' +
           '<div class="ck-empty">' + esc(s.empty_state_text || '') + '</div></div>';
       }
+      // Selected method is shared runtime state (OS.ckState['ck-shipping']) so the
+      // Delivery card's "Shipping" row + the Order Summary stay in sync (Item 1/3).
+      const sharedId = ((OS.ckState || {})['ck-shipping'] || {}).id || mock.selectedShipping;
       const rows = methods.map((m, i) => {
-        const sel = (m.id === mock.selectedShipping) || (i === 0 && !mock.selectedShipping);
+        const sel = (m.id === sharedId) || (i === 0 && !sharedId);
         const eta = m.eta ? '<span class="eta">' + esc(m.eta) + '</span>' : '';
         const desc = m.desc ? '<span class="desc">' + esc(m.desc) + '</span>' : '';
         return '<label class="ck-radio' + (sel ? ' sel' : '') + '" data-ck-ship="' + esc(m.id) + '" style="' + (sel ? '--ck-sel-border:' + selBorder : '') + '">' +
@@ -39,8 +42,10 @@
       const list = el.querySelector('[data-ck-ship-list]'); if (!list) return;
       list.querySelectorAll('[data-ck-ship]').forEach((row) => row.addEventListener('click', (e) => {
         e.preventDefault();
-        list.querySelectorAll('[data-ck-ship]').forEach((r) => r.classList.remove('sel'));
-        row.classList.add('sel');
+        // Persist to shared state + re-render the canvas so the Delivery card summary
+        // and the Order Summary shipping line reflect the new choice.
+        OS.ckSet('ck-shipping', { id: row.getAttribute('data-ck-ship') });
+        OS.ckRecalc();
       }));
     },
   });
