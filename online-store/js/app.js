@@ -2228,6 +2228,10 @@
   .os-psb-chev{display:inline-flex;color:var(--ink-muted);flex:none}
   /* Page / template selector popover */
   .os-pgpop{min-width:260px}
+  /* Let the body take the popover's remaining height so its inner list scrolls (long
+     template lists — e.g. Products — otherwise overflow the fixed max-height and clip
+     "Create template"). */
+  .os-pgpop > #os-pg-body{flex:1;min-height:0;display:flex;flex-direction:column}
   .os-pgpop .os-pkpop-list{padding:6px}
   .os-pg-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink)}
   .os-pg-row:hover{background:var(--panel)}
