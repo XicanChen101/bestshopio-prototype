@@ -742,11 +742,12 @@
     if (EDIT.hasVariants) {
       optionRows = (EDIT.attr || []).map((opt, i) => {
         const chips = (opt.detail || []).map((d, vi) => {
-          const preview = (opt.swatch === 'color' && d.color)
+          // storefront swatch preview: colour wins when set, else image thumbnail
+          const preview = d.color
             ? '<span style="width:12px;height:12px;border-radius:50%;background:' + d.color + ';border:1px solid rgba(0,0,0,.18);flex:none"></span>'
-            : (opt.swatch === 'image' && d.pic)
+            : (d.pic
               ? '<img src="' + d.pic + '" style="width:14px;height:14px;border-radius:3px;object-fit:cover;flex:none" />'
-              : '';
+              : '');
           return '<span style="display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:13px">' + preview + esc(d.value) +
           ' <span class="x" data-vval="' + i + ':' + vi + '" style="cursor:pointer;font-weight:700;display:inline-flex">' + I.x + '</span></span>';
         }).join('');
@@ -1011,8 +1012,7 @@
       if (e.key === 'Enter' && el.value.trim()) {
         const i = Number(el.getAttribute('data-opt-val')); const val = el.value.trim();
         const det = EDIT.attr[i].detail || (EDIT.attr[i].detail = []);
-        const color = EDIT.attr[i].swatch === 'color' ? guessHex(val) : '';
-        if (!det.some((d) => d.value === val)) { det.push({ pic: '', color: color, value: val }); rebuildSkusFromOptions(); markDirty(); rerenderMain(isEdit); }
+        if (!det.some((d) => d.value === val)) { det.push({ pic: '', color: guessHex(val), value: val }); rebuildSkusFromOptions(); markDirty(); rerenderMain(isEdit); }
       }
     });
     all('[data-vval]').forEach((x) => x.onclick = () => { const [i, vi] = x.getAttribute('data-vval').split(':').map(Number); EDIT.attr[i].detail.splice(vi, 1); rebuildSkusFromOptions(); markDirty(); rerenderMain(isEdit); });
@@ -1377,13 +1377,11 @@
     render(ctrl.m);
   }
 
-  // Edit variations modal (editAttr.tsx) — swatch style (Color / Image / None) + per-value config
+  // Edit variations modal (editAttr.tsx) — per value: image (existing) + colour swatch (added, side by side)
   function openEditAttrModal(oi, isEdit) {
     const opt = JSON.parse(JSON.stringify(EDIT.attr[oi] || { value: '', detail: [] }));
-    // Back-compat: infer swatch mode for legacy options that only stored `pic`.
-    if (!opt.swatch) opt.swatch = (opt.detail || []).some((d) => d.pic) ? 'image' : ((opt.detail || []).some((d) => d.color) ? 'color' : 'none');
-    const SW_TYPES = [{ k: 'color', label: 'Colour' }, { k: 'image', label: 'Image' }, { k: 'none', label: 'None' }];
-    // Push a colour to the model + keep the three inputs of a row in sync (no full re-render, keeps focus).
+    delete opt.swatch; // legacy field no longer used — swatch is derived from colour/pic presence
+    // Push a colour to the model + keep the row's colour inputs in sync (no full re-render, keeps focus).
     const syncColor = (panel, vi, hex, updateHexBox) => {
       opt.detail[vi].color = hex;
       const clip = panel.querySelector('[data-ea-clip="' + vi + '"]'); if (clip) clip.style.background = hex || '#fff';
@@ -1391,59 +1389,44 @@
       if (updateHexBox) { const hx = panel.querySelector('[data-ea-hex="' + vi + '"]'); if (hx) hx.value = hex; }
     };
     const render = (m) => {
-      const sw = opt.swatch || 'none';
       const panel = m.querySelector('#ea-panel');
-      const segStyle = (on) => 'padding:6px 16px;font-size:13px;border:1px solid var(--ctl);border-radius:8px;cursor:pointer;background:' + (on ? 'var(--brand)' : '#fff') + ';color:' + (on ? '#fff' : 'var(--ink)') + ';font-weight:' + (on ? '600' : '400');
-      const seg = SW_TYPES.map((t) => '<button type="button" data-ea-sw="' + t.k + '" style="' + segStyle(sw === t.k) + '">' + t.label + '</button>').join('');
-      const intro = sw === 'color'
-        ? 'Set a colour for each value so shoppers can pick this variant as a colour swatch on your storefront.'
-        : sw === 'image'
-          ? 'Customers can view the uploaded image when choosing different variations.'
-          : 'Values show as plain text buttons on your storefront (no swatch).';
-      const hint = sw === 'image'
-        ? '<p class="muted" style="font-size:13px;margin-top:4px">Support images in .jpg, .png, and .gif formats. Maximum file size is 4 MB. Recommended file size: 96px * 96px</p>'
-        : (sw === 'color' ? '<p class="muted" style="font-size:13px;margin-top:4px">Pick a colour or type a hex value (e.g. #1f2933).</p>' : '');
-      const head = sw === 'none' ? '<th>Name</th>' : '<th style="width:42%">Name</th><th>' + (sw === 'color' ? 'Colour' : 'Image') + '</th>';
       const rows = (opt.detail || []).map((d, vi) => {
-        let cell = '';
-        if (sw === 'color') {
-          const c = d.color || '';
-          cell = '<td><div class="flex items-center gap-2" style="flex-wrap:wrap">' +
-            '<label data-ea-clip="' + vi + '" style="position:relative;width:34px;height:34px;flex:none;border:1px solid var(--ctl);border-radius:6px;overflow:hidden;cursor:pointer;background:' + (c || '#fff') + '">' +
-              '<input type="color" value="' + (isHex6(c) ? c : '#000000') + '" data-ea-color="' + vi + '" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0" />' +
-            '</label>' +
-            '<input class="input" style="width:110px;height:34px;font-family:ui-monospace,monospace" data-ea-hex="' + vi + '" value="' + esc(c) + '" placeholder="#000000" maxlength="7" />' +
-            '<div class="flex items-center gap-1" style="flex-wrap:wrap">' +
-              SWATCH_PALETTE.map((p) => '<span data-ea-preset="' + vi + ':' + p + '" title="' + p + '" style="width:16px;height:16px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,.18);background:' + p + '"></span>').join('') +
-            '</div>' +
-          '</div></td>';
-        } else if (sw === 'image') {
-          cell = '<td>' + (d.pic
-            ? '<div class="flex items-center gap-2"><div style="width:80px;height:80px;border:1px solid var(--ctl);border-radius:6px;overflow:hidden"><img src="' + d.pic + '" style="width:100%;height:100%;object-fit:cover" /></div><button class="lnk" data-ea-pic="' + vi + '">Change</button></div>'
-            : '<div data-ea-pic="' + vi + '" style="width:80px;height:80px;border:2px dashed var(--ctl);border-radius:6px;display:grid;place-items:center;cursor:pointer;color:var(--ink-muted);font-size:22px">+</div>') + '</td>';
-        }
-        return '<tr><td style="' + (sw === 'none' ? '' : 'width:42%') + '"><input class="input" data-ea-val="' + vi + '" value="' + esc(d.value) + '" placeholder="Enter variation name" /></td>' + cell + '</tr>';
+        const c = d.color || '';
+        const imgCell = d.pic
+          ? '<div class="flex items-center gap-2"><div style="width:64px;height:64px;border:1px solid var(--ctl);border-radius:6px;overflow:hidden;flex:none"><img src="' + d.pic + '" style="width:100%;height:100%;object-fit:cover" /></div><button class="lnk" data-ea-pic="' + vi + '">Change</button></div>'
+          : '<div data-ea-pic="' + vi + '" style="width:64px;height:64px;border:2px dashed var(--ctl);border-radius:6px;display:grid;place-items:center;cursor:pointer;color:var(--ink-muted);font-size:20px">+</div>';
+        const colorCell = '<div class="flex items-center gap-2" style="flex-wrap:wrap">' +
+          '<label data-ea-clip="' + vi + '" style="position:relative;width:34px;height:34px;flex:none;border:1px solid var(--ctl);border-radius:6px;overflow:hidden;cursor:pointer;background:' + (c || '#fff') + '">' +
+            '<input type="color" value="' + (isHex6(c) ? c : '#000000') + '" data-ea-color="' + vi + '" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0" />' +
+          '</label>' +
+          '<input class="input" style="width:104px;height:34px;font-family:ui-monospace,monospace" data-ea-hex="' + vi + '" value="' + esc(c) + '" placeholder="#000000" maxlength="7" />' +
+          (c ? '<button class="lnk" data-ea-clear="' + vi + '">Clear</button>' : '') +
+          '<div class="flex items-center gap-1" style="flex-wrap:wrap">' +
+            SWATCH_PALETTE.map((p) => '<span data-ea-preset="' + vi + ':' + p + '" title="' + p + '" style="width:16px;height:16px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,.18);background:' + p + '"></span>').join('') +
+          '</div>' +
+        '</div>';
+        return '<tr>' +
+          '<td style="width:26%;vertical-align:top"><input class="input" data-ea-val="' + vi + '" value="' + esc(d.value) + '" placeholder="Enter variation name" /></td>' +
+          '<td style="vertical-align:top">' + imgCell + '</td>' +
+          '<td style="vertical-align:top">' + colorCell + '</td>' +
+        '</tr>';
       }).join('');
       panel.innerHTML =
-        '<div class="mb-3"><div class="flex items-center gap-2"><span style="font-size:13px;color:var(--ink)">Swatch style</span>' + seg + '</div></div>' +
-        '<div class="mb-4"><p style="color:var(--ink-body);margin-bottom:2px;font-size:13.5px">' + intro + '</p>' + hint + '</div>' +
-        '<table class="tbl" style="font-size:13px"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table>';
-      panel.querySelectorAll('[data-ea-sw]').forEach((b) => b.onclick = () => {
-        opt.swatch = b.getAttribute('data-ea-sw');
-        if (opt.swatch === 'color') (opt.detail || []).forEach((d) => { if (!d.color) { const g = guessHex(d.value); if (g) d.color = g; } });
-        render(m);
-      });
+        '<div class="mb-4"><p style="color:var(--ink-body);margin-bottom:2px;font-size:13.5px">Give each value an image and/or a colour. On your storefront it shows as a swatch — the colour is used when set, otherwise the image.</p>' +
+        '<p class="muted" style="font-size:13px">Images: .jpg, .png, .gif · max 4 MB · recommended 96px × 96px. Colour: pick or type a hex value (e.g. #1f2933).</p></div>' +
+        '<table class="tbl" style="font-size:13px"><thead><tr><th style="width:26%">Name</th><th>Image</th><th>Colour</th></tr></thead><tbody>' + rows + '</tbody></table>';
       panel.querySelectorAll('[data-ea-val]').forEach((el) => el.oninput = () => { opt.detail[Number(el.getAttribute('data-ea-val'))].value = el.value; });
       panel.querySelectorAll('[data-ea-color]').forEach((el) => el.oninput = () => { syncColor(panel, Number(el.getAttribute('data-ea-color')), el.value, true); });
       panel.querySelectorAll('[data-ea-hex]').forEach((el) => el.oninput = () => {
         const vi = Number(el.getAttribute('data-ea-hex')); let v = el.value.trim(); if (v && v[0] !== '#') v = '#' + v;
         syncColor(panel, vi, v, false);
       });
-      panel.querySelectorAll('[data-ea-preset]').forEach((sp) => sp.onclick = () => { const parts = sp.getAttribute('data-ea-preset').split(':'); syncColor(panel, Number(parts[0]), parts[1], true); });
+      panel.querySelectorAll('[data-ea-preset]').forEach((sp) => sp.onclick = () => { const parts = sp.getAttribute('data-ea-preset').split(':'); syncColor(panel, Number(parts[0]), parts[1], true); render(m); });
+      panel.querySelectorAll('[data-ea-clear]').forEach((b) => b.onclick = () => { opt.detail[Number(b.getAttribute('data-ea-clear'))].color = ''; render(m); });
       panel.querySelectorAll('[data-ea-pic]').forEach((b) => b.onclick = () => { const vi = Number(b.getAttribute('data-ea-pic')); opt.detail[vi].pic = D.PRODUCTS[(vi + 1) % D.PRODUCTS.length].image; render(m); });
     };
     const ctrl = modal({
-      title: '<span style="font-weight:700;font-size:16px">Edit Variations</span>', width: 800, okText: 'Save',
+      title: '<span style="font-weight:700;font-size:16px">Edit Variations</span>', width: 820, okText: 'Save',
       body: '<div id="ea-panel"></div>',
       onOk: (m, close) => { opt.value = EDIT.attr[oi].value; EDIT.attr[oi] = opt; rebuildSkusFromOptions(); markDirty(); close(); rerenderMain(isEdit); },
     });

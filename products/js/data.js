@@ -216,10 +216,10 @@
       hasVariants: true, spec_type: 1,
       // options (attr) -> Variants.tsx
       attr: [
-        // swatch: 'none' | 'color' | 'image' — how the storefront renders this option's swatch.
-        // color mode stores a hex per value; image mode uses `pic`.
-        { value: 'Color', swatch: 'color', detail: [{ pic: '', color: '#1f2933', value: 'Black' }, { pic: '', color: '#8a94a6', value: 'Grey' }, { pic: '', color: '#2f3b52', value: 'Navy' }] },
-        { value: 'Size', swatch: 'none', detail: [{ pic: '', color: '', value: 'S' }, { pic: '', color: '', value: 'M' }, { pic: '', color: '', value: 'L' }, { pic: '', color: '', value: 'XL' }] },
+        // Each value can carry a display image (`pic`) and/or a colour swatch (`color`, hex).
+        // Storefront swatch precedence: color when set, else pic, else plain text.
+        { value: 'Color', detail: [{ pic: '', color: '#1f2933', value: 'Black' }, { pic: '', color: '#8a94a6', value: 'Grey' }, { pic: '', color: '#2f3b52', value: 'Navy' }] },
+        { value: 'Size', detail: [{ pic: '', color: '', value: 'S' }, { pic: '', color: '', value: 'M' }, { pic: '', color: '', value: 'L' }, { pic: '', color: '', value: 'XL' }] },
       ],
       // SKU rows (attrValue) -> SkuList.tsx; a representative subset of the 12 combos.
       // detail is an object {Color, Size}; getVariantTitle joins values with ' • '.
