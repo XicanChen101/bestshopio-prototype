@@ -332,29 +332,29 @@
         ] },
       ] },
       product: { list: [
-        { id: 'default', name: 'Default product', assigned: '100+', sections: [
+        { id: 'default', name: 'Default product', assigned: '100+', assignedResourceIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'], sections: [
           { kind: 'media-with-text' },
         ] },
-        { id: 'buy-2-for-69', name: 'buy-2-for-69', basedOn: 'default', assigned: 1, sections: [
+        { id: 'buy-2-for-69', name: 'buy-2-for-69', basedOn: 'default', assigned: 1, assignedResourceIds: ['p1'], sections: [
           { kind: 'media-with-text' }, { kind: 'faq' },
         ] },
-        { id: 'dress-size-image', name: 'dress-size-image', basedOn: 'default', assigned: 24, sections: [
+        { id: 'dress-size-image', name: 'dress-size-image', basedOn: 'default', assigned: 24, assignedResourceIds: ['p2', 'p3', 'p4'], sections: [
           { kind: 'media-with-text' }, { kind: 'media-grid' },
         ] },
-        { id: 'explainer-template', name: 'explainer-template', basedOn: 'default', assigned: 0, sections: [
+        { id: 'explainer-template', name: 'explainer-template', basedOn: 'default', assigned: 0, assignedResourceIds: [], sections: [
           { kind: 'media-with-text' }, { kind: 'feature-cards' },
         ] },
-        { id: 'pre-order', name: 'pre-order', basedOn: 'default', assigned: 0, sections: [
+        { id: 'pre-order', name: 'pre-order', basedOn: 'default', assigned: 0, assignedResourceIds: [], sections: [
           { kind: 'media-with-text' }, { kind: 'newsletter' },
         ] },
       ] },
       collection: { list: [
-        { id: 'default', name: 'Default collection', assigned: '100+', sections: [
+        { id: 'default', name: 'Default collection', assigned: '100+', assignedResourceIds: ['best-sellers', 'new-arrivals', 'dresses', 'tops', 'bottoms', 'sale'], sections: [
           { id: 'sec-col-banner', kind: 'collection-banner' },
           { id: 'sec-col-list', kind: 'collection-list' },
           { id: 'sec-col-page', kind: 'collection-page' },
         ] },
-        { id: 'sale-2026', name: 'sale-2026', basedOn: 'default', assigned: 3, sections: [
+        { id: 'sale-2026', name: 'sale-2026', basedOn: 'default', assigned: 3, assignedResourceIds: ['sale', 'best-sellers', 'new-arrivals'], sections: [
           { kind: 'collection-banner' }, { kind: 'collection-page' },
         ] },
       ] },

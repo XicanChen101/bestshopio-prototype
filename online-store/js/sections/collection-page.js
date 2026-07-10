@@ -223,6 +223,8 @@
   // ---- inner render (paints from settings + ephemeral state) ----
   function inner(s, ctx, st) {
     const mob = ctx.mob;
+    const current = ctx.resource || COLLECTION;
+    const breadcrumb = ['Home', 'Collections', current.title || COLLECTION.title];
     const filtered = PRODUCTS.filter((p) => matches(p, st.filters));
     const sorted = sortP(filtered, st.sort);
     const total = PRODUCTS.length, match = filtered.length, af = activeCount(st.filters);
@@ -244,11 +246,11 @@
 
     // header
     let h = '';
-    if (s.show_breadcrumb) h += '<div class="cpg-bc">' + COLLECTION.breadcrumb.map((seg, i) => (i === COLLECTION.breadcrumb.length - 1 ? '<b>' + OS.esc(seg) + '</b>' : OS.esc(seg) + ' <span>/</span>')).join(' ') + '</div>';
+    if (s.show_breadcrumb) h += '<div class="cpg-bc">' + breadcrumb.map((seg, i) => (i === breadcrumb.length - 1 ? '<b>' + OS.esc(seg) + '</b>' : OS.esc(seg) + ' <span>/</span>')).join(' ') + '</div>';
     if (s.show_collection_title || s.show_collection_description) {
       h += '<div>' +
-        (s.show_collection_title ? '<div class="cpg-title" style="font-family:' + OS.headingFamily(ctx.tokens) + ';font-size:' + OS.headingSize(ctx.tokens, mob ? 22 : 28) + 'px;color:' + ((ctx.tokens.colors && ctx.tokens.colors.heading_color) || '#0f172a') + '">' + OS.esc(COLLECTION.title) + '</div>' : '') +
-        (s.show_collection_description ? '<div class="cpg-desc" style="font-size:' + (mob ? 13 : 14) + 'px;margin-top:6px">' + OS.esc(COLLECTION.description) + '</div>' : '') + '</div>';
+        (s.show_collection_title ? '<div class="cpg-title" style="font-family:' + OS.headingFamily(ctx.tokens) + ';font-size:' + OS.headingSize(ctx.tokens, mob ? 22 : 28) + 'px;color:' + ((ctx.tokens.colors && ctx.tokens.colors.heading_color) || '#0f172a') + '">' + OS.esc(current.title || COLLECTION.title) + '</div>' : '') +
+        (s.show_collection_description ? '<div class="cpg-desc" style="font-size:' + (mob ? 13 : 14) + 'px;margin-top:6px">' + OS.esc(current.description || COLLECTION.description) + '</div>' : '') + '</div>';
     }
 
     // toolbar

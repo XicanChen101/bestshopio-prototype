@@ -213,6 +213,7 @@
     Object.keys(T.templates).forEach((pg) => {
       theme.templates[pg] = { list: T.templates[pg].list.map((t) => ({
         id: t.id, name: t.name, assigned: t.assigned, basedOn: t.basedOn, isDefault: t.isDefault || t.id === 'default',
+        assignedResourceIds: (t.assignedResourceIds || []).slice(),
         sections: (t.sections || []).map(matSection),
       })) };
     });
@@ -249,6 +250,7 @@
       currentPage: 'home',
       tplSel: {},                      // { [pageType]: templateId } — active online-store template per type
       ckTplSel: {},                    // { checkout|upsell|downsell|thankyou: templateId } — active checkout template per type
+      previewSel: {},                  // { product|collection: resourceId } — preview only; never persisted
       device: 'desktop',
       leftMode: 'sections',            // 'sections' | 'settings'
       selection: { kind: 'header' },   // announcement|header|footer | {kind:'section',sectionId} | {kind:'block',sectionId,blockId}
@@ -394,6 +396,16 @@
   const pageLabel = () => isCheckout() ? ckPageLabel(ED.checkoutPage) : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
   const tokens = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
   const isCkType = (pt) => CK_TYPES.indexOf(pt) >= 0;
+  const isResourcePage = () => !isCheckout() && (ED.currentPage === 'product' || ED.currentPage === 'collection');
+  const resourceList = (pt) => pt === 'product' ? (D.SAMPLE.products || []) : (pt === 'collection' ? (D.SAMPLE.collections || []) : []);
+  const assignedResourceIds = (pt, tpl) => ((tpl || curTpl()).assignedResourceIds || []);
+  function previewResource(pt) {
+    pt = pt || ED.currentPage;
+    const list = resourceList(pt); const selected = ED.previewSel[pt];
+    return list.find((r) => r.id === selected) ||
+      list.find((r) => assignedResourceIds(pt).indexOf(r.id) >= 0) ||
+      list[0] || null;
+  }
   // The usage count for a template lives in `assigned` (online store) or `used` (checkout).
   const tplCount = (pt, t) => isCkType(pt) ? t.used : t.assigned;
   // Usage descriptor per PRD §7.1: online store "Assigned to X products/collections",
@@ -648,7 +660,7 @@
   function treeHtml() {
     const sel = ED.selection;
     const groupHead = (key, label) => '<div class="os-grp-head" data-grp="' + key + '"><span class="os-caret' + (ED.expand[key] ? ' open' : '') + '">' + I.chevR + '</span>' + esc(label) + '</div>';
-    let html = '';
+    let html = resourcePreviewHtml();
     // Header group
     html += groupHead('header', 'Header Group');
     if (ED.expand.header) {
@@ -665,6 +677,24 @@
     html += groupHead('footer', 'Footer Group');
     if (ED.expand.footer) html += globalRow('footer', 'Footer', ED.theme.footer, sel.kind === 'footer');
     return html;
+  }
+  // Shopify-style Preview resource selector for Product / Collection templates. Selecting a
+  // resource changes only the editor preview context; it never reassigns the template.
+  function resourcePreviewHtml() {
+    if (!isResourcePage()) return '';
+    const pt = ED.currentPage; const tpl = curTpl(); const res = previewResource(pt);
+    const usage = usageText(pt, tpl && tpl.assigned);
+    const thumb = res && res.image
+      ? '<span class="os-rp-thumb" style="background-image:url(' + esc(res.image) + ')"></span>'
+      : '<span class="os-rp-thumb empty">' + I.image + '</span>';
+    return '<div class="os-rp-context">' +
+      '<div class="os-rp-template">' + esc((tpl && tpl.name) || pageLabel()) + '</div>' +
+      (usage ? '<div class="os-rp-assigned">' + esc(usage) + '</div>' : '') +
+      '<button class="os-rp-trigger" type="button" data-resource-preview>' +
+        '<span class="os-rp-copy"><span class="os-rp-label">Preview</span><span class="os-rp-name">' + thumb + '<span>' + esc((res && res.title) || ('Select ' + pt)) + '</span></span></span>' +
+        '<span class="os-rp-chev">' + I.chev + '</span>' +
+      '</button>' +
+    '</div>';
   }
   function countAvailable() { let n = 0; D.CATALOG.forEach((g) => g.entries.forEach((e) => { if (e.kind && SECTIONS[e.kind]) n++; })); return n; }
   function globalRow(scope, label, inst, active) {
@@ -766,6 +796,8 @@
       wireDrag(tree);
       return;
     }
+    const rp = tree.querySelector('[data-resource-preview]');
+    if (rp) rp.onclick = (e) => { e.stopPropagation(); openResourcePicker(rp); };
     tree.querySelectorAll('[data-grp]').forEach((g) => g.onclick = () => { const k = g.getAttribute('data-grp'); ED.expand[k] = !ED.expand[k]; refreshTree(); });
     tree.querySelectorAll('[data-tog-sec]').forEach((c) => c.onclick = (e) => { e.stopPropagation(); const id = c.getAttribute('data-tog-sec'); ED.sectionExpand[id] = ED.sectionExpand[id] === false ? true : false; refreshTree(); });
     tree.querySelectorAll('[data-sel-global]').forEach((r) => bindRow(r, () => select({ kind: r.getAttribute('data-sel-global') })));
@@ -785,10 +817,14 @@
   function centerPanel() {
     const c = h('<div class="os-center"></div>');
     const hint = usageScopeHint();
-    c.innerHTML = '<div class="os-canvas-bar">Live preview · ' + esc(pageLabel()) + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile') + '</div>' +
+    c.innerHTML = '<div class="os-canvas-bar">' + esc(previewBarText()) + '</div>' +
       (hint ? '<div class="os-scope-hint">' + I.info + '<span>' + esc(hint) + '</span></div>' : '') +
       '<div class="os-canvas-scroll" id="os-cscroll"><div class="os-frame ' + ED.device + '" id="os-frame">' + canvasHtml() + '</div></div>';
     return c;
+  }
+  function previewBarText() {
+    const resource = isResourcePage() ? previewResource() : null;
+    return 'Live preview · ' + pageLabel() + (resource ? ' · ' + resource.title : '') + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile');
   }
   // Editor-top usage-scope reminder (PRD §13): shown when the active multi-template is used
   // by more than one object, so merchants know edits apply to every assigned product / node.
@@ -823,7 +859,7 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -1706,6 +1742,80 @@
     closeOnOutside(pop, anchor);
   }
 
+  // -------------------------------------------------------------- template resource preview
+  // Product / Collection templates can preview any resource, and merchants can narrow the
+  // picker to resources currently assigned to the active template (Shopify parity).
+  function openResourcePicker(anchor) {
+    if (!isResourcePage()) return;
+    closePops();
+    const pt = ED.currentPage; const noun = pt === 'product' ? 'product' : 'collection';
+    const items = resourceList(pt); const assigned = new Set(assignedResourceIds(pt));
+    const selected = previewResource(pt);
+    const layer = h('<div class="pop-layer" style="z-index:250"></div>');
+    const pop = h('<div class="os-pkpop os-rspop"></div>');
+    pop.innerHTML =
+      '<div class="os-rs-tabs"><button type="button" data-rs-tab="all">All</button><button type="button" data-rs-tab="assigned">Assigned</button></div>' +
+      '<div class="os-pkpop-search os-rs-search"><span class="os-pkpop-ico">' + I.search + '</span><input type="text" id="rs-q" placeholder="Search" autocomplete="off"></div>' +
+      '<div class="os-rs-list" id="rs-list"></div>' +
+      '<button type="button" class="os-rs-create" data-rs-create>' + I.plus + '<span>Create ' + noun + '</span></button>';
+    layer.appendChild(pop); document.body.appendChild(layer);
+
+    let tab = 'all', query = '', limit = 5;
+    const list = pop.querySelector('#rs-list');
+    const draw = () => {
+      pop.querySelectorAll('[data-rs-tab]').forEach((b) => b.classList.toggle('on', b.getAttribute('data-rs-tab') === tab));
+      const q = query.trim().toLowerCase();
+      const pool = tab === 'assigned' ? items.filter((r) => assigned.has(r.id)) : items;
+      const matched = q ? pool.filter((r) => String(r.title || '').toLowerCase().indexOf(q) >= 0) : pool;
+      const shown = matched.slice(0, limit);
+      let html = shown.map((r) => {
+        const on = selected && selected.id === r.id;
+        const thumb = r.image
+          ? '<span class="os-rs-thumb" style="background-image:url(' + esc(r.image) + ')"></span>'
+          : '<span class="os-rs-thumb empty">' + I.image + '</span>';
+        return '<button type="button" class="os-rs-row' + (on ? ' on' : '') + '" data-rs-id="' + esc(r.id) + '">' +
+          thumb + '<span class="os-rs-name">' + esc(r.title) + '</span>' +
+        '</button>';
+      }).join('');
+      if (!html) {
+        html = '<div class="os-rs-empty">' + (query ? 'No results found' : ('No ' + noun + 's are assigned to this template')) + '</div>';
+      } else if (matched.length > shown.length) {
+        html += '<button type="button" class="os-rs-more" data-rs-more>' + I.chev + '<span>View more</span></button>';
+      }
+      list.innerHTML = html;
+    };
+    draw();
+
+    const qEl = pop.querySelector('#rs-q');
+    qEl.oninput = () => { query = qEl.value; limit = 5; draw(); };
+    pop.addEventListener('click', (e) => {
+      const tb = e.target.closest('[data-rs-tab]');
+      if (tb) { tab = tb.getAttribute('data-rs-tab'); limit = 5; draw(); return; }
+      const more = e.target.closest('[data-rs-more]');
+      if (more) { limit += 10; draw(); return; }
+      const row = e.target.closest('[data-rs-id]');
+      if (row) {
+        ED.previewSel[pt] = row.getAttribute('data-rs-id');
+        closePops(); refreshTree(); refreshCanvas(); return;
+      }
+      if (e.target.closest('[data-rs-create]')) {
+        // Reuse the existing admin create pages. Open from the direct click handler so the
+        // browser treats it as a user-initiated new tab (avoids popup blocking).
+        const route = pt === 'product' ? '#/products/0' : '#/collections/0';
+        window.open(location.href.split('#')[0] + route, '_blank', 'noopener');
+        closePops();
+      }
+    });
+
+    const r = anchor.getBoundingClientRect(); const w = 304;
+    const left = r.right + 8 + w <= window.innerWidth - 8 ? r.right + 8 : Math.max(8, r.left - w - 8);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.max(64, Math.min(Math.round(r.top), window.innerHeight - 540)) + 'px';
+    setTimeout(() => qEl.focus(), 0);
+    closeOnOutside(pop, anchor);
+  }
+
   // -------------------------------------------------------------- page / template selector
   // Shopify-style popover: page types at root (multi types drill into a template submenu with
   // "Assigned to N …" + Create template); a "Checkout theme" jump; and, on the checkout
@@ -1854,7 +1964,8 @@
   // template only carries its own component structure. New templates start unused.
   function cloneTemplate(pt, src, id, name) {
     const base = { id: id, name: name, basedOn: src.id, isDefault: false, sections: (src.sections || []).map(cloneSectionInstance) };
-    if (isCkType(pt)) base.used = 0; else base.assigned = 0;
+    if (isCkType(pt)) base.used = 0;
+    else { base.assigned = 0; base.assignedResourceIds = []; }
     return base;
   }
   // After adding/selecting a template, focus the editor on it (checkout jumps surface).
@@ -2082,7 +2193,7 @@
     const newSc = nw.querySelector('.os-right-scroll'); if (newSc && sameSel) newSc.scrollTop = sy;
     ED._rightKey = rightSelKey();
   }
-  function refreshCanvas() { const fr = document.getElementById('os-frame'); if (!fr) return; fr.className = 'os-frame ' + ED.device; fr.innerHTML = canvasHtml(); wireCanvas(); applyHighlight(); const bar = document.querySelector('.os-canvas-bar'); if (bar) bar.textContent = 'Live preview · ' + pageLabel() + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile'); }
+  function refreshCanvas() { const fr = document.getElementById('os-frame'); if (!fr) return; fr.className = 'os-frame ' + ED.device; fr.innerHTML = canvasHtml(); wireCanvas(); applyHighlight(); const bar = document.querySelector('.os-canvas-bar'); if (bar) bar.textContent = previewBarText(); }
   // Buyer-side add-on toggles recompute the Order Summary by re-rendering the canvas.
   // Deferred so the triggering click finishes bubbling (selection) before teardown.
   OS.ckRecalc = function () { requestAnimationFrame(function () { if (isCheckout()) refreshCanvas(); }); };
@@ -2311,6 +2422,19 @@
   .os-left{border-right:1px solid var(--hair);display:flex;flex-direction:column;min-height:0;background:#fff}
   .os-left-head{padding:12px 16px;font-size:13px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--hair);flex-shrink:0}
   .os-left-scroll{flex:1;overflow:auto;padding:8px}
+  /* Product / Collection template context + Shopify-style preview resource selector. */
+  .os-rp-context{padding:4px 4px 12px;margin-bottom:4px;border-bottom:1px solid var(--hair)}
+  .os-rp-template{font-size:14px;font-weight:650;color:var(--ink);padding:2px 4px}
+  .os-rp-assigned{font-size:12px;color:var(--ink-muted);padding:3px 4px 8px}
+  .os-rp-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:var(--panel);border:1px solid transparent;border-radius:8px;color:var(--ink);font-family:inherit;cursor:pointer;text-align:left}
+  .os-rp-trigger:hover{border-color:var(--ctl)}
+  .os-rp-copy{display:flex;flex-direction:column;min-width:0;gap:2px}
+  .os-rp-label{font-size:11px;color:var(--ink-muted)}
+  .os-rp-name{display:flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;font-weight:550}
+  .os-rp-name>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .os-rp-thumb{width:22px;height:22px;flex:none;border-radius:5px;background-size:cover;background-position:center;border:1px solid var(--hair);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-muted)}
+  .os-rp-thumb svg{width:14px;height:14px}
+  .os-rp-chev{display:inline-flex;flex:none;color:var(--ink-muted)}
   .os-tree-note{font-size:12px;color:var(--ink-muted);line-height:1.55;background:var(--panel);border-radius:8px;padding:9px 11px;margin:4px 4px 10px}
   .os-tree-row{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13.5px}
   .os-tree-row:hover{background:var(--panel)}
@@ -2425,6 +2549,23 @@
   .os-pkpop-list .os-pk-row.on{background:var(--brand-50)}
   .os-pkpop-foot{flex:none;display:flex;justify-content:flex-end;padding:8px 10px;border-top:1px solid var(--hair)}
   .os-pkpop-foot .btn{height:32px;padding:0 16px}
+  /* Template preview resource picker: All / Assigned + search + paged resource list. */
+  .os-rspop{max-height:min(560px,calc(100vh - 80px))}
+  .os-rs-tabs{display:flex;gap:2px;margin:10px 10px 0;padding:3px;background:var(--panel);border-radius:8px;flex:none}
+  .os-rs-tabs button{flex:1;height:29px;border:0;border-radius:6px;background:transparent;color:var(--ink-body);font-family:inherit;font-size:12px;font-weight:500;cursor:pointer}
+  .os-rs-tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .os-rs-search{margin-top:8px}
+  .os-rs-list{flex:1;min-height:0;overflow:auto;padding:0 10px 8px}
+  .os-rs-row{width:100%;display:flex;align-items:center;gap:9px;padding:6px;border:0;border-radius:8px;background:#fff;color:var(--ink);font-family:inherit;text-align:left;cursor:pointer}
+  .os-rs-row:hover{background:var(--panel)}
+  .os-rs-row.on{background:#eceef2}
+  .os-rs-thumb{width:34px;height:34px;flex:none;border-radius:7px;background-size:cover;background-position:center;border:1px solid var(--hair);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-muted)}
+  .os-rs-thumb svg{width:17px;height:17px}
+  .os-rs-name{min-width:0;font-size:13px;line-height:1.35;overflow:hidden;text-overflow:ellipsis}
+  .os-rs-more,.os-rs-create{width:100%;display:flex;align-items:center;gap:9px;border:0;background:#fff;color:var(--brand);font-family:inherit;font-size:13px;cursor:pointer;text-align:left}
+  .os-rs-more{padding:10px 8px}.os-rs-more svg{transform:rotate(0deg)}
+  .os-rs-create{flex:none;padding:12px 14px;border-top:1px solid var(--hair)}
+  .os-rs-empty{padding:28px 12px;text-align:center;color:var(--ink-muted);font-size:12.5px;line-height:1.45}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .os-colsel{display:flex;flex-direction:column}

@@ -5,6 +5,7 @@
 (function () {
   if (!window.OS) return;
   const { esc, money } = OS;
+  const TAG = '<svg class="ck-tag-i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
 
   OS.register('checkout-order-summary-bar', {
     name: 'Order Summary (top bar)', icon: 'cart',
@@ -61,6 +62,22 @@
           '<div class="ck-line-pr">' + cmp + money(l.price * l.qty) + '</div>' +
         '</div>';
       }).join('');
+      // Match the full mobile Order Summary: the top component has the same discount-code
+      // input, validation and removable applied-code chips. Both read/write ck-coupons, so
+      // applying or removing a code in either summary updates both surfaces.
+      let couponHtml = '';
+      if (!snap) {
+        couponHtml = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="Discount code"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
+          '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>' +
+          appliedList.map((c) => {
+            const off = (+c.product || 0) + (+c.order || 0) + (+c.shipping || 0);
+            return '<div class="ck-coupon-applied below" data-ck-coupon-applied>' +
+              '<span class="ck-coupon-chip">' + TAG + '<span class="code">' + esc(c.code) + '</span>' +
+              '<button class="ck-coupon-x" type="button" data-ck-coupon-remove="' + esc(c.code) + '" aria-label="Remove discount">×</button></span>' +
+              '<span class="ck-coupon-off">−' + money(off) + '</span>' +
+            '</div>';
+          }).join('');
+      }
       const trow = (lbl, val) => '<div class="ck-trow"><span class="lbl">' + esc(lbl) + '</span><span class="amt">' + val + '</span></div>';
       const addonRows = (add.rows || []).map((r) => trow(r.label, money(r.amount))).join('');
       const discRows = snap
@@ -85,7 +102,7 @@
             '<span class="ck-sumbar-total" style="color:' + totalColor + '">' + money(total) + '</span>' +
           '</span>' +
         '</button>' +
-        '<div class="ck-sumbar-body"><div class="ck-lines">' + lines + '</div>' + totals + '</div>' +
+        '<div class="ck-sumbar-body"><div class="ck-lines">' + lines + '</div>' + couponHtml + totals + '</div>' +
       '</div>';
     },
 
@@ -94,6 +111,49 @@
       if (wrap) el.querySelectorAll('[data-ck-sum-toggle]').forEach((t) => {
         t.addEventListener('click', (e) => { e.stopPropagation(); wrap.classList.toggle('collapsed'); });
       });
+      const apply = el.querySelector('[data-ck-apply]');
+      if (apply) {
+        const input = el.querySelector('[data-ck-coupon-input]');
+        const err = el.querySelector('[data-ck-coupon-err]');
+        const showErr = (msg) => { if (err) { err.textContent = msg; err.removeAttribute('hidden'); } };
+        apply.addEventListener('click', () => {
+          const code = (input && input.value || '').trim();
+          if (err) err.setAttribute('hidden', '');
+          if (!code) { if (input) input.focus(); return; }
+          apply.textContent = 'Applying…'; apply.disabled = true;
+          setTimeout(() => {
+            const codes = (OS.data && OS.data.CHECKOUT_MOCK && OS.data.CHECKOUT_MOCK.coupons) || {};
+            const key = code.toUpperCase();
+            const entry = codes[key];
+            if (entry == null) {
+              apply.textContent = 'Apply'; apply.disabled = false;
+              showErr('Enter a valid discount code');
+              return;
+            }
+            const list = ((OS.ckState || {})['ck-coupons'] || []).slice();
+            if (list.some((c) => c.code === key)) {
+              apply.textContent = 'Apply'; apply.disabled = false;
+              showErr('This code is already applied');
+              return;
+            }
+            const norm = (typeof entry === 'number') ? { product: entry } : (entry || {});
+            const product = +norm.product || 0, order = +norm.order || 0, shipping = +norm.shipping || 0;
+            list.push({ code: key, product: product, order: order, shipping: shipping, amount: product + order + shipping });
+            OS.ckState['ck-coupons'] = list;
+            OS.ckRecalc();
+          }, 600);
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); apply.click(); }
+        });
+      }
+      el.querySelectorAll('[data-ck-coupon-remove]').forEach((remove) => remove.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const code = remove.getAttribute('data-ck-coupon-remove');
+        OS.ckState['ck-coupons'] = ((OS.ckState || {})['ck-coupons'] || []).filter((c) => c.code !== code);
+        OS.ckRecalc();
+      }));
     },
   });
 

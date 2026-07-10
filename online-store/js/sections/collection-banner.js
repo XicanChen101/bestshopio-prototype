@@ -73,7 +73,8 @@
     defaults: () => ({}),
     render: function (s, blocks, ctx) {
       const t = ctx.tokens, mob = ctx.mob;
-      const collImg = OS.sample.IMG.cat3;
+      const current = ctx.resource || COLLECTION;
+      const collImg = current.image || OS.sample.IMG.cat3;
       const img = !s.show_collection_image ? '' : (mob ? (s.mobile_image || s.image || collImg) : (s.image || collImg));
       const hasImage = !!img;
       const height = mob ? Math.round((HEIGHT_PX[s.image_size] || 420) * 0.78) : (HEIGHT_PX[s.image_size] || 420);
@@ -91,8 +92,8 @@
         '</div></div>' : '';
 
       const copy = '<div class="cbn-copywrap" style="' + posStyle(pos) + '"><div class="cbn-copy" style="max-width:' + (mob ? '100%' : '560px') + ';color:' + (s.text_color || '#fff') + ';text-align:inherit">' +
-        (s.show_collection_title ? '<h1 style="font-family:' + OS.headingFamily(t) + ';font-size:' + titlePx + 'px;font-weight:700">' + OS.esc(COLLECTION.title) + '</h1>' : '') +
-        (s.show_collection_description ? '<div class="cbn-desc" style="font-size:' + (mob ? 13 : 15) + 'px">' + OS.esc(COLLECTION.description) + '</div>' : '') +
+        (s.show_collection_title ? '<h1 style="font-family:' + OS.headingFamily(t) + ';font-size:' + titlePx + 'px;font-weight:700">' + OS.esc(current.title || COLLECTION.title) + '</h1>' : '') +
+        (s.show_collection_description ? '<div class="cbn-desc" style="font-size:' + (mob ? 13 : 15) + 'px">' + OS.esc(current.description || ((current.count != null ? current.count + ' products · ' : '') + COLLECTION.description)) + '</div>' : '') +
         '</div></div>';
 
       const sideGutter = s.full_width ? 0 : (mob ? 16 : 28);
