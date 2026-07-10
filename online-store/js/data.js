@@ -592,6 +592,7 @@
       SAVE10: { order: 10.0 },             // order discount (matches reference)
       SHIP5: { shipping: 5.0 },            // shipping discount (negative shipping line)
       BUNDLE15: { product: 5.0, order: 7.0, shipping: 3.0 }, // demos all three at once
+      THANKS: { order: 7.0, shipping: 3.99 }, // seeded by default — demos Order + Shipping discount rows
     },
     tax: 7.34,
     // Signed-in demo account (Item 1). The signed-in flag itself is a runtime toggle
@@ -745,6 +746,10 @@
     // Read-only final amounts (USD). subtotal = Σ line totals.
     subtotal: 152.97,
     discount: 10.99,
+    // Applied discount breakdown for the summary (read-only). Mirrors the applied-coupon
+    // shape used on Checkout so the Order Summary itemises the same rows: the discount
+    // code chip + Order discount + Shipping discount. Sums to `discount` above.
+    discounts: [{ code: 'THANKS', order: 7.0, shipping: 3.99 }],
     shipping: 5.99,
     tax: 7.34,
     total: 155.31,

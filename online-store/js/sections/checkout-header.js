@@ -32,8 +32,10 @@
       { key: 'contact_title', label: 'Title', control: 'text', default: 'Need help?', visibleWhen: (v) => !!v.show_contact_info },
       { key: 'contact_email', label: 'Email', control: 'text', default: '', placeholder: 'support@store.com', visibleWhen: (v) => !!v.show_contact_info },
       { key: 'contact_phone', label: 'Phone', control: 'text', default: '', placeholder: '+1 555 000 0000', visibleWhen: (v) => !!v.show_contact_info },
-      { sub: 'Cart' },
-      { key: 'show_cart_icon', label: 'Show cart icon', control: 'toggle', default: true, info: 'A cart shortcut pinned to the end of the header.' },
+      // Cart is meaningless on the Thank you page (order already placed), so the whole Cart
+      // config is hidden there — the Thank you header is otherwise identical to Checkout.
+      { sub: 'Cart', visibleWhen: (v, ctx) => !(ctx && ctx.isThankyou) },
+      { key: 'show_cart_icon', label: 'Show cart icon', control: 'toggle', default: true, info: 'A cart shortcut pinned to the end of the header.', visibleWhen: (v, ctx) => !(ctx && ctx.isThankyou) },
       { sub: 'Colors' },
       { key: 'background_color', label: 'Background color', control: 'color', default: '', info: 'Leave empty to inherit Checkout settings → Header.' },
       { key: 'text_color', label: 'Text color', control: 'color', default: '' },
@@ -81,7 +83,10 @@
             ccLinks +
           '</div>' : '';
 
-      const cart = s.show_cart_icon ? '<a class="ck-h-cart" style="color:' + accent + '">' + icon('cart') + '</a>' : '';
+      // No cart on the Thank you page (order already placed) — the rest of the header
+      // stays identical to Checkout.
+      const showCart = s.show_cart_icon && ctx.checkoutPage !== 'thankyou';
+      const cart = showCart ? '<a class="ck-h-cart" style="color:' + accent + '">' + icon('cart') + '</a>' : '';
       const cluster = secure + contact + cart; // secondary modules travel together
 
       // Three regions: start / center / end. Module placement depends on the axis.

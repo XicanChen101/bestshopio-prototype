@@ -58,13 +58,16 @@
       // Applied coupons live in a shared runtime key so every summary surface (PC,
       // mobile, top bar) reflects the same discounts. Multiple coupons can stack —
       // each carries its own {product, order, shipping} breakdown. Default: none.
-      const appliedList = snap ? [] : (((OS.ckState || {})['ck-coupons']) || []);
+      // Applied discounts. Checkout reads the live coupon runtime; Thank you reads the
+      // read-only snapshot breakdown (same {code, product, order, shipping} shape) so both
+      // surfaces itemise identically.
+      const appliedList = snap ? (snap.discounts || []) : (((OS.ckState || {})['ck-coupons']) || []);
       // Item 2 — Shopify itemises discounts into three types: product (line-item),
       // order, and shipping. Each type sums across every applied coupon; each non-zero
       // type renders its own row and all of them deduct from the Total.
-      const dProduct = snap ? (snap.discount || 0) : appliedList.reduce((t, c) => t + (+c.product || 0), 0);
-      const dOrder = snap ? 0 : appliedList.reduce((t, c) => t + (+c.order || 0), 0);
-      const dShip = snap ? 0 : appliedList.reduce((t, c) => t + (+c.shipping || 0), 0);
+      const dProduct = appliedList.reduce((t, c) => t + (+c.product || 0), 0);
+      const dOrder = appliedList.reduce((t, c) => t + (+c.order || 0), 0);
+      const dShip = appliedList.reduce((t, c) => t + (+c.shipping || 0), 0);
       const discount = dProduct + dOrder + dShip;
       const tax = snap ? (snap.tax || 0) : (mock.tax || 0);
       const addonTotal = (add.rows || []).reduce((t, r) => t + (+r.amount || 0), 0);
@@ -141,17 +144,20 @@
       const sub = find('subtotal'), dis = find('discount'), shp = find('shipping'), tx = find('tax'), tot = find('total');
       const savingsLine = savings > 0 ? '<div class="ck-savings">' + TAG + '<span>Total savings ' + money(savings) + '</span></div>' : '';
       const addonRows = (add.rows || []).map((r) => '<div class="ck-trow ck-addon"><span class="lbl">' + esc(r.label) + '</span><span class="amt">' + money(r.amount) + '</span></div>').join('');
-      // Item 2 — a separate discount row per non-zero type (Shopify-style labels).
-      // Thank-you snapshot only carries a single lump discount → use the block label.
+      // Item 2 — a separate discount row per non-zero type (Shopify-style labels), on both
+      // Checkout and Thank you. On Thank you the coupon input is hidden, so the applied
+      // discount code(s) render as read-only chip rows above the itemised amounts.
       const discRows = [];
-      if (snap) { if (dProduct > 0) discRows.push([(dis.settings || {}).row_label || 'Discount', dProduct]); }
-      else {
-        if (dProduct > 0) discRows.push(['Product discount', dProduct]);
-        if (dOrder > 0) discRows.push(['Order discount', dOrder]);
-        if (dShip > 0) discRows.push(['Shipping discount', dShip]);
-      }
-      const discountHtml = discRows.length
-        ? blk(dis.id, discRows.map((d) => '<div class="ck-trow ck-disc"><span class="lbl">' + esc(d[0]) + '</span><span class="amt">−' + money(d[1]) + '</span></div>').join(''), sel === dis.id)
+      if (dProduct > 0) discRows.push(['Product discount', dProduct]);
+      if (dOrder > 0) discRows.push(['Order discount', dOrder]);
+      if (dShip > 0) discRows.push(['Shipping discount', dShip]);
+      const codeRows = snap
+        ? appliedList.filter((c) => c.code).map((c) =>
+            '<div class="ck-trow ck-disc-code"><span class="lbl"><span class="ck-code-chip">' + TAG + '<span class="code">' + esc(c.code) + '</span></span></span><span class="amt"></span></div>').join('')
+        : '';
+      const discInner = codeRows + discRows.map((d) => '<div class="ck-trow ck-disc"><span class="lbl">' + esc(d[0]) + '</span><span class="amt">−' + money(d[1]) + '</span></div>').join('');
+      const discountHtml = discInner
+        ? blk(dis.id, discInner, sel === dis.id)
         : '';
       const totals = '<div class="ck-totals">' +
         row(sub, money(subtotal), { suffix: ' <span class="ck-itemc">· ' + itemCount + ' items</span>' }) +

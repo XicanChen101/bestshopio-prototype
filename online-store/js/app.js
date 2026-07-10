@@ -257,6 +257,15 @@
       busy: null,                      // 'saving' | 'publishing' | 'discarding' | null
       settingsExpand: settingsExpandInit(),
     };
+    // Seed a default applied discount so the Checkout Order Summary shows the discount code
+    // chip + Order discount + Shipping discount rows out of the box (buyer-side runtime
+    // state, not a theme edit). Removable/re-appliable like any coupon.
+    const seedCode = 'THANKS';
+    const seed = ((D.CHECKOUT_MOCK || {}).coupons || {})[seedCode];
+    if (seed) {
+      const product = +seed.product || 0, order = +seed.order || 0, shipping = +seed.shipping || 0;
+      OS.ckState['ck-coupons'] = [{ code: seedCode, product: product, order: order, shipping: shipping, amount: product + order + shipping }];
+    }
   }
   function settingsExpandInit() { const o = {}; D.SETTINGS_GROUPS.forEach((g) => { o[g.key] = !!g.open; }); (D.CHECKOUT_SETTINGS_GROUPS || []).forEach((g) => { o['ck:' + g.key] = !!g.open; }); return o; }
 
@@ -1058,7 +1067,7 @@
       const inst = ED.theme[sel.kind]; const def = SECTIONS[inst.kind];
       const label = sel.kind === 'announcement' ? 'Announcement bar' : sel.kind[0].toUpperCase() + sel.kind.slice(1);
       return panelHead(def ? def.icon : 'layers', label, 'Global · shown on every page', inst.hidden, 'global', sel.kind) +
-        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, inst.settings, '') : noSettings()) + '</div>';
+        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, inst.settings, '', schemaCtx()) : noSettings()) + '</div>';
     }
     if (sel.kind === 'section') {
       const s = pageSections().find((x) => x.id === sel.sectionId);
@@ -1066,7 +1075,7 @@
       const def = SECTIONS[s.kind];
       const rm = isCheckout() ? '' : '<button class="os-remove" data-remove-sec="' + s.id + '">' + I.trash + ' Remove section</button>';
       return panelHead(def ? def.icon : 'layers', sectionLabel(s), def ? def.name : s.kind, s.hidden, 'section', s.id, isCheckout()) +
-        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, s.settings, '') : noSettings()) + rm + '</div>';
+        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, s.settings, '', schemaCtx()) : noSettings()) + rm + '</div>';
     }
     if (sel.kind === 'block') {
       const s = pageSections().find((x) => x.id === sel.sectionId) || globalBySel(sel.sectionId);
@@ -1080,6 +1089,8 @@
     return emptyRight('Select a section or block to edit.');
   }
   function globalBySel(scope) { return (scope === 'footer' || scope === 'header' || scope === 'announcement') ? ED.theme[scope] : null; }
+  // Page context passed to schema visibleWhen so shared components can hide fields per page.
+  function schemaCtx() { return { surface: ED.surface, checkoutPage: ED.checkoutPage, isThankyou: isThankyou() }; }
   function panelHead(icon, title, sub, hidden, scope, id, locked) {
     const vis = locked
       ? '<span class="os-rh-vis" title="Required component" style="cursor:default;color:#c4cad3">' + I.lock + '</span>'
@@ -1093,14 +1104,16 @@
   // ==========================================================================
   //  SCHEMA FORM (15 control types) — drives section/block/settings panels
   // ==========================================================================
-  function schemaForm(schema, values, prefix) {
-    return (schema || []).map((f) => fieldHtml(f, values)).join('');
+  function schemaForm(schema, values, prefix, ctx) {
+    return (schema || []).map((f) => fieldHtml(f, values, ctx)).join('');
   }
-  function visible(f, values) { return !f.visibleWhen || !!f.visibleWhen(values); }
-  function fieldHtml(f, values) {
-    if (f.sub) return '<div class="os-sub">' + esc(f.sub) + '</div>';
-    if (f.info && !f.key) return '<div class="os-info">' + esc(f.info) + '</div>';
-    if (!visible(f, values)) return '';
+  // `ctx` (optional) carries page context to visibleWhen so a shared component can hide a
+  // field per surface/page — e.g. the Header's Cart config is hidden on the Thank you page.
+  function visible(f, values, ctx) { return !f.visibleWhen || !!f.visibleWhen(values, ctx); }
+  function fieldHtml(f, values, ctx) {
+    if (f.sub) return visible(f, values, ctx) ? '<div class="os-sub">' + esc(f.sub) + '</div>' : '';
+    if (f.info && !f.key) return visible(f, values, ctx) ? '<div class="os-info">' + esc(f.info) + '</div>' : '';
+    if (!visible(f, values, ctx)) return '';
     const val = values[f.key];
     const hint = f.info ? '<div class="os-fhint">' + esc(f.info) + '</div>' : '';
     if (f.control === 'toggle') {
@@ -2661,6 +2674,12 @@
   .ck-trow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;font-size:var(--ck-base-fs)}
   .ck-trow .lbl{color:var(--ck-sum-text);display:inline-flex;align-items:center;gap:6px}
   .ck-trow .amt{color:var(--ck-sum-text)}
+  .ck-trow.ck-disc .amt{color:var(--ck-sum-text)}
+  /* Read-only applied discount code chip (Thank you — coupon input is hidden there). */
+  .ck-trow.ck-disc-code{margin-bottom:8px}
+  .ck-code-chip{display:inline-flex;align-items:center;gap:6px;background:var(--ck-divider);color:var(--ck-sum-text);border-radius:999px;padding:4px 10px;font-size:var(--ck-small-fs);font-weight:600}
+  .ck-code-chip .ck-tag-i{flex:none}
+  .ck-code-chip .code{letter-spacing:.02em;text-transform:uppercase}
   .ck-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--ck-sum-muted);color:var(--ck-sum-muted);font-size:10px;line-height:1;cursor:help}
   .ck-trow.grand{font-size:15px;font-weight:600;margin-top:4px;padding-top:18px;border-top:1px solid var(--ck-divider);margin-bottom:0;align-items:baseline}
   .ck-trow.grand .amt{font-size:22px;font-weight:700}

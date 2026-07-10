@@ -34,7 +34,7 @@
       { sub: 'Advanced' },
       { key: 'custom_css', label: 'Custom CSS', control: 'custom_css', default: '' },
     ],
-    defaults() { return { content: 'Your order is reserved while you complete checkout. Need help? Our support team replies within 24 hours.' }; },
+    defaults() { return { content: 'Thanks for your order! We\u2019re getting it ready to ship and will email you tracking details as soon as it\u2019s on the way. Need help? Our support team replies within 24 hours.' }; },
 
     render(s) {
       // Back-compat: 'card' style was removed — fall back to 'notice' for saved data.
