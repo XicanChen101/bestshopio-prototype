@@ -641,7 +641,7 @@
       (activeFunnel().dirty ? '<div class="os-fn-dirty">Funnel has unpublished changes</div>' : '') +
       '<button class="os-rp-trigger" type="button" data-funnel-preview>' +
         '<span class="os-rp-copy"><span class="os-rp-label">Preview</span>' +
-          '<span class="os-rp-name"><span class="os-fn-type">' + pageIco(pt) + '</span><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong></span></span>' +
+          '<span class="os-rp-name"><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong></span></span>' +
         '</span>' +
         '<span class="os-rp-chev">' + I.chev + '</span>' +
       '</button>' +
@@ -1902,7 +1902,6 @@
       let html = shown.map((n) => {
         const on = selected && selected.id === n.id;
         return '<button type="button" class="os-rs-row os-fn-row' + (on ? ' on' : '') + '" data-fn-id="' + esc(n.id) + '">' +
-          '<span class="os-fn-rowico">' + pageIco(pt) + '</span>' +
           '<span class="os-fn-rowcopy"><strong>' + esc(n.name) + '</strong></span>' +
         '</button>';
       }).join('');
@@ -2565,8 +2564,6 @@
   .os-rp-thumb{width:22px;height:22px;flex:none;border-radius:5px;background-size:cover;background-position:center;border:1px solid var(--hair);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-muted)}
   .os-rp-thumb svg{width:14px;height:14px}
   .os-rp-chev{display:inline-flex;flex:none;color:var(--ink-muted)}
-  .os-fn-type{display:inline-flex;flex:none;color:var(--ink-muted)}
-  .os-fn-type svg{width:18px;height:18px}
   .os-fn-copy{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
   .os-fn-copy strong{display:block;font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-dirty{margin:0 4px 7px;color:#8a5a00;font-size:10.5px}
@@ -2702,8 +2699,6 @@
   .os-rs-create{flex:none;padding:12px 14px;border-top:1px solid var(--hair)}
   .os-rs-empty{padding:28px 12px;text-align:center;color:var(--ink-muted);font-size:12.5px;line-height:1.45}
   .os-fn-row{align-items:center;padding:8px 6px}
-  .os-fn-rowico{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:7px;background:var(--panel);color:var(--ink-muted)}
-  .os-fn-rowico svg{width:16px;height:16px}
   .os-fn-rowcopy{display:flex;flex:1;min-width:0}
   .os-fn-rowcopy strong{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-open{justify-content:space-between;color:var(--brand)}.os-fn-external{font-size:14px}
