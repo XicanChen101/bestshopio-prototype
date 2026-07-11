@@ -419,12 +419,6 @@
     const id = (tpl || curCkTpl()).id;
     return funnelNodes(pt).filter((n) => funnelNodeDraftTpl(n) === id);
   };
-  function funnelNodeRouting(n) {
-    const incoming = (activeFunnel().edges || []).filter((e) => e.to === n.id);
-    if (incoming.length === 1) return incoming[0].ruleSummary || 'Single path';
-    if (incoming.length > 1) return incoming.length + ' incoming paths';
-    return 'Free node · Not connected';
-  }
   function previewFunnelNode(pt) {
     pt = pt || ED.checkoutPage;
     const all = funnelNodes(pt); const selected = ED.funnelPreviewSel[pt];
@@ -641,14 +635,13 @@
   function funnelPreviewHtml() {
     const pt = ED.checkoutPage; const tpl = curCkTpl(); const node = previewFunnelNode(pt);
     const usage = funnelUsageText(pt, tpl);
-    const nodeMeta = node ? funnelNodeRouting(node) : 'No matching node in Funnel';
     return '<div class="os-rp-context os-fn-context">' +
       '<div class="os-rp-template">' + esc((tpl && tpl.name) || ckPageLabel(pt)) + '</div>' +
       (usage ? '<div class="os-rp-assigned">' + esc(usage) + '</div>' : '') +
       (activeFunnel().dirty ? '<div class="os-fn-dirty">Funnel has unpublished changes</div>' : '') +
       '<button class="os-rp-trigger" type="button" data-funnel-preview>' +
         '<span class="os-rp-copy"><span class="os-rp-label">Preview</span>' +
-          '<span class="os-rp-name"><span class="os-fn-type">' + pageIco(pt) + '</span><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong><small>' + esc(nodeMeta) + '</small></span></span>' +
+          '<span class="os-rp-name"><span class="os-fn-type">' + pageIco(pt) + '</span><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong></span></span>' +
         '</span>' +
         '<span class="os-rp-chev">' + I.chev + '</span>' +
       '</button>' +
@@ -1069,7 +1062,7 @@
       '<div class="os-ck-ph-card">' +
         '<div class="os-ck-ph-badge">' + esc(label) + '</div>' +
         '<div class="os-ck-ph-title">' + esc((tpl && tpl.name) || label) + '</div>' +
-        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong><span>' + esc(funnelNodeRouting(node)) + '</span></div>' : '') +
+        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong></div>' : '') +
         '<p class="os-ck-ph-desc">A live offer preview isn\u2019t available in this prototype yet. Use Preview to inspect template usage and switch the Funnel context without changing assignments.</p>' +
       '</div></div>';
   }
@@ -1904,13 +1897,13 @@
       pop.querySelectorAll('[data-fn-tab]').forEach((b) => b.classList.toggle('on', b.getAttribute('data-fn-tab') === tab));
       const q = query.trim().toLowerCase();
       const pool = tab === 'used' ? items.filter((n) => usedIds.has(n.id)) : items;
-      const matched = q ? pool.filter((n) => (n.name + ' ' + funnelNodeRouting(n)).toLowerCase().indexOf(q) >= 0) : pool;
+      const matched = q ? pool.filter((n) => n.name.toLowerCase().indexOf(q) >= 0) : pool;
       const shown = matched.slice(0, limit);
       let html = shown.map((n) => {
         const on = selected && selected.id === n.id;
         return '<button type="button" class="os-rs-row os-fn-row' + (on ? ' on' : '') + '" data-fn-id="' + esc(n.id) + '">' +
           '<span class="os-fn-rowico">' + pageIco(pt) + '</span>' +
-          '<span class="os-fn-rowcopy"><strong>' + esc(n.name) + '</strong><small>' + esc(ckPageLabel(pt)) + ' · ' + esc(funnelNodeRouting(n)) + '</small></span>' +
+          '<span class="os-fn-rowcopy"><strong>' + esc(n.name) + '</strong></span>' +
         '</button>';
       }).join('');
       if (!html) {
@@ -2544,7 +2537,7 @@
   .os-ck-ph-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);background:var(--brand-50);border-radius:999px;padding:4px 12px;margin-bottom:14px}
   .os-ck-ph-title{font-size:19px;font-weight:600;color:var(--ink);margin-bottom:10px}
   .os-ck-ph-node{display:flex;flex-direction:column;gap:3px;margin:0 auto 16px;padding:10px 14px;border-radius:8px;background:var(--panel);color:var(--ink)}
-  .os-ck-ph-node strong{font-size:13px}.os-ck-ph-node span{font-size:11px;color:var(--ink-muted)}
+  .os-ck-ph-node strong{font-size:13px}
   .os-ck-ph-desc{font-size:13.5px;line-height:1.6;color:var(--ink-muted);margin:0}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
   .os-dev{display:inline-flex;background:var(--panel);border-radius:8px;padding:3px;gap:2px}
@@ -2575,8 +2568,7 @@
   .os-fn-type{display:inline-flex;flex:none;color:var(--ink-muted)}
   .os-fn-type svg{width:18px;height:18px}
   .os-fn-copy{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
-  .os-fn-copy strong,.os-fn-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .os-fn-copy strong{font-size:12.5px;font-weight:550}.os-fn-copy small{font-size:10.5px;font-weight:400;color:var(--ink-muted)}
+  .os-fn-copy strong{display:block;font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-dirty{margin:0 4px 7px;color:#8a5a00;font-size:10.5px}
   .os-tree-note{font-size:12px;color:var(--ink-muted);line-height:1.55;background:var(--panel);border-radius:8px;padding:9px 11px;margin:4px 4px 10px}
   .os-tree-row{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13.5px}
@@ -2712,9 +2704,8 @@
   .os-fn-row{align-items:center;padding:8px 6px}
   .os-fn-rowico{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:7px;background:var(--panel);color:var(--ink-muted)}
   .os-fn-rowico svg{width:16px;height:16px}
-  .os-fn-rowcopy{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
-  .os-fn-rowcopy strong,.os-fn-rowcopy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .os-fn-rowcopy strong{font-size:12.5px;font-weight:600}.os-fn-rowcopy small{font-size:10.5px;color:var(--ink-muted)}
+  .os-fn-rowcopy{display:flex;flex:1;min-width:0}
+  .os-fn-rowcopy strong{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-open{justify-content:space-between;color:var(--brand)}.os-fn-external{font-size:14px}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
