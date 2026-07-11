@@ -383,26 +383,71 @@
   ];
 
   // Seed template lists per checkout page type (PRD §6.3/§6.4). `isDefault` marks the
-  // built-in fallback (can't be renamed/deleted); `used` is a mock funnel-node count.
+  // built-in fallback. `used` mirrors the current Funnel draft for legacy consumers; the
+  // editor derives authoritative live/draft counts from CHECKOUT_FUNNEL below.
   // Upsell/Downsell have no editor preview this round (PRD §16.2) — placeholder sections.
   const CHECKOUT_TEMPLATE_SETS = {
     checkout: [
-      { id: 'standard', name: 'Standard', isDefault: true, used: 3 },
-      { id: 'conversion', name: 'Conversion', used: 1 },
+      { id: 'standard', name: 'Standard', isDefault: true, used: 2 },
+      { id: 'conversion', name: 'Conversion', used: 2 },
     ],
     upsell: [
-      { id: 'one-click-upsell', name: 'One-click upsell', isDefault: true, used: 2 },
-      { id: 'subscription-upsell', name: 'Subscription upsell', used: 0 },
+      { id: 'one-click-upsell', name: 'One-click upsell', isDefault: true, used: 1 },
+      { id: 'subscription-upsell', name: 'Subscription upsell', used: 1 },
     ],
     downsell: [
       { id: 'standard-downsell', name: 'Standard', isDefault: true, used: 1 },
       { id: 'save-offer', name: 'Save offer', used: 0 },
     ],
     thankyou: [
-      { id: 'standard', name: 'Standard', isDefault: true, used: 5 },
+      { id: 'standard', name: 'Standard', isDefault: true, used: 1 },
       { id: 'survey-thankyou', name: 'Survey thank-you', used: 1 },
     ],
   };
+
+  // V1.144 §6 defines one current Funnel canvas per BestCheckout workspace. It contains
+  // system nodes plus multiple page nodes; each page node references a template separately
+  // in the published and draft versions. Traffic and audience rules live on edges, never on
+  // Funnel/page records.
+  const CHECKOUT_FUNNEL = {
+    id: 'primary-funnel',
+    name: 'Funnel',
+    route: '#/bestcheckout/funnel',
+    dirty: true,
+    nodes: [
+      { id: 'shopify-store', kind: 'source', name: 'Shopify store' },
+      { id: 'shopify-checkout', kind: 'control', name: 'Shopify checkout' },
+
+      { id: 'checkout-a', kind: 'page', pageType: 'checkout', name: 'Checkout A', publishedTemplateId: 'standard', draftTemplateId: 'standard' },
+      { id: 'checkout-b', kind: 'page', pageType: 'checkout', name: 'Checkout B', publishedTemplateId: 'conversion', draftTemplateId: 'conversion' },
+      { id: 'checkout-c', kind: 'page', pageType: 'checkout', name: 'Checkout C', publishedTemplateId: 'standard', draftTemplateId: 'conversion' },
+      { id: 'checkout-d', kind: 'page', pageType: 'checkout', name: 'Mobile checkout test', publishedTemplateId: null, draftTemplateId: 'standard' },
+
+      { id: 'upsell-a', kind: 'page', pageType: 'upsell', name: 'Summer bundle offer', publishedTemplateId: 'one-click-upsell', draftTemplateId: 'one-click-upsell' },
+      { id: 'upsell-b', kind: 'page', pageType: 'upsell', name: 'Subscribe & save offer', publishedTemplateId: null, draftTemplateId: 'subscription-upsell' },
+
+      { id: 'downsell-a', kind: 'page', pageType: 'downsell', name: 'Save 10% offer', publishedTemplateId: 'standard-downsell', draftTemplateId: 'standard-downsell' },
+
+      { id: 'thankyou-a', kind: 'page', pageType: 'thankyou', name: 'Order confirmation', publishedTemplateId: 'standard', draftTemplateId: 'standard' },
+      { id: 'thankyou-b', kind: 'page', pageType: 'thankyou', name: 'Post-purchase survey', publishedTemplateId: null, draftTemplateId: 'survey-thankyou' },
+    ],
+    edges: [
+      { id: 'edge-control', from: 'shopify-store', to: 'shopify-checkout', ruleSummary: 'Control group · 20% branch' },
+      { id: 'edge-checkout-a', from: 'shopify-store', to: 'checkout-a', ruleSummary: 'New customers · 50% branch' },
+      { id: 'edge-checkout-b', from: 'shopify-store', to: 'checkout-b', ruleSummary: 'Returning customers · Fallback' },
+      { id: 'edge-checkout-c', from: 'shopify-store', to: 'checkout-c', ruleSummary: 'EU cards · 50% branch' },
+      { id: 'edge-checkout-d', from: 'shopify-store', to: 'checkout-d', ruleSummary: 'Mobile visitors · Draft branch' },
+      { id: 'edge-upsell-a', from: 'checkout-a', to: 'upsell-a', ruleSummary: 'Payment completed' },
+      { id: 'edge-upsell-b', from: 'checkout-b', to: 'upsell-b', ruleSummary: 'Returning customers · Draft branch' },
+      { id: 'edge-downsell-a', from: 'upsell-a', to: 'downsell-a', ruleSummary: 'Upsell declined' },
+      { id: 'edge-thankyou-checkout', from: 'checkout-b', to: 'thankyou-a', ruleSummary: 'Checkout completed' },
+      { id: 'edge-thankyou-upsell', from: 'upsell-a', to: 'thankyou-a', ruleSummary: 'Upsell accepted' },
+      { id: 'edge-thankyou-downsell', from: 'downsell-a', to: 'thankyou-a', ruleSummary: 'Downsell completed' },
+      { id: 'edge-survey', from: 'upsell-b', to: 'thankyou-b', ruleSummary: 'Offer completed · Draft branch' },
+    ],
+  };
+  // Backward-compatible alias for prototype consumers that still read the old export.
+  const CHECKOUT_FUNNEL_NODES = CHECKOUT_FUNNEL.nodes.filter((n) => n.kind === 'page');
 
   const FONT_CK = ['Default', 'Inter', 'Manrope', 'Playfair Display', 'Georgia', 'system-ui'].map((v) => ({ value: v, label: v }));
 
@@ -757,7 +802,7 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
+    CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_FUNNEL, CHECKOUT_FUNNEL_NODES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
     THANKYOU_TEMPLATE, THANKYOU_ZONES, THANKYOU_CATALOG, THANKYOU_SNAPSHOT,
   };
 })();

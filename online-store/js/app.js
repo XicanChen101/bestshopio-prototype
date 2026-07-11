@@ -219,8 +219,8 @@
     });
     // Checkout theme is its own environment: ONE shared settings object + four multi-template
     // page types (Checkout / Upsell / Downsell / Thank you), each a `list` mirroring the
-    // online-store types (PRD §3.2/§5.2). Upsell/Downsell have no preview this round, so their
-    // seeds start with empty sections. Each template feeds Funnel nodes (`used` count).
+    // online-store types (PRD §3.2/§5.2). Upsell/Downsell have no live component preview this
+    // round, so their seeds start with empty sections. Funnel-node usage is derived separately.
     const ckBase = {
       checkout: (D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || [],
       thankyou: (D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || [],
@@ -251,6 +251,7 @@
       tplSel: {},                      // { [pageType]: templateId } — active online-store template per type
       ckTplSel: {},                    // { checkout|upsell|downsell|thankyou: templateId } — active checkout template per type
       previewSel: {},                  // { product|collection: resourceId } — preview only; never persisted
+      funnelPreviewSel: {},            // { checkout|upsell|downsell|thankyou: nodeId } — preview only
       device: 'desktop',
       leftMode: 'sections',            // 'sections' | 'settings'
       selection: { kind: 'header' },   // announcement|header|footer | {kind:'section',sectionId} | {kind:'block',sectionId,blockId}
@@ -406,18 +407,58 @@
       list.find((r) => assignedResourceIds(pt).indexOf(r.id) >= 0) ||
       list[0] || null;
   }
+  const activeFunnel = () => D.CHECKOUT_FUNNEL || { name: 'Funnel', route: '#/bestcheckout/funnel', dirty: false, nodes: D.CHECKOUT_FUNNEL_NODES || [], edges: [] };
+  const funnelNodes = (pt) => (activeFunnel().nodes || []).filter((n) => n.kind !== 'source' && n.kind !== 'control' && (n.pageType || n.type) === pt);
+  const funnelNodePublishedTpl = (n) => n.publishedTemplateId == null ? null : n.publishedTemplateId;
+  const funnelNodeDraftTpl = (n) => n.draftTemplateId == null ? null : n.draftTemplateId;
+  function funnelRefCounts(pt, tpl) {
+    const id = (tpl || curCkTpl()).id; const nodes = funnelNodes(pt);
+    const live = nodes.filter((n) => funnelNodePublishedTpl(n) === id).length;
+    const draft = nodes.filter((n) => funnelNodeDraftTpl(n) === id).length;
+    const any = nodes.filter((n) => funnelNodePublishedTpl(n) === id || funnelNodeDraftTpl(n) === id).length;
+    return { live: live, draft: draft, any: any };
+  }
+  const usedFunnelNodes = (pt, tpl) => {
+    const id = (tpl || curCkTpl()).id;
+    return funnelNodes(pt).filter((n) => funnelNodePublishedTpl(n) === id || funnelNodeDraftTpl(n) === id);
+  };
+  function funnelNodeState(n) {
+    const live = funnelNodePublishedTpl(n), draft = funnelNodeDraftTpl(n);
+    if (live && draft && live === draft) return { label: 'Live', cls: 'live' };
+    if (live && draft) return { label: 'Draft changed', cls: 'draft-changed' };
+    if (!live && draft) return { label: 'Draft only', cls: 'draft-only' };
+    if (live && !draft) return { label: 'Removed in draft', cls: 'removed' };
+    return { label: 'Unassigned', cls: 'unassigned' };
+  }
+  function funnelNodeRouting(n) {
+    const incoming = (activeFunnel().edges || []).filter((e) => e.to === n.id);
+    if (incoming.length === 1) return incoming[0].ruleSummary || 'Single path';
+    if (incoming.length > 1) return incoming.length + ' incoming paths';
+    return 'Free node · Not connected';
+  }
+  function previewFunnelNode(pt) {
+    pt = pt || ED.checkoutPage;
+    const all = funnelNodes(pt); const selected = ED.funnelPreviewSel[pt];
+    return all.find((n) => n.id === selected) || usedFunnelNodes(pt)[0] || all[0] || null;
+  }
   // The usage count for a template lives in `assigned` (online store) or `used` (checkout).
-  const tplCount = (pt, t) => isCkType(pt) ? t.used : t.assigned;
+  const tplCount = (pt, t) => isCkType(pt) ? funnelRefCounts(pt, t).draft : t.assigned;
   // Usage descriptor per PRD §7.1: online store "Assigned to X products/collections",
-  // checkout theme "Used by X funnel nodes". Empty for defaults with unknown counts.
+  // checkout theme "Used by X nodes in Funnel". Empty for defaults with unknown counts.
   function usageText(pt, count) {
     if (count === '—' || count == null || count === '') return '';
+    if (isCkType(pt)) return 'Used by ' + count + ' node' + (Number(count) === 1 ? '' : 's') + ' in Funnel';
     let base;
-    if (isCkType(pt)) base = 'funnel node';
-    else { const po = D.PAGE_OPTIONS.find((p) => p.value === pt) || {}; base = (po.noun || 'items').replace(/s$/, ''); }
-    const verb = isCkType(pt) ? 'Used by' : 'Assigned to';
+    const po = D.PAGE_OPTIONS.find((p) => p.value === pt) || {}; base = (po.noun || 'items').replace(/s$/, '');
+    const verb = 'Assigned to';
     const plural = (Number(count) === 1) ? base : base + 's';
     return verb + ' ' + count + ' ' + plural;
+  }
+  function funnelUsageText(pt, tpl) {
+    const counts = funnelRefCounts(pt, tpl);
+    if (!activeFunnel().dirty) return usageText(pt, counts.live);
+    return 'Used by ' + counts.live + ' live node' + (counts.live === 1 ? '' : 's') +
+      ' · ' + counts.draft + ' in draft';
   }
   // §8.2 unsaved-changes gate for switching templates (Save / Discard / Cancel).
   function confirmSwitchTemplate(proceed) {
@@ -467,7 +508,7 @@
   // ==========================================================================
   //  BUILDER  (#/online-store/edit/:handle)
   // ==========================================================================
-  function renderBuilder(handle, surface, page) {
+  function renderBuilder(handle, surface, page, funnelNodeId) {
     if (!ED || ED.meta.handle !== handle) startEditor(handle);
     // Entered via a route that pins a surface (e.g. #/checkout) — align the editor to it.
     if (surface && ED.surface !== surface) {
@@ -478,6 +519,17 @@
     } else if (surface === 'checkout' && page && ED.checkoutPage !== page) {
       // Same surface, but the route pins a specific checkout page (#/checkout/thankyou).
       ED.checkoutPage = page; ED.leftMode = 'sections'; ED.selection = defaultSelection();
+    }
+    // Funnel node Edit entry: preselect its preview context and draft template without
+    // mutating either Theme content or Funnel assignment.
+    if (surface === 'checkout' && funnelNodeId) {
+      const node = funnelNodes(ED.checkoutPage).find((n) => n.id === funnelNodeId);
+      if (node) {
+        ED.funnelPreviewSel[ED.checkoutPage] = node.id;
+        const tplId = funnelNodeDraftTpl(node) || funnelNodePublishedTpl(node);
+        const group = ckGroupOf(ED.checkoutPage);
+        if (tplId && group && group.list.some((t) => t.id === tplId)) ED.ckTplSel[ED.checkoutPage] = tplId;
+      }
     }
     closeBuilder(); ensureStyles();
     const b = h('<div class="os-builder" id="os-builder"></div>');
@@ -587,11 +639,12 @@
   // Checkout tree — required components are locked; commerce components (PRD §14.1)
   // can be added / hidden / deleted / reordered.
   function checkoutTreeHtml() {
+    const context = funnelPreviewHtml();
     if (isUpsell() || isDownsell()) {
-      return '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>' +
-        '<div class="os-tree-note">' + esc(ckPageLabel(ED.checkoutPage)) + ' offer pages feed Funnel nodes. Their component editor isn\u2019t available in this release \u2014 manage templates from the page selector above.</div>';
+      return context + '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>' +
+        '<div class="os-tree-note">' + esc(ckPageLabel(ED.checkoutPage)) + ' offer pages are used by page nodes in Funnel. Their component editor isn\u2019t available in this release \u2014 manage templates from the page selector above.</div>';
     }
-    let html = '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>';
+    let html = context + '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
     let nAdd = 0; ckCatalog().forEach((g) => nAdd += g.entries.length);
     html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add section <span class="os-add-n">(' + nAdd + ')</span></div>';
@@ -600,6 +653,21 @@
       : 'Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce and content & trust components can be added, hidden, deleted and reordered within their allowed zones.';
     html += '<div class="os-tree-note" style="margin-top:10px">' + note + '</div>';
     return html;
+  }
+  function funnelPreviewHtml() {
+    const pt = ED.checkoutPage; const tpl = curCkTpl(); const node = previewFunnelNode(pt);
+    const usage = funnelUsageText(pt, tpl);
+    const nodeMeta = node ? funnelNodeRouting(node) + ' · ' + funnelNodeState(node).label : 'No matching node in Funnel';
+    return '<div class="os-rp-context os-fn-context">' +
+      '<div class="os-rp-template">' + esc((tpl && tpl.name) || ckPageLabel(pt)) + '</div>' +
+      (usage ? '<div class="os-rp-assigned">' + esc(usage) + '</div>' : '') +
+      '<button class="os-rp-trigger" type="button" data-funnel-preview>' +
+        '<span class="os-rp-copy"><span class="os-rp-label">Preview</span>' +
+          '<span class="os-rp-name"><span class="os-fn-type">' + pageIco(pt) + '</span><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong><small>' + esc(nodeMeta) + '</small></span></span>' +
+        '</span>' +
+        '<span class="os-rp-chev">' + I.chev + '</span>' +
+      '</button>' +
+    '</div>';
   }
   function checkoutRow(s) {
     const sel = ED.selection; const def = SECTIONS[s.kind];
@@ -779,6 +847,8 @@
       return;
     }
     if (isCheckout()) {
+      const fp = tree.querySelector('[data-funnel-preview]');
+      if (fp) fp.onclick = (e) => { e.stopPropagation(); openFunnelNodePicker(fp); };
       tree.querySelectorAll('[data-tog-sec]').forEach((c) => c.onclick = (e) => { e.stopPropagation(); const id = c.getAttribute('data-tog-sec'); ED.sectionExpand[id] = ED.sectionExpand[id] === false ? true : false; refreshTree(); });
       // Required rows: plain select. Commerce rows carry hide / delete actions (bindRow).
       tree.querySelectorAll('[data-sel-sec]').forEach((r) => {
@@ -824,16 +894,29 @@
   }
   function previewBarText() {
     const resource = isResourcePage() ? previewResource() : null;
-    return 'Live preview · ' + pageLabel() + (resource ? ' · ' + resource.title : '') + ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile');
+    const node = isCheckout() ? previewFunnelNode() : null;
+    return (isCheckout() ? 'Preview' : 'Live preview') + ' · ' + pageLabel() +
+      (resource ? ' · ' + resource.title : '') +
+      (node ? ' · ' + node.name : '') +
+      ' · ' + (ED.device === 'desktop' ? 'Desktop' : 'Mobile');
   }
   // Editor-top usage-scope reminder (PRD §13): shown when the active multi-template is used
   // by more than one object, so merchants know edits apply to every assigned product / node.
   function usageScopeHint() {
     let pt, t, count;
-    if (isCheckout()) { pt = ED.checkoutPage; t = curCkTpl(); count = t && t.used; }
+    if (isCheckout()) {
+      pt = ED.checkoutPage; t = curCkTpl();
+      if (!t) return '';
+      const counts = funnelRefCounts(pt, t);
+      if (counts.live <= 0 && counts.draft <= 0) return '';
+      if (!activeFunnel().dirty) {
+        return 'Changes to this template affect ' + counts.live + ' node' + (counts.live === 1 ? '' : 's') + ' in Funnel.';
+      }
+      return 'Changes to this template affect ' + counts.live + ' live node' + (counts.live === 1 ? '' : 's') +
+        ' and ' + counts.draft + ' node' + (counts.draft === 1 ? '' : 's') + ' in the Funnel draft.';
+    }
     else { pt = ED.currentPage; t = curTpl(); count = t && t.assigned; }
     if (!t || typeof count !== 'number' || count <= 0) return '';
-    if (isCkType(pt)) return 'This template is used by ' + count + ' funnel node' + (count === 1 ? '' : 's') + '. Changes will apply to all nodes using this template.';
     const noun = (D.PAGE_OPTIONS.find((p) => p.value === pt) || {}).noun || 'items';
     return 'This template is assigned to ' + count + ' ' + noun + '. Changes will apply to all assigned ' + noun + '.';
   }
@@ -859,7 +942,7 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, funnelNode: isCheckout() ? previewFunnelNode() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -995,18 +1078,18 @@
         '</div>';
     return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + mobTopSummary + inner + bottomHtml + '</div>';
   }
-  // Upsell / Downsell pages have no editor preview this round (multi-template PRD §16.2):
-  // the model, selector, template list and create/rename/duplicate/delete all work, but the
-  // canvas shows a placeholder rather than a live post-purchase offer preview.
+  // Upsell / Downsell pages currently use a contextual placeholder. Selecting a Funnel node
+  // updates the preview context without changing the node's assigned template.
   function ckPlaceholderCanvas() {
     const label = ckPageLabel(ED.checkoutPage);
     const tpl = curCkTpl();
+    const node = previewFunnelNode();
     return '<div class="os-ck-ph">' +
       '<div class="os-ck-ph-card">' +
         '<div class="os-ck-ph-badge">' + esc(label) + '</div>' +
         '<div class="os-ck-ph-title">' + esc((tpl && tpl.name) || label) + '</div>' +
-        '<p class="os-ck-ph-desc">This ' + esc(label.toLowerCase()) + ' offer page is used by Funnel nodes. ' +
-        'A live preview isn\u2019t available in this release \u2014 you can still create, rename, duplicate and assign templates here.</p>' +
+        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong><span>' + esc(funnelNodeRouting(node)) + ' · ' + esc(funnelNodeState(node).label) + '</span></div>' : '') +
+        '<p class="os-ck-ph-desc">A live offer preview isn\u2019t available in this prototype yet. Use Preview to inspect template usage and switch the Funnel context without changing assignments.</p>' +
       '</div></div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
@@ -1816,6 +1899,77 @@
     closeOnOutside(pop, anchor);
   }
 
+  // Checkout-theme counterpart to the Product / Collection resource previewer. V1.144 has
+  // one active Funnel canvas with many page nodes. Associations remain Funnel-owned: this
+  // picker is read-only and changes only the local preview context.
+  function openFunnelNodePicker(anchor) {
+    if (!isCheckout()) return;
+    closePops();
+    const pt = ED.checkoutPage; const items = funnelNodes(pt);
+    const usedIds = new Set(usedFunnelNodes(pt).map((n) => n.id));
+    const selected = previewFunnelNode(pt);
+    const layer = h('<div class="pop-layer" style="z-index:250"></div>');
+    const pop = h('<div class="os-pkpop os-rspop os-fnpop"></div>');
+    pop.innerHTML =
+      '<div class="os-rs-tabs"><button type="button" data-fn-tab="all">All ' + esc(ckPageLabel(pt)) + ' nodes</button><button type="button" data-fn-tab="used">Using this template</button></div>' +
+      '<div class="os-pkpop-search os-rs-search"><span class="os-pkpop-ico">' + I.search + '</span><input type="text" id="fn-q" placeholder="Search nodes" autocomplete="off"></div>' +
+      '<div class="os-rs-list" id="fn-list"></div>' +
+      '<button type="button" class="os-rs-create os-fn-open" data-fn-open><span>Open Funnel</span><span class="os-fn-external">↗</span></button>';
+    layer.appendChild(pop); document.body.appendChild(layer);
+
+    let tab = 'all', query = '', limit = 5;
+    const list = pop.querySelector('#fn-list');
+    const draw = () => {
+      pop.querySelectorAll('[data-fn-tab]').forEach((b) => b.classList.toggle('on', b.getAttribute('data-fn-tab') === tab));
+      const q = query.trim().toLowerCase();
+      const pool = tab === 'used' ? items.filter((n) => usedIds.has(n.id)) : items;
+      const matched = q ? pool.filter((n) => (n.name + ' ' + funnelNodeRouting(n) + ' ' + funnelNodeState(n).label).toLowerCase().indexOf(q) >= 0) : pool;
+      const shown = matched.slice(0, limit);
+      let html = shown.map((n) => {
+        const on = selected && selected.id === n.id;
+        const state = funnelNodeState(n);
+        return '<button type="button" class="os-rs-row os-fn-row' + (on ? ' on' : '') + '" data-fn-id="' + esc(n.id) + '">' +
+          '<span class="os-fn-rowico">' + pageIco(pt) + '</span>' +
+          '<span class="os-fn-rowcopy"><strong>' + esc(n.name) + '</strong><small>' + esc(ckPageLabel(pt)) + ' · ' + esc(funnelNodeRouting(n)) + '</small></span>' +
+          '<span class="os-fn-status ' + state.cls + '">' + esc(state.label) + '</span>' +
+        '</button>';
+      }).join('');
+      if (!html) {
+        html = '<div class="os-rs-empty">' + (query ? 'No results found' : 'No ' + esc(ckPageLabel(pt)) + ' nodes use this template') + '</div>';
+      } else if (matched.length > shown.length) {
+        html += '<button type="button" class="os-rs-more" data-fn-more>' + I.chev + '<span>View more</span></button>';
+      }
+      list.innerHTML = html;
+    };
+    draw();
+
+    const qEl = pop.querySelector('#fn-q');
+    qEl.oninput = () => { query = qEl.value; limit = 5; draw(); };
+    pop.addEventListener('click', (e) => {
+      const tb = e.target.closest('[data-fn-tab]');
+      if (tb) { tab = tb.getAttribute('data-fn-tab'); limit = 5; draw(); return; }
+      if (e.target.closest('[data-fn-more]')) { limit += 10; draw(); return; }
+      const row = e.target.closest('[data-fn-id]');
+      if (row) {
+        ED.funnelPreviewSel[pt] = row.getAttribute('data-fn-id');
+        closePops(); refreshTree(); refreshCanvas(); return;
+      }
+      if (e.target.closest('[data-fn-open]')) {
+        const route = activeFunnel().route || '#/bestcheckout/funnel';
+        window.open(location.href.split('#')[0] + route, '_blank', 'noopener');
+        closePops();
+      }
+    });
+
+    const r = anchor.getBoundingClientRect(); const w = 340;
+    const left = r.right + 8 + w <= window.innerWidth - 8 ? r.right + 8 : Math.max(8, r.left - w - 8);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.max(64, Math.min(Math.round(r.top), window.innerHeight - 560)) + 'px';
+    setTimeout(() => qEl.focus(), 0);
+    closeOnOutside(pop, anchor);
+  }
+
   // -------------------------------------------------------------- page / template selector
   // Shopify-style popover: page types at root (multi types drill into a template submenu with
   // "Assigned to N …" + Create template); a "Checkout theme" jump; and, on the checkout
@@ -2287,11 +2441,13 @@
     const first = (location.hash || '').replace(/^#\/?/, '').split('/')[0];
     if (first === 'checkout') {
       // #/checkout/:handle[/<checkout|upsell|downsell|thankyou>]
-      const parts = (rest || '').split('/').filter(Boolean);
+      const routeParts = (rest || '').split('?');
+      const parts = routeParts[0].split('/').filter(Boolean);
+      const params = new URLSearchParams(routeParts[1] || location.search.replace(/^\?/, ''));
       let page = 'checkout';
       ['thankyou', 'upsell', 'downsell', 'checkout'].forEach((pg) => { const i = parts.indexOf(pg); if (i >= 0) { page = pg; parts.splice(i, 1); } });
       const handle = parts[0] || (D.THEMES[0] && D.THEMES[0].handle) || 'aura';
-      ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout', page));
+      ensureSections().then(() => renderBuilder(decodeURIComponent(handle), 'checkout', page, params.get('node_id')));
       return;
     }
     const m = (rest || '').match(/^edit\/(.+)$/);
@@ -2408,6 +2564,8 @@
   .os-ck-ph-card{max-width:440px;text-align:center;background:#fff;border:1px solid var(--hair);border-radius:14px;padding:32px 28px;box-shadow:var(--float-shadow)}
   .os-ck-ph-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);background:var(--brand-50);border-radius:999px;padding:4px 12px;margin-bottom:14px}
   .os-ck-ph-title{font-size:19px;font-weight:600;color:var(--ink);margin-bottom:10px}
+  .os-ck-ph-node{display:flex;flex-direction:column;gap:3px;margin:0 auto 16px;padding:10px 14px;border-radius:8px;background:var(--panel);color:var(--ink)}
+  .os-ck-ph-node strong{font-size:13px}.os-ck-ph-node span{font-size:11px;color:var(--ink-muted)}
   .os-ck-ph-desc{font-size:13.5px;line-height:1.6;color:var(--ink-muted);margin:0}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
   .os-dev{display:inline-flex;background:var(--panel);border-radius:8px;padding:3px;gap:2px}
@@ -2435,6 +2593,11 @@
   .os-rp-thumb{width:22px;height:22px;flex:none;border-radius:5px;background-size:cover;background-position:center;border:1px solid var(--hair);display:inline-flex;align-items:center;justify-content:center;color:var(--ink-muted)}
   .os-rp-thumb svg{width:14px;height:14px}
   .os-rp-chev{display:inline-flex;flex:none;color:var(--ink-muted)}
+  .os-fn-type{display:inline-flex;flex:none;color:var(--ink-muted)}
+  .os-fn-type svg{width:18px;height:18px}
+  .os-fn-copy{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
+  .os-fn-copy strong,.os-fn-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .os-fn-copy strong{font-size:12.5px;font-weight:550}.os-fn-copy small{font-size:10.5px;font-weight:400;color:var(--ink-muted)}
   .os-tree-note{font-size:12px;color:var(--ink-muted);line-height:1.55;background:var(--panel);border-radius:8px;padding:9px 11px;margin:4px 4px 10px}
   .os-tree-row{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13.5px}
   .os-tree-row:hover{background:var(--panel)}
@@ -2566,6 +2729,18 @@
   .os-rs-more{padding:10px 8px}.os-rs-more svg{transform:rotate(0deg)}
   .os-rs-create{flex:none;padding:12px 14px;border-top:1px solid var(--hair)}
   .os-rs-empty{padding:28px 12px;text-align:center;color:var(--ink-muted);font-size:12.5px;line-height:1.45}
+  .os-fn-row{align-items:center;padding:8px 6px}
+  .os-fn-rowico{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:7px;background:var(--panel);color:var(--ink-muted)}
+  .os-fn-rowico svg{width:16px;height:16px}
+  .os-fn-rowcopy{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
+  .os-fn-rowcopy strong,.os-fn-rowcopy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .os-fn-rowcopy strong{font-size:12.5px;font-weight:600}.os-fn-rowcopy small{font-size:10.5px;color:var(--ink-muted)}
+  .os-fn-status{flex:none;padding:2px 6px;border-radius:999px;font-size:9.5px;font-weight:650}
+  .os-fn-status.live{background:#e4f7ed;color:#157347}
+  .os-fn-status.draft-changed{background:#fff2d8;color:#8a5a00}
+  .os-fn-status.draft-only{background:#e7efff;color:#275ea8}
+  .os-fn-status.removed,.os-fn-status.unassigned{background:#f0f1f3;color:#687080}
+  .os-fn-open{justify-content:space-between;color:var(--brand)}.os-fn-external{font-size:14px}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .os-colsel{display:flex;flex-direction:column}
