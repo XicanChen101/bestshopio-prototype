@@ -3,7 +3,7 @@
    never collected by the theme. This section restyles + configures copy only. */
 (function () {
   if (!window.OS) return;
-  const { esc } = OS;
+  const { esc, ckFloat } = OS;
 
   const CARD_ICON = '<svg class="ck-pay-card" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>';
   const BRANDS =
@@ -23,8 +23,11 @@
         '<div class="ck-pay-opt sel">' +
           '<div class="ck-pay-head"><span class="dot"></span>' + CARD_ICON + '<span class="nm">Card</span></div>' +
           '<div class="ck-pay-body">' +
-            '<div class="ck-cardnum"><input class="ck-input" placeholder="Card number"><span class="ck-cardbrands">' + BRANDS + '</span></div>' +
-            '<div class="ck-row2"><input class="ck-input" placeholder="MM / YY"><input class="ck-input" placeholder="CVC"></div>' +
+            '<div class="ck-cardnum">' + ckFloat('<input class="ck-input" placeholder="Card number">', 'Card number') + '<span class="ck-cardbrands">' + BRANDS + '</span></div>' +
+            '<div class="ck-row2">' +
+              ckFloat('<input class="ck-input" placeholder="MM / YY">', 'MM / YY') +
+              ckFloat('<input class="ck-input" placeholder="CVC">', 'CVC') +
+            '</div>' +
           '</div>' +
         '</div>';
       return '<div class="cksec ck-payment">' +

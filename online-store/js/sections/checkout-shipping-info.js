@@ -8,7 +8,7 @@
    standalone Shipping Method section all react to a single Sign in/out + selection. */
 (function () {
   if (!window.OS) return;
-  const { esc, money } = OS;
+  const { esc, money, ckFloat, wireFloatFields } = OS;
 
   // Dial code auto-derived from the selected country (signed-out form only).
   const DIAL = { 'United States': '+1', 'Canada': '+1', 'United Kingdom': '+44', 'Australia': '+61', 'Germany': '+49', 'Japan': '+81' };
@@ -46,7 +46,7 @@
     const countries = mock.countries || ['United States'];
     const states = mock.states || [];
     const cOpts = countries.map((c) => '<option' + (c === 'United States' ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
-    const sOpts = '<option value="" selected>State</option>' + states.map((c) => '<option>' + esc(c) + '</option>').join('');
+    const sOpts = '<option value="" selected></option>' + states.map((c) => '<option>' + esc(c) + '</option>').join('');
     const val = (v) => v ? ' value="' + esc(v) + '"' : '';
 
     const layer = document.createElement('div');
@@ -81,6 +81,7 @@
         '</div>' +
       '</div>';
     document.body.appendChild(layer);
+    wireFloatFields(layer);
 
     const close = () => layer.remove();
     layer.addEventListener('mousedown', (e) => { if (e.target === layer) close(); });
@@ -196,18 +197,18 @@
       // ---- Signed OUT (default): the empty editable address form ----
       const countries = (mock.countries || ['United States']);
       const opts = countries.map((c) => '<option' + (c === mock.country ? ' selected' : '') + '>' + esc(c) + '</option>').join('');
-      const inp = (ph, type) => '<input class="ck-input" type="' + (type || 'text') + '" placeholder="' + esc(ph) + '">';
-      const sel = (ph, items) => '<div class="ck-selwrap"><select class="ck-input ck-select" style="color:var(--ck-ph)" onchange="this.style.color=this.value?\'\':\'var(--ck-ph)\'">' +
-        '<option value="" selected>' + esc(ph) + '</option>' +
+      const inp = (ph, type) => ckFloat('<input class="ck-input" type="' + (type || 'text') + '" placeholder="' + esc(ph) + '">', ph);
+      const sel = (ph, items) => '<div class="ck-selwrap">' + ckFloat('<select class="ck-input ck-select">' +
+        '<option value="" selected></option>' +
         (items || []).map((o) => '<option>' + esc(o) + '</option>').join('') +
-        '</select></div>';
+        '</select>', ph) + '</div>';
       const dial = DIAL[mock.country] || '+1';
       const phone = '<div class="ck-phone">' +
         '<span class="ck-phone-cc" data-ck-dial>' + esc(dial) + '</span>' +
-        '<input class="ck-input ck-phone-num" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '">' +
+        ckFloat('<input class="ck-input ck-phone-num" type="tel" placeholder="' + esc(s.phone_placeholder || 'Phone number') + '">', s.phone_placeholder || 'Phone number') +
       '</div>';
       return '<div class="cksec ck-shipinfo">' + heading +
-        '<div class="ck-field"><div class="ck-selwrap"><select class="ck-input ck-select" data-ck-country>' + opts + '</select></div></div>' +
+        '<div class="ck-field"><div class="ck-selwrap">' + ckFloat('<select class="ck-input ck-select" data-ck-country>' + opts + '</select>', 'Country/Region') + '</div></div>' +
         '<div class="ck-row2">' +
           '<div class="ck-field">' + inp(s.first_name_placeholder || 'First name') + '</div>' +
           '<div class="ck-field">' + inp(s.last_name_placeholder || 'Last name') + '</div>' +

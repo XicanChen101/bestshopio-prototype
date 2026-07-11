@@ -5,7 +5,7 @@
    OFF) is shared with Delivery — toggling it re-renders the whole checkout. */
 (function () {
   if (!window.OS) return;
-  const { esc } = OS;
+  const { esc, ckFloat } = OS;
 
   const KEBAB = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
   const signedIn = () => !!((OS.ckState || {})['ck-account'] || {}).signedIn;
@@ -42,7 +42,7 @@
         ? '<a class="ck-link" data-ck-signin>' + esc(s.sign_in_text || 'Sign in') + '</a>' : '';
       return '<div class="cksec ck-contact">' +
         '<div class="ck-top">' + heading + signin + '</div>' +
-        '<div class="ck-field"><input class="ck-input" type="email" placeholder="' + esc(s.email_placeholder || 'Email') + '"></div>' +
+        '<div class="ck-field">' + ckFloat('<input class="ck-input" type="email" placeholder="' + esc(s.email_placeholder || 'Email') + '">', s.email_placeholder || 'Email') + '</div>' +
       '</div>';
     },
     hydrate(el) {

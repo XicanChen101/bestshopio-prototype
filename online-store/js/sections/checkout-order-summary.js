@@ -4,7 +4,7 @@
    are locked blocks — selectable & configurable but not addable / removable. */
 (function () {
   if (!window.OS) return;
-  const { esc, money } = OS;
+  const { esc, money, ckFloat } = OS;
 
   const blk = (id, html, sel) => '<div class="ck-blk' + (sel ? ' os-block-sel' : '') + '" data-block-id="' + esc(id) + '">' + html + '</div>';
   const TAG = '<svg class="ck-tag-i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
@@ -122,7 +122,7 @@
       // renders as its own chip row below the input (multiple coupons can stack);
       // removing one via "×" drops just that coupon and re-applying still works.
       const cb = find('coupon'); const cs = cb.settings || {};
-      let couponInner = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="' + esc(cs.placeholder || 'Discount code') + '"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
+      let couponInner = '<div class="ck-coupon">' + ckFloat('<input class="ck-input" data-ck-coupon-input placeholder="' + esc(cs.placeholder || 'Discount code') + '">', cs.placeholder || 'Discount code') + '<button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
         '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>';
       couponInner += appliedList.map((c) => {
         const off = (+c.product || 0) + (+c.order || 0) + (+c.shipping || 0);

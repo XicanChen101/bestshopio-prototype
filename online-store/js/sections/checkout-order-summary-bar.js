@@ -4,7 +4,7 @@
    component from the bottom Order Summary so the two can be styled independently. */
 (function () {
   if (!window.OS) return;
-  const { esc, money } = OS;
+  const { esc, money, ckFloat } = OS;
   const TAG = '<svg class="ck-tag-i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
 
   OS.register('checkout-order-summary-bar', {
@@ -67,7 +67,7 @@
       // applying or removing a code in either summary updates both surfaces.
       let couponHtml = '';
       if (!snap) {
-        couponHtml = '<div class="ck-coupon"><input class="ck-input" data-ck-coupon-input placeholder="Discount code"><button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
+        couponHtml = '<div class="ck-coupon">' + ckFloat('<input class="ck-input" data-ck-coupon-input placeholder="Discount code">', 'Discount code') + '<button class="ck-coupon-btn" type="button" data-ck-apply>Apply</button></div>' +
           '<div class="ck-coupon-err" data-ck-coupon-err hidden></div>' +
           appliedList.map((c) => {
             const off = (+c.product || 0) + (+c.order || 0) + (+c.shipping || 0);

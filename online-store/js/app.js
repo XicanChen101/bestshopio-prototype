@@ -112,12 +112,28 @@
       '<div class="oc-img" style="aspect-ratio:' + ratio + ';border-radius:' + rad + 'px;background-image:url(' + esc(p.image) + ');background-size:' + fit + '">' + badge + quick + '</div>' +
       swatches + vendor + '<div class="oc-title" style="font-size:' + fs(t, titlePx) + 'px;color:' + (c.text_color || '#1a1a1a') + '">' + esc(p.title) + '</div>' + rating + price + '</div>';
   }
+  function ckFloat(control, label, cls) {
+    return '<label class="ck-float' + (cls ? ' ' + cls : '') + '">' +
+      '<span class="ck-float-label">' + esc(label || '') + '</span>' + control + '</label>';
+  }
+  function wireFloatFields(root) {
+    (root || document).querySelectorAll('.ck-float,.ck-fl').forEach((field) => {
+      const control = field.querySelector('input,select,textarea');
+      if (!control || control.dataset.ckFloatWired) return;
+      control.dataset.ckFloatWired = '1';
+      const sync = () => field.classList.toggle('has-value', String(control.value || '').length > 0);
+      control.addEventListener('input', sync);
+      control.addEventListener('change', sync);
+      sync();
+    });
+  }
 
   // ------------------------------------------------------------------ public API for section files
   const OS = (window.OS = {
     esc, clone, clamp, money, uid, bgOrTransparent, col, h,
     icon: ICON, sample: D.SAMPLE, data: D,
     fs, headingSize, headingFamily, bodyFamily, fontStack, btnStyle, inputStyle, layoutRadius, hexAlpha, pick, productCard,
+    ckFloat, wireFloatFields,
     register: function (kind, def) { def.kind = kind; SECTIONS[kind] = def; },
     // Checkout runtime store — buyer-side add-on selections (insurance/VIP tick,
     // upsell checked products + qty), keyed by section id. Held in memory so the
@@ -1127,6 +1143,7 @@
 
   function wireCanvas() {
     const frame = document.getElementById('os-frame'); if (!frame) return;
+    wireFloatFields(frame);
     frame.querySelectorAll('[data-csel-global]').forEach((el) => el.addEventListener('click', (e) => {
       const blk = e.target.closest('[data-block-id]');
       const scope = el.getAttribute('data-csel-global');
@@ -2806,6 +2823,12 @@
   .ck-input{height:var(--ck-input-h);border:1px solid var(--ck-input-border);border-radius:var(--ck-input-radius);background:var(--ck-input-bg);color:var(--ck-input-text);padding:0 14px;font-size:var(--ck-base-fs);font-family:inherit;width:100%;outline:none;box-sizing:border-box}
   .ck-input::placeholder{color:var(--ck-ph)}
   .ck-input:focus{border-color:var(--ck-input-focus)}
+  .ck-float{position:relative;display:block;min-width:0}
+  .ck-float-label{position:absolute;z-index:1;top:50%;left:14px;max-width:calc(100% - 28px);color:var(--ck-ph);font-size:var(--ck-base-fs);line-height:1;transform:translateY(-50%);transform-origin:left top;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;transition:top .12s ease,transform .12s ease,font-size .12s ease}
+  .ck-float .ck-input{padding:14px 14px 0}
+  .ck-float .ck-input::placeholder{color:transparent}
+  .ck-float:focus-within .ck-float-label,.ck-float.has-value .ck-float-label,.ck-float:has(.ck-input:not(:placeholder-shown)) .ck-float-label{top:7px;font-size:10.5px;transform:none}
+  .ck-phone .ck-float,.ck-coupon .ck-float{flex:1}
   .ck-select{-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
   .ck-field-phone{margin-top:14px}
   .ck-phone{display:flex;gap:8px}
@@ -3048,10 +3071,11 @@
   .ck-modal-x{border:0;background:none;color:var(--ck-muted);cursor:pointer;display:inline-flex;padding:4px}
   .ck-modal-x:hover{color:var(--ck-text)}
   .ck-modal-body{display:flex;flex-direction:column;gap:12px;padding:16px 20px}
-  .ck-fl{display:flex;flex-direction:column;border:1px solid var(--ck-input-border);border-radius:9px;padding:8px 12px;box-sizing:border-box;background:#fff}
-  .ck-fl-lbl{font-size:11px;color:var(--ck-muted);line-height:1.25}
-  .ck-fl-in{border:0;outline:none;background:none;font-family:inherit;font-size:14px;color:var(--ck-text);padding:2px 0 0;width:100%;box-sizing:border-box}
-  .ck-fl-wrap{position:relative;display:flex;align-items:center}
+  .ck-fl{position:relative;display:flex;flex-direction:column;min-height:48px;border:1px solid var(--ck-input-border);border-radius:9px;padding:0 12px;box-sizing:border-box;background:#fff}
+  .ck-fl-lbl{position:absolute;z-index:1;top:50%;left:12px;max-width:calc(100% - 24px);font-size:14px;color:var(--ck-muted);line-height:1;transform:translateY(-50%);transform-origin:left top;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;transition:top .12s ease,transform .12s ease,font-size .12s ease}
+  .ck-fl:focus-within .ck-fl-lbl,.ck-fl.has-value .ck-fl-lbl{top:7px;font-size:11px;transform:none}
+  .ck-fl-in{height:46px;border:0;outline:none;background:none;font-family:inherit;font-size:14px;color:var(--ck-text);padding:14px 0 0;width:100%;box-sizing:border-box}
+  .ck-fl-wrap{position:relative;display:flex;align-items:center;height:46px}
   .ck-fl-wrap .ck-fl-in{-webkit-appearance:none;appearance:none;padding-right:22px}
   .ck-fl-chev{position:absolute;right:0;top:2px;color:var(--ck-muted);font-size:12px;pointer-events:none}
   .ck-fl-ricon{position:absolute;right:0;top:50%;transform:translateY(-50%);color:var(--ck-muted);display:inline-flex}
