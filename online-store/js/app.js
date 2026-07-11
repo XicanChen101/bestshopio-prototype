@@ -654,7 +654,6 @@
     return '<div class="os-rp-context os-fn-context">' +
       '<div class="os-rp-template">' + esc((tpl && tpl.name) || ckPageLabel(pt)) + '</div>' +
       (usage ? '<div class="os-rp-assigned">' + esc(usage) + '</div>' : '') +
-      (activeFunnel().dirty ? '<div class="os-fn-dirty">Funnel has unpublished changes</div>' : '') +
       '<button class="os-rp-trigger" type="button" data-funnel-preview>' +
         '<span class="os-rp-copy"><span class="os-rp-label">Preview</span>' +
           '<span class="os-rp-name"><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong></span></span>' +
@@ -2583,7 +2582,6 @@
   .os-rp-chev{display:inline-flex;flex:none;color:var(--ink-muted)}
   .os-fn-copy{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
   .os-fn-copy strong{display:block;font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .os-fn-dirty{margin:0 4px 7px;color:#8a5a00;font-size:10.5px}
   .os-tree-note{font-size:12px;color:var(--ink-muted);line-height:1.55;background:var(--panel);border-radius:8px;padding:9px 11px;margin:4px 4px 10px}
   .os-tree-row{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13.5px}
   .os-tree-row:hover{background:var(--panel)}
