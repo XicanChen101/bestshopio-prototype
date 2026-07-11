@@ -411,25 +411,14 @@
   const funnelNodes = (pt) => (activeFunnel().nodes || []).filter((n) => n.kind !== 'source' && n.kind !== 'control' && (n.pageType || n.type) === pt);
   const funnelNodePublishedTpl = (n) => n.publishedTemplateId == null ? null : n.publishedTemplateId;
   const funnelNodeDraftTpl = (n) => n.draftTemplateId == null ? null : n.draftTemplateId;
-  function funnelRefCounts(pt, tpl) {
-    const id = (tpl || curCkTpl()).id; const nodes = funnelNodes(pt);
-    const live = nodes.filter((n) => funnelNodePublishedTpl(n) === id).length;
-    const draft = nodes.filter((n) => funnelNodeDraftTpl(n) === id).length;
-    const any = nodes.filter((n) => funnelNodePublishedTpl(n) === id || funnelNodeDraftTpl(n) === id).length;
-    return { live: live, draft: draft, any: any };
-  }
+  const funnelDraftCount = (pt, tpl) => {
+    const id = (tpl || curCkTpl()).id;
+    return funnelNodes(pt).filter((n) => funnelNodeDraftTpl(n) === id).length;
+  };
   const usedFunnelNodes = (pt, tpl) => {
     const id = (tpl || curCkTpl()).id;
-    return funnelNodes(pt).filter((n) => funnelNodePublishedTpl(n) === id || funnelNodeDraftTpl(n) === id);
+    return funnelNodes(pt).filter((n) => funnelNodeDraftTpl(n) === id);
   };
-  function funnelNodeState(n) {
-    const live = funnelNodePublishedTpl(n), draft = funnelNodeDraftTpl(n);
-    if (live && draft && live === draft) return { label: 'Live', cls: 'live' };
-    if (live && draft) return { label: 'Draft changed', cls: 'draft-changed' };
-    if (!live && draft) return { label: 'Draft only', cls: 'draft-only' };
-    if (live && !draft) return { label: 'Removed in draft', cls: 'removed' };
-    return { label: 'Unassigned', cls: 'unassigned' };
-  }
   function funnelNodeRouting(n) {
     const incoming = (activeFunnel().edges || []).filter((e) => e.to === n.id);
     if (incoming.length === 1) return incoming[0].ruleSummary || 'Single path';
@@ -442,7 +431,7 @@
     return all.find((n) => n.id === selected) || usedFunnelNodes(pt)[0] || all[0] || null;
   }
   // The usage count for a template lives in `assigned` (online store) or `used` (checkout).
-  const tplCount = (pt, t) => isCkType(pt) ? funnelRefCounts(pt, t).draft : t.assigned;
+  const tplCount = (pt, t) => isCkType(pt) ? funnelDraftCount(pt, t) : t.assigned;
   // Usage descriptor per PRD §7.1: online store "Assigned to X products/collections",
   // checkout theme "Used by X nodes in Funnel". Empty for defaults with unknown counts.
   function usageText(pt, count) {
@@ -454,12 +443,7 @@
     const plural = (Number(count) === 1) ? base : base + 's';
     return verb + ' ' + count + ' ' + plural;
   }
-  function funnelUsageText(pt, tpl) {
-    const counts = funnelRefCounts(pt, tpl);
-    if (!activeFunnel().dirty) return usageText(pt, counts.live);
-    return 'Used by ' + counts.live + ' live node' + (counts.live === 1 ? '' : 's') +
-      ' · ' + counts.draft + ' in draft';
-  }
+  const funnelUsageText = (pt, tpl) => usageText(pt, funnelDraftCount(pt, tpl));
   // §8.2 unsaved-changes gate for switching templates (Save / Discard / Cancel).
   function confirmSwitchTemplate(proceed) {
     if (!ED || !isDirty()) { proceed(); return; }
@@ -657,10 +641,11 @@
   function funnelPreviewHtml() {
     const pt = ED.checkoutPage; const tpl = curCkTpl(); const node = previewFunnelNode(pt);
     const usage = funnelUsageText(pt, tpl);
-    const nodeMeta = node ? funnelNodeRouting(node) + ' · ' + funnelNodeState(node).label : 'No matching node in Funnel';
+    const nodeMeta = node ? funnelNodeRouting(node) : 'No matching node in Funnel';
     return '<div class="os-rp-context os-fn-context">' +
       '<div class="os-rp-template">' + esc((tpl && tpl.name) || ckPageLabel(pt)) + '</div>' +
       (usage ? '<div class="os-rp-assigned">' + esc(usage) + '</div>' : '') +
+      (activeFunnel().dirty ? '<div class="os-fn-dirty">Funnel has unpublished changes</div>' : '') +
       '<button class="os-rp-trigger" type="button" data-funnel-preview>' +
         '<span class="os-rp-copy"><span class="os-rp-label">Preview</span>' +
           '<span class="os-rp-name"><span class="os-fn-type">' + pageIco(pt) + '</span><span class="os-fn-copy"><strong>' + esc((node && node.name) || 'Select node') + '</strong><small>' + esc(nodeMeta) + '</small></span></span>' +
@@ -907,13 +892,9 @@
     if (isCheckout()) {
       pt = ED.checkoutPage; t = curCkTpl();
       if (!t) return '';
-      const counts = funnelRefCounts(pt, t);
-      if (counts.live <= 0 && counts.draft <= 0) return '';
-      if (!activeFunnel().dirty) {
-        return 'Changes to this template affect ' + counts.live + ' node' + (counts.live === 1 ? '' : 's') + ' in Funnel.';
-      }
-      return 'Changes to this template affect ' + counts.live + ' live node' + (counts.live === 1 ? '' : 's') +
-        ' and ' + counts.draft + ' node' + (counts.draft === 1 ? '' : 's') + ' in the Funnel draft.';
+      count = funnelDraftCount(pt, t);
+      if (count <= 0) return '';
+      return 'This template is used by ' + count + ' node' + (count === 1 ? '' : 's') + ' in Funnel. Changes apply to all of them.';
     }
     else { pt = ED.currentPage; t = curTpl(); count = t && t.assigned; }
     if (!t || typeof count !== 'number' || count <= 0) return '';
@@ -1088,7 +1069,7 @@
       '<div class="os-ck-ph-card">' +
         '<div class="os-ck-ph-badge">' + esc(label) + '</div>' +
         '<div class="os-ck-ph-title">' + esc((tpl && tpl.name) || label) + '</div>' +
-        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong><span>' + esc(funnelNodeRouting(node)) + ' · ' + esc(funnelNodeState(node).label) + '</span></div>' : '') +
+        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong><span>' + esc(funnelNodeRouting(node)) + '</span></div>' : '') +
         '<p class="os-ck-ph-desc">A live offer preview isn\u2019t available in this prototype yet. Use Preview to inspect template usage and switch the Funnel context without changing assignments.</p>' +
       '</div></div>';
   }
@@ -1923,15 +1904,13 @@
       pop.querySelectorAll('[data-fn-tab]').forEach((b) => b.classList.toggle('on', b.getAttribute('data-fn-tab') === tab));
       const q = query.trim().toLowerCase();
       const pool = tab === 'used' ? items.filter((n) => usedIds.has(n.id)) : items;
-      const matched = q ? pool.filter((n) => (n.name + ' ' + funnelNodeRouting(n) + ' ' + funnelNodeState(n).label).toLowerCase().indexOf(q) >= 0) : pool;
+      const matched = q ? pool.filter((n) => (n.name + ' ' + funnelNodeRouting(n)).toLowerCase().indexOf(q) >= 0) : pool;
       const shown = matched.slice(0, limit);
       let html = shown.map((n) => {
         const on = selected && selected.id === n.id;
-        const state = funnelNodeState(n);
         return '<button type="button" class="os-rs-row os-fn-row' + (on ? ' on' : '') + '" data-fn-id="' + esc(n.id) + '">' +
           '<span class="os-fn-rowico">' + pageIco(pt) + '</span>' +
           '<span class="os-fn-rowcopy"><strong>' + esc(n.name) + '</strong><small>' + esc(ckPageLabel(pt)) + ' · ' + esc(funnelNodeRouting(n)) + '</small></span>' +
-          '<span class="os-fn-status ' + state.cls + '">' + esc(state.label) + '</span>' +
         '</button>';
       }).join('');
       if (!html) {
@@ -2598,6 +2577,7 @@
   .os-fn-copy{display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden}
   .os-fn-copy strong,.os-fn-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-copy strong{font-size:12.5px;font-weight:550}.os-fn-copy small{font-size:10.5px;font-weight:400;color:var(--ink-muted)}
+  .os-fn-dirty{margin:0 4px 7px;color:#8a5a00;font-size:10.5px}
   .os-tree-note{font-size:12px;color:var(--ink-muted);line-height:1.55;background:var(--panel);border-radius:8px;padding:9px 11px;margin:4px 4px 10px}
   .os-tree-row{display:flex;align-items:center;gap:9px;padding:8px 8px;border-radius:8px;cursor:pointer;color:var(--ink-body);font-size:13.5px}
   .os-tree-row:hover{background:var(--panel)}
@@ -2735,11 +2715,6 @@
   .os-fn-rowcopy{display:flex;flex:1;flex-direction:column;gap:2px;min-width:0}
   .os-fn-rowcopy strong,.os-fn-rowcopy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-fn-rowcopy strong{font-size:12.5px;font-weight:600}.os-fn-rowcopy small{font-size:10.5px;color:var(--ink-muted)}
-  .os-fn-status{flex:none;padding:2px 6px;border-radius:999px;font-size:9.5px;font-weight:650}
-  .os-fn-status.live{background:#e4f7ed;color:#157347}
-  .os-fn-status.draft-changed{background:#fff2d8;color:#8a5a00}
-  .os-fn-status.draft-only{background:#e7efff;color:#275ea8}
-  .os-fn-status.removed,.os-fn-status.unassigned{background:#f0f1f3;color:#687080}
   .os-fn-open{justify-content:space-between;color:var(--brand)}.os-fn-external{font-size:14px}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
