@@ -39,10 +39,10 @@
   OS.register('checkout-policy-links', {
     name: 'Policy Links', icon: 'layers',
     // Required (locked) component, but can be hidden from the tree's eye toggle — merchants
-    // who don't want policy links in the checkout / thank you can switch the region off.
+    // who don't want policy links on a transaction template can switch the region off.
     hideable: true,
     schema: [
-      { info: 'Shared across Checkout and Thank you — edits here apply to both pages.' },
+      { info: 'Choose the store policy pages shown on this transaction template.' },
       { key: 'refund_policy_page', label: 'Refund policy page', control: 'page', default: '' },
       { key: 'privacy_policy_page', label: 'Privacy policy page', control: 'page', default: '' },
       { key: 'terms_of_service_page', label: 'Terms of service page', control: 'page', default: '' },

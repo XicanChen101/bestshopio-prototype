@@ -22,6 +22,8 @@
       { key: 'icon_image', label: 'Custom icon image', control: 'image', default: '', visibleWhen: (s) => s.icon === 'custom' },
       { key: 'heading', label: 'Heading', control: 'text', default: '', placeholder: 'Optional heading' },
       { key: 'content', label: 'Content', control: 'richtext', default: '' },
+      { key: 'text_alignment', label: 'Text alignment', control: 'segmented', default: 'left', options: [
+        { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' } ] },
       { sub: 'Link (optional)' },
       { key: 'link_text', label: 'Link text', control: 'text', default: '' },
       { key: 'link_url', label: 'Link URL', control: 'url', default: '' },
@@ -57,7 +59,7 @@
       const boxStyle = boxed
         ? 'background:' + (OS.bgOrTransparent(s.background_color) || '#F0F9EB') + ';border:1px solid ' + (OS.bgOrTransparent(s.border_color) || '#CDEBC8') + ';border-radius:' + (s.border_radius == null ? 8 : s.border_radius) + 'px;padding:14px 16px;'
         : '';
-      return '<div class="cksec cksc cksc-' + style + '" style="color:' + (s.text_color || '#1F1F1F') + '">' +
+      return '<div class="cksec cksc cksc-' + style + '" style="color:' + (s.text_color || '#1F1F1F') + ';text-align:' + (s.text_alignment === 'center' ? 'center' : 'left') + '">' +
         '<div class="cksc-box" style="' + boxStyle + '">' + ico + body + '</div>' +
         (s.custom_css ? '<style>' + s.custom_css + '</style>' : '') +
       '</div>';
@@ -68,7 +70,7 @@
   .cksc-box{display:flex;gap:12px;align-items:flex-start}
   .cksc-ico{flex:none;display:inline-flex;margin-top:1px}
   .cksc-ico-img img{width:22px;height:22px;object-fit:cover;border-radius:6px;display:block}
-  .cksc-body{min-width:0}
+  .cksc-body{min-width:0;flex:1}
   .cksc-head{font-weight:700;font-size:var(--ck-base-fs);line-height:1.4;margin-bottom:3px}
   .cksc-text{font-size:var(--ck-small-fs);line-height:1.6;opacity:.92}
   .cksc-text p{margin:0 0 6px}.cksc-text p:last-child{margin-bottom:0}

@@ -385,7 +385,8 @@
   // Seed template lists per checkout page type (PRD §6.3/§6.4). `isDefault` marks the
   // built-in fallback. `used` mirrors the current Funnel draft for legacy consumers; the
   // editor derives authoritative live/draft counts from CHECKOUT_FUNNEL below.
-  // Upsell/Downsell have no editor preview this round (PRD §16.2) — placeholder sections.
+  // Upsell/Downsell share one post-purchase offer builder; Funnel/Offer services provide
+  // products, prices, routing and payment capability while Theme owns presentation only.
   const CHECKOUT_TEMPLATE_SETS = {
     checkout: [
       { id: 'standard', name: 'Standard', isDefault: true, used: 2 },
@@ -688,6 +689,88 @@
   ];
 
   // ==========================================================================
+  //  POST-PURCHASE OFFER PAGES — Upsell + Downsell
+  //  Both pages reuse one locked transaction-safe skeleton. Existing Checkout
+  //  content/trust components remain addable; cart-mutating commerce boosters are
+  //  intentionally excluded because the original Checkout has already completed.
+  // ==========================================================================
+  const OFFER_FLEX = ['checkout-countdown', 'checkout-trust-badges', 'checkout-static-content',
+    'checkout-payment-icons', 'checkout-trustpilot', 'checkout-review-card', 'checkout-fb-comments'];
+  const OFFER_ZONES = [
+    { id: 'announce', label: 'Above header', after: null, col: 'announce', allow: ['announcement-bar'] },
+    { id: 'header', label: 'Below order confirmation', after: 'checkout-offer-header', col: 'main', allow: OFFER_FLEX.slice() },
+    { id: 'progress', label: 'Below progress', after: 'checkout-offer-progress', col: 'main', allow: OFFER_FLEX.slice() },
+    { id: 'offer', label: 'Below offer', after: 'checkout-offer-product', col: 'main', allow: OFFER_FLEX.slice() },
+    { id: 'policytop', label: 'Below Policy Links', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-testimonials'] },
+    { id: 'bottom', label: 'Page bottom', after: 'checkout-policy-links', col: 'bottom', allow: ['checkout-footer'] },
+  ];
+  const OFFER_CATALOG = CHECKOUT_CATALOG
+    .filter((g) => g.label !== 'Commerce boosters')
+    .map((g) => ({ label: g.label, entries: g.entries.map((e) => Object.assign({}, e, {
+      defaultZone: e.kind === 'announcement-bar' ? 'announce'
+        : e.kind === 'checkout-testimonials' ? 'policytop'
+        : e.kind === 'checkout-footer' ? 'bottom'
+        : e.kind === 'checkout-countdown' || e.kind === 'checkout-static-content' ? 'progress'
+        : 'offer',
+    })) }));
+
+  const OFFER_MOCKS = {
+    upsell: {
+      storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
+      title: 'Creatine (3 Extra)', image: IMG.p3, compareAt: 49.99, price: 35.00, total: 104.98,
+      savings: 'Save 30%', rating: 4.9, reviewCount: 125,
+      description: 'Don\u2019t miss out on this offer. It expires after you leave this page.',
+      variantLabel: 'Flavor / pack', selectedVariantId: 'berry-3',
+      variants: [
+        { id: 'berry-3', title: 'Berry · 3 tubs', price: 35, compareAt: 49.99, total: 104.98, savings: 'Save 30%' },
+        { id: 'lemon-3', title: 'Lemon · 3 tubs', price: 36, compareAt: 49.99, total: 107.98, savings: 'Save 28%' },
+        { id: 'unflavored-3', title: 'Unflavored · 3 tubs', price: 32, compareAt: 47.99, total: 95.98, savings: 'Save 33%' },
+      ],
+      quantity: 3, quantityOptions: [1, 2, 3], shippingLabel: 'Free',
+    },
+    downsell: {
+      storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
+      title: 'Creatine (1 Extra)', image: IMG.p3, compareAt: 29.99, price: 19.99, total: 19.99,
+      savings: 'Save 33%', rating: 4.9, reviewCount: 125,
+      description: 'Try one extra tub at our lowest one-time price. This offer disappears when you leave.',
+      variantLabel: 'Flavor', selectedVariantId: 'berry-1',
+      variants: [
+        { id: 'berry-1', title: 'Berry', price: 19.99, compareAt: 29.99, total: 19.99, savings: 'Save 33%' },
+        { id: 'lemon-1', title: 'Lemon', price: 20.99, compareAt: 29.99, total: 20.99, savings: 'Save 30%' },
+        { id: 'unflavored-1', title: 'Unflavored', price: 18.99, compareAt: 28.99, total: 18.99, savings: 'Save 34%' },
+      ],
+      quantity: 1, quantityOptions: [1], shippingLabel: 'Free',
+    },
+  };
+
+  const offerPolicy = () => ({
+    refund_policy_page: 'pg-refund', privacy_policy_page: 'pg-privacy',
+    terms_of_service_page: 'pg-terms', contact_page: 'pg-contact',
+  });
+  const offerSections = (prefix, downsell) => [
+    { id: prefix + '-header', kind: 'checkout-offer-header' },
+    { id: prefix + '-progress', kind: 'checkout-offer-progress' },
+    { id: prefix + '-intro', kind: 'checkout-static-content', zone: 'progress', settings: {
+      content_style: 'plain', icon: 'none', text_alignment: 'center', background_color: 'transparent', border_color: 'transparent',
+      heading: downsell ? 'Before you go\u2026' : 'Please Note:',
+      content: downsell
+        ? '<p>We don\u2019t want you to miss out, so here\u2019s a smaller offer at our best one-time price.</p><p><strong>Add it now without re-entering your payment details.</strong></p>'
+        : '<p>Due to extremely high demand, this product can sometimes go out of stock.</p><p>Your current order is already confirmed and being prepared for shipment.</p><p><strong>Add an extra supply now with this exclusive post-purchase discount.</strong></p>',
+    } },
+    { id: prefix + '-countdown', kind: 'checkout-countdown', zone: 'progress', settings: {
+      style: 'alert', icon: 'none', prefix_text: downsell ? 'Last chance \u2014 this offer ends in' : 'But hurry, this offer ends in',
+      duration: 5, text_alignment: 'center', background_color: '#FFF0F2', text_color: '#6E3038', border_color: '#F3CDD2',
+    } },
+    { id: prefix + '-product', kind: 'checkout-offer-product', settings: {
+      accept_text: downsell ? 'Add this offer · {amount}' : 'Add to my order · {amount}',
+      decline_text: downsell ? 'No thanks, complete my order' : 'No thanks, continue',
+    } },
+    { id: prefix + '-policy', kind: 'checkout-policy-links', settings: offerPolicy() },
+  ];
+  const UPSELL_TEMPLATE = { sections: offerSections('up', false) };
+  const DOWNSELL_TEMPLATE = { sections: offerSections('dn', true) };
+
+  // ==========================================================================
   //  THANK YOU PAGE (Thank you PRD) — second transaction page, shares the
   //  Checkout theme settings. Final Funnel order confirmation, not the raw
   //  checkout cart. Required components + a limited set of reusable content &
@@ -803,6 +886,7 @@
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
     CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_FUNNEL, CHECKOUT_FUNNEL_NODES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
+    UPSELL_TEMPLATE, DOWNSELL_TEMPLATE, OFFER_ZONES, OFFER_CATALOG, OFFER_MOCKS,
     THANKYOU_TEMPLATE, THANKYOU_ZONES, THANKYOU_CATALOG, THANKYOU_SNAPSHOT,
   };
 })();

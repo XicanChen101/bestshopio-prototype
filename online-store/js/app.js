@@ -141,6 +141,7 @@
     ckState: {},
     ckSet: function (id, patch) { OS.ckState[id] = Object.assign({}, OS.ckState[id], patch); },
     ckRecalc: function () { /* assigned by the editor to re-render the canvas */ },
+    goCheckoutPage: function (page) { goCheckoutPage(page); },
     css: function (id, text) { if (document.getElementById('oscss-' + id)) return; const st = document.createElement('style'); st.id = 'oscss-' + id; st.textContent = text; document.head.appendChild(st); },
     secSpace: (t, mob) => ((t && t.layout) ? (mob ? t.layout.section_spacing_mobile : t.layout.section_spacing_desktop) : (mob ? 40 : 64)),
     pagePad: (t, mob) => ((t && t.layout) ? (mob ? t.layout.page_horizontal_padding_mobile : t.layout.page_horizontal_padding_desktop) : (mob ? 16 : 40)),
@@ -153,7 +154,8 @@
   function ensureSections() {
     if (_sectionsP) return _sectionsP;
     const kinds = ['announcement-bar', 'header', 'footer', 'collection-banner', 'collection-list', 'collection-page', 'list-collections',
-      'checkout-header', 'checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method',
+      'checkout-header', 'checkout-offer-header', 'checkout-offer-progress', 'checkout-offer-product',
+      'checkout-express', 'checkout-contact', 'checkout-shipping-info', 'checkout-shipping-method',
       'checkout-payment', 'checkout-cta', 'checkout-order-summary', 'checkout-order-summary-bar', 'checkout-policy-links',
       'checkout-product-upsell', 'checkout-shipping-insurance', 'checkout-vip-club',
       'checkout-countdown', 'checkout-payment-icons', 'checkout-trust-badges', 'checkout-trustpilot',
@@ -235,12 +237,12 @@
     });
     // Checkout theme is its own environment: ONE shared settings object + four multi-template
     // page types (Checkout / Upsell / Downsell / Thank you), each a `list` mirroring the
-    // online-store types (PRD §3.2/§5.2). Upsell/Downsell have no live component preview this
-    // round, so their seeds start with empty sections. Funnel-node usage is derived separately.
+    // online-store types. Funnel-node usage and offer payloads are derived separately.
     const ckBase = {
       checkout: (D.CHECKOUT_TEMPLATE && D.CHECKOUT_TEMPLATE.sections) || [],
       thankyou: (D.THANKYOU_TEMPLATE && D.THANKYOU_TEMPLATE.sections) || [],
-      upsell: [], downsell: [],
+      upsell: (D.UPSELL_TEMPLATE && D.UPSELL_TEMPLATE.sections) || [],
+      downsell: (D.DOWNSELL_TEMPLATE && D.DOWNSELL_TEMPLATE.sections) || [],
     };
     const ckTemplates = {};
     Object.keys(D.CHECKOUT_TEMPLATE_SETS || {}).forEach((pt) => {
@@ -301,10 +303,15 @@
   const isCheckoutContent = (kind) => CK_CONTENT.indexOf(kind) >= 0;
   const isCheckoutAddable = (kind) => isCheckoutCommerce(kind) || isCheckoutContent(kind);
   const isSingletonKind = (kind) => { const d = SECTIONS[kind]; return !!(d && d.singleton); };
-  // Active insertion-zone set — Checkout vs Thank you (Thank you PRD §9). Every zone
-  // lookup goes through here so both pages get their own anchors / allow-lists.
-  const ckZones = () => (isThankyou() ? (D.THANKYOU_ZONES || []) : (D.CHECKOUT_ZONES || []));
-  const ckCatalog = () => (isThankyou() ? (D.THANKYOU_CATALOG || []) : (D.CHECKOUT_CATALOG || []));
+  // Active insertion-zone/catalog set. Offer pages reuse Checkout content/trust components
+  // but intentionally exclude the three cart-mutating commerce boosters.
+  const isOfferPage = () => isUpsell() || isDownsell();
+  const ckZones = () => isThankyou() ? (D.THANKYOU_ZONES || [])
+    : isOfferPage() ? (D.OFFER_ZONES || [])
+    : (D.CHECKOUT_ZONES || []);
+  const ckCatalog = () => isThankyou() ? (D.THANKYOU_CATALOG || [])
+    : isOfferPage() ? (D.OFFER_CATALOG || [])
+    : (D.CHECKOUT_CATALOG || []);
   const ckZone = (id) => ckZones().find((z) => z.id === id) || null;
   // Which zones a component kind may live in (PRD §9.2 matrix). Placement is enforced
   // on drag: a component row can only be dropped into a zone that allows its kind.
@@ -625,7 +632,7 @@
   }
   function settingsTreeHint() {
     const note = isCheckout()
-      ? 'Global Checkout / Thank you styles. Component overrides win, then these settings, then system defaults.'
+      ? 'Global Checkout / Upsell / Downsell / Thank you styles. Component overrides win, then these settings, then system defaults.'
       : 'Global tokens — every Section & Block inherits from here unless overridden. Edit on the right; the preview updates live.';
     return '<div class="os-tree-note">' + esc(note) + '</div>' +
       sGroups().map((g) => '<div class="os-tree-row" data-sgrp="' + g.key + '"><span class="os-tr-ico">' + I.gear + '</span><span class="os-tr-name">' + esc(g.name) + '</span></div>').join('');
@@ -634,16 +641,14 @@
   // can be added / hidden / deleted / reordered.
   function checkoutTreeHtml() {
     const context = funnelPreviewHtml();
-    if (isUpsell() || isDownsell()) {
-      return context + '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>' +
-        '<div class="os-tree-note">' + esc(ckPageLabel(ED.checkoutPage)) + ' offer pages are used by page nodes in Funnel. Their component editor isn\u2019t available in this release \u2014 manage templates from the page selector above.</div>';
-    }
     let html = context + '<div class="os-grp-head" style="cursor:default">' + esc(ckPageLabel(ED.checkoutPage)) + ' Template</div>';
     pageSections().forEach((s) => { html += checkoutRow(s); });
     let nAdd = 0; ckCatalog().forEach((g) => nAdd += g.entries.length);
     html += '<div class="os-tree-add" data-add-ckcomp>' + I.plus + ' Add section <span class="os-add-n">(' + nAdd + ')</span></div>';
     const note = isThankyou()
       ? 'Required components confirm the order, so they can\u2019t be moved. Only content & trust components can be added, hidden, deleted and reordered within their allowed zones.'
+      : isOfferPage()
+        ? 'Required components keep the post-purchase offer usable, so they can\u2019t be moved. Existing Checkout content & trust components can be added; Product upsell, Shipping Insurance and VIP Club aren\u2019t available here.'
       : 'Required components keep the transaction flow intact, so they can\u2019t be moved. Commerce and content & trust components can be added, hidden, deleted and reordered within their allowed zones.';
     html += '<div class="os-tree-note" style="margin-top:10px">' + note + '</div>';
     return html;
@@ -912,7 +917,7 @@
   function canvasHtml() {
     if (isCheckout()) {
       if (isThankyou()) return thankyouCanvasHtml();
-      if (isUpsell() || isDownsell()) return ckPlaceholderCanvas();
+      if (isOfferPage()) return offerCanvasHtml();
       return checkoutCanvasHtml();
     }
     let html = '';
@@ -931,7 +936,7 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, funnelNode: isCheckout() ? previewFunnelNode() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, funnelNode: isCheckout() ? previewFunnelNode() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, offer: isOfferPage() ? ((D.OFFER_MOCKS || {})[ED.checkoutPage] || null) : null, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -1067,19 +1072,37 @@
         '</div>';
     return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + mobTopSummary + inner + bottomHtml + '</div>';
   }
-  // Upsell / Downsell pages currently use a contextual placeholder. Selecting a Funnel node
-  // updates the preview context without changing the node's assigned template.
-  function ckPlaceholderCanvas() {
-    const label = ckPageLabel(ED.checkoutPage);
-    const tpl = curCkTpl();
-    const node = previewFunnelNode();
-    return '<div class="os-ck-ph">' +
-      '<div class="os-ck-ph-card">' +
-        '<div class="os-ck-ph-badge">' + esc(label) + '</div>' +
-        '<div class="os-ck-ph-title">' + esc((tpl && tpl.name) || label) + '</div>' +
-        (node ? '<div class="os-ck-ph-node"><strong>' + esc(node.name) + '</strong></div>' : '') +
-        '<p class="os-ck-ph-desc">A live offer preview isn\u2019t available in this prototype yet. Use Preview to inspect template usage and switch the Funnel context without changing assignments.</p>' +
-      '</div></div>';
+  // -------------------------------------------------------------- UPSELL / DOWNSELL canvas
+  // One shared post-purchase offer renderer. It consumes a read-only offer preview payload;
+  // recommendation, pricing, payment and routing remain outside Theme.
+  function offerCanvasHtml() {
+    const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
+    const secs = pageSections();
+    CK_ADDONS = { rows: [], lines: [] };
+    const byKind = (k) => secs.find((s) => s.kind === k);
+    const wrap = (s, first) => (s && !s.hidden) ? wrapSection(s, !!first) : '';
+    const inZone = (s, z) => isCheckoutAddable(s.kind) && s.zone === z;
+    const zoneHtml = (z) => secs.filter((s) => inZone(s, z)).map((s) => wrap(s)).join('');
+    const L = tk.layout || {};
+    const vars = checkoutVars(tk) + ';--ck-mob-pad:' + (L.mobile_page_padding || 18) + 'px';
+
+    const announceHtml = zoneHtml('announce');
+    const header = wrap(byKind('checkout-offer-header'), true);
+    const mainInner = zoneHtml('header') +
+      wrap(byKind('checkout-offer-progress')) +
+      zoneHtml('progress') +
+      wrap(byKind('checkout-offer-product')) +
+      zoneHtml('offer');
+    const main = '<div class="ckoffer-wrap" style="max-width:' + (L.page_max_width_pc || 980) + 'px;padding:' +
+      (L.section_spacing || 24) + 'px ' + (mob ? (L.mobile_page_padding || 18) : 28) + 'px">' +
+      '<div class="ckoffer-main" style="gap:' + (L.section_spacing || 24) + 'px">' + mainInner + '</div></div>';
+
+    const policy = wrap(byKind('checkout-policy-links'));
+    const policyHtml = policy ? '<div class="ckoffer-policy" style="max-width:' + (L.page_max_width_pc || 980) + 'px">' + policy + '</div>' : '';
+    const bottomInner = policyHtml + zoneHtml('policytop') + zoneHtml('bottom');
+    const bottomHtml = bottomInner ? '<div class="ckbottom">' + bottomInner + '</div>' : '';
+    return '<div class="ckpage ckoffer-page ' + ED.checkoutPage + ' ' + (mob ? 'mob' : '') + '" style="' + vars + '">' +
+      announceHtml + header + main + bottomHtml + '</div>';
   }
   const CK_FONT = (v) => (!v || v === 'Default') ? "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" : ("'" + v + "', system-ui, sans-serif");
   function checkoutVars(tk) {
@@ -1199,7 +1222,7 @@
   }
   function globalBySel(scope) { return (scope === 'footer' || scope === 'header' || scope === 'announcement') ? ED.theme[scope] : null; }
   // Page context passed to schema visibleWhen so shared components can hide fields per page.
-  function schemaCtx() { return { surface: ED.surface, checkoutPage: ED.checkoutPage, isThankyou: isThankyou() }; }
+  function schemaCtx() { return { surface: ED.surface, checkoutPage: ED.checkoutPage, isThankyou: isThankyou(), isOffer: isOfferPage() }; }
   function panelHead(icon, title, sub, hidden, scope, id, locked) {
     const vis = locked
       ? '<span class="os-rh-vis" title="Required component" style="cursor:default;color:#c4cad3">' + I.lock + '</span>'
@@ -1624,7 +1647,15 @@
       : (def.defaultZone && allowed.indexOf(def.defaultZone) >= 0) ? def.defaultZone
       : allowed[0];
     const zone = ckZone(zid); if (!zone) { toast('That component can’t be placed', 'err'); return; }
-    const inst = matSection({ kind, zone: zid });
+    const seed = { kind, zone: zid };
+    // Static content is shared across transaction pages, but its initial copy must match
+    // the active buyer journey. Offer pages should never inherit Thank-you shipping copy.
+    if (isOfferPage() && kind === 'checkout-static-content') {
+      seed.settings = ED.checkoutPage === 'downsell'
+        ? { heading: 'One last offer', content: 'Your order is confirmed. Add this final special offer before continuing to your order confirmation.' }
+        : { heading: 'Your order is confirmed', content: 'Add this exclusive offer without re-entering your payment or delivery details.' };
+    }
+    const inst = matSection(seed);
     const arr = pageSections();
     arr.splice(ckInsertIndex(arr, zone, kind), 0, inst);
     ED.selection = { kind: 'section', sectionId: inst.id };
@@ -2219,11 +2250,19 @@
     setTimeout(() => { const btn = document.getElementById('t-page'); if (btn) openPageSelector(btn, true); }, 0);
   }
   function defaultSelection() {
-    // Upsell/Downsell have no editable components this round — land on a neutral selection
-    // so the right panel shows its "nothing to edit" placeholder, not theme settings.
-    if (isUpsell() || isDownsell()) return { kind: 'ck-placeholder' };
     if (isCheckout()) { const s = pageSections()[0]; return s ? { kind: 'section', sectionId: s.id } : { kind: 'theme-settings' }; }
     return { kind: 'header' };
+  }
+  // Buyer-flow simulation inside the editor preview. Keeps the current in-memory theme
+  // intact while moving between Upsell / Downsell / Thank you; no Funnel or payment rule
+  // is executed and no template assignment is changed.
+  function goCheckoutPage(page) {
+    if (!ED || !isCheckout() || !isCkType(page)) return;
+    ED.checkoutPage = page;
+    ED.selection = defaultSelection();
+    ED.leftMode = 'sections';
+    syncSurfaceHash();
+    rerender();
   }
   // Keep the URL canonical for the current surface without re-dispatching the router
   // (replaceState doesn't fire hashchange), so the Checkout editor stays bookmarkable.
@@ -2266,6 +2305,13 @@
       const pl = (D.PAGE_OPTIONS.find((p) => p.value === pg) || {}).label || pg;
       ED.theme.templates[pg].list.forEach((tpl) => {
         const tl = pl + (tpl.id !== 'default' ? ' · ' + tpl.name : '');
+        (tpl.sections || []).forEach((s, i) => { if (s.hidden) return; const def = SECTIONS[s.kind]; checkInst(s, tl + ' · ' + (def ? def.name : s.kind) + ' #' + (i + 1)); });
+      });
+    });
+    Object.keys((ED.theme.checkout || {}).templates || {}).forEach((pg) => {
+      const pl = ckPageLabel(pg);
+      ED.theme.checkout.templates[pg].list.forEach((tpl) => {
+        const tl = 'Checkout theme · ' + pl + ' · ' + tpl.name;
         (tpl.sections || []).forEach((s, i) => { if (s.hidden) return; const def = SECTIONS[s.kind]; checkInst(s, tl + ' · ' + (def ? def.name : s.kind) + ' #' + (i + 1)); });
       });
     });
@@ -2546,14 +2592,11 @@
   /* Editor-top usage-scope hint (PRD §13) */
   .os-scope-hint{display:flex;align-items:center;gap:8px;padding:8px 16px;background:#fffaeb;border-bottom:1px solid #fde28a;color:#7a5b00;font-size:12.5px;line-height:1.45}
   .os-scope-hint svg{flex:none;width:15px;height:15px;color:#dc9b00}
-  /* Upsell / Downsell placeholder canvas (no preview this round, PRD §16.2) */
-  .os-ck-ph{display:flex;align-items:center;justify-content:center;min-height:420px;padding:40px 24px}
-  .os-ck-ph-card{max-width:440px;text-align:center;background:#fff;border:1px solid var(--hair);border-radius:14px;padding:32px 28px;box-shadow:var(--float-shadow)}
-  .os-ck-ph-badge{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);background:var(--brand-50);border-radius:999px;padding:4px 12px;margin-bottom:14px}
-  .os-ck-ph-title{font-size:19px;font-weight:600;color:var(--ink);margin-bottom:10px}
-  .os-ck-ph-node{display:flex;flex-direction:column;gap:3px;margin:0 auto 16px;padding:10px 14px;border-radius:8px;background:var(--panel);color:var(--ink)}
-  .os-ck-ph-node strong{font-size:13px}
-  .os-ck-ph-desc{font-size:13.5px;line-height:1.6;color:var(--ink-muted);margin:0}
+  /* Upsell / Downsell shared post-purchase offer canvas */
+  .ckoffer-wrap{width:100%;margin:0 auto;box-sizing:border-box}
+  .ckoffer-main{display:flex;flex-direction:column}
+  .ckoffer-policy{width:100%;margin:0 auto;padding:24px 28px 32px;box-sizing:border-box}
+  .ckoffer-page.mob .ckoffer-policy{padding:20px var(--ck-mob-pad,18px) 28px}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
   .os-dev{display:inline-flex;background:var(--panel);border-radius:8px;padding:3px;gap:2px}
   .os-dev button{width:32px;height:28px;border:0;background:none;color:var(--ink-muted);border-radius:6px;display:grid;place-items:center;cursor:pointer}
