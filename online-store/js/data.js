@@ -717,29 +717,83 @@
   const OFFER_MOCKS = {
     upsell: {
       storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
-      title: 'Creatine (3 Extra)', image: IMG.p3, compareAt: 49.99, price: 35.00, total: 104.98,
-      savings: 'Save 30%', rating: 4.9, reviewCount: 125,
-      description: 'Don\u2019t miss out on this offer. It expires after you leave this page.',
-      variantLabel: 'Flavor / pack', selectedVariantId: 'berry-3',
-      variants: [
-        { id: 'berry-3', title: 'Berry · 3 tubs', price: 35, compareAt: 49.99, total: 104.98, savings: 'Save 30%' },
-        { id: 'lemon-3', title: 'Lemon · 3 tubs', price: 36, compareAt: 49.99, total: 107.98, savings: 'Save 28%' },
-        { id: 'unflavored-3', title: 'Unflavored · 3 tubs', price: 32, compareAt: 47.99, total: 95.98, savings: 'Save 33%' },
+      products: [
+        {
+          id: 'creatine-3', title: 'Creatine (3 Extra)', image: IMG.p3, compareAt: 49.99, price: 35.00, total: 104.98,
+          savings: 'Save 30%', rating: 4.9, reviewCount: 125,
+          description: 'Don\u2019t miss out on this offer. It expires after you leave this page.',
+          variantLabel: 'Flavor / pack', selectedVariantId: 'berry-3',
+          variants: [
+            { id: 'berry-3', title: 'Berry · 3 tubs', price: 35, compareAt: 49.99, total: 104.98, savings: 'Save 30%' },
+            { id: 'lemon-3', title: 'Lemon · 3 tubs', price: 36, compareAt: 49.99, total: 107.98, savings: 'Save 28%' },
+            { id: 'unflavored-3', title: 'Unflavored · 3 tubs', price: 32, compareAt: 47.99, total: 95.98, savings: 'Save 33%' },
+          ],
+          quantity: 3, quantityOptions: [1, 2, 3], shippingLabel: 'Free',
+        },
+        {
+          id: 'hydration-pack', title: 'Daily Hydration Pack', image: IMG.p4, compareAt: 42.00, price: 28.00, total: 28.00,
+          savings: 'Save 33%', rating: 4.8, reviewCount: 88,
+          description: 'Add an easy daily hydration boost to the order you just completed.',
+          variantLabel: 'Flavor', selectedVariantId: 'citrus',
+          variants: [
+            { id: 'citrus', title: 'Citrus', price: 28, compareAt: 42, total: 28, savings: 'Save 33%' },
+            { id: 'berry', title: 'Mixed berry', price: 28, compareAt: 42, total: 28, savings: 'Save 33%' },
+          ],
+          quantity: 1, quantityOptions: [1, 2], shippingLabel: 'Free',
+        },
+        {
+          id: 'recovery-bundle', title: 'Recovery Essentials Bundle', image: IMG.p5, compareAt: 74.00, price: 49.00, total: 49.00,
+          savings: 'Save 34%', rating: 4.7, reviewCount: 64,
+          description: 'Complete your routine with a one-time recovery bundle at a post-purchase price.',
+          variantLabel: 'Bundle', selectedVariantId: 'standard',
+          variants: [
+            { id: 'standard', title: 'Standard bundle', price: 49, compareAt: 74, total: 49, savings: 'Save 34%' },
+            { id: 'plus', title: 'Plus bundle', price: 62, compareAt: 89, total: 62, savings: 'Save 30%' },
+          ],
+          quantity: 1, quantityOptions: [1], shippingLabel: 'Free',
+        },
+        {
+          id: 'travel-shaker', title: 'Travel Shaker Set', image: IMG.p6, compareAt: 24.00, price: 16.00, total: 16.00,
+          savings: 'Save 33%', rating: 4.6, reviewCount: 51,
+          description: 'A compact shaker set ready for training days and travel.',
+          quantity: 1, quantityOptions: [1, 2, 3], shippingLabel: 'Free',
+        },
       ],
-      quantity: 3, quantityOptions: [1, 2, 3], shippingLabel: 'Free',
     },
     downsell: {
       storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
-      title: 'Creatine (1 Extra)', image: IMG.p3, compareAt: 29.99, price: 19.99, total: 19.99,
-      savings: 'Save 33%', rating: 4.9, reviewCount: 125,
-      description: 'Try one extra tub at our lowest one-time price. This offer disappears when you leave.',
-      variantLabel: 'Flavor', selectedVariantId: 'berry-1',
-      variants: [
-        { id: 'berry-1', title: 'Berry', price: 19.99, compareAt: 29.99, total: 19.99, savings: 'Save 33%' },
-        { id: 'lemon-1', title: 'Lemon', price: 20.99, compareAt: 29.99, total: 20.99, savings: 'Save 30%' },
-        { id: 'unflavored-1', title: 'Unflavored', price: 18.99, compareAt: 28.99, total: 18.99, savings: 'Save 34%' },
+      products: [
+        {
+          id: 'creatine-1', title: 'Creatine (1 Extra)', image: IMG.p3, compareAt: 29.99, price: 19.99, total: 19.99,
+          savings: 'Save 33%', rating: 4.9, reviewCount: 125,
+          description: 'Try one extra tub at our lowest one-time price. This offer disappears when you leave.',
+          variantLabel: 'Flavor', selectedVariantId: 'berry-1',
+          variants: [
+            { id: 'berry-1', title: 'Berry', price: 19.99, compareAt: 29.99, total: 19.99, savings: 'Save 33%' },
+            { id: 'lemon-1', title: 'Lemon', price: 20.99, compareAt: 29.99, total: 20.99, savings: 'Save 30%' },
+            { id: 'unflavored-1', title: 'Unflavored', price: 18.99, compareAt: 28.99, total: 18.99, savings: 'Save 34%' },
+          ],
+          quantity: 1, quantityOptions: [1], shippingLabel: 'Free',
+        },
+        {
+          id: 'hydration-sample', title: 'Hydration Sample Pack', image: IMG.p4, compareAt: 18.00, price: 12.00, total: 12.00,
+          savings: 'Save 33%', rating: 4.8, reviewCount: 88,
+          description: 'Try a smaller hydration pack without re-entering your payment details.',
+          quantity: 1, quantityOptions: [1, 2], shippingLabel: 'Free',
+        },
+        {
+          id: 'recovery-mini', title: 'Mini Recovery Kit', image: IMG.p5, compareAt: 32.00, price: 22.00, total: 22.00,
+          savings: 'Save 31%', rating: 4.7, reviewCount: 64,
+          description: 'A compact recovery kit at a final one-time price.',
+          quantity: 1, quantityOptions: [1], shippingLabel: 'Free',
+        },
+        {
+          id: 'single-shaker', title: 'Classic Shaker', image: IMG.p6, compareAt: 16.00, price: 10.00, total: 10.00,
+          savings: 'Save 38%', rating: 4.6, reviewCount: 51,
+          description: 'Add one classic shaker before completing your order.',
+          quantity: 1, quantityOptions: [1, 2], shippingLabel: 'Free',
+        },
       ],
-      quantity: 1, quantityOptions: [1], shippingLabel: 'Free',
     },
   };
 
