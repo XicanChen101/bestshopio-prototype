@@ -208,7 +208,7 @@
   const SAMPLE = {
     products: [
       { id: 'p1', title: 'Linen-feel wide pants', vendor: 'Aura Studio', price: 32.99, compareAt: 45.0, rating: 4.8, reviews: 214, image: IMG.p1, swatches: ['#2b2f36', '#c8b6a6', '#d9d2c5'] },
-      { id: 'p2', title: 'Soft rib tee', vendor: 'Aura Studio', price: 18.99, compareAt: 26.0, rating: 4.6, reviews: 98, image: IMG.p2, swatches: ['#1b3a2b', '#eae3d6'] },
+      { id: 'p2', title: 'Soft rib tee', status: 'draft', vendor: 'Aura Studio', price: 18.99, compareAt: 26.0, rating: 4.6, reviews: 98, image: IMG.p2, swatches: ['#1b3a2b', '#eae3d6'] },
       { id: 'p3', title: 'Editorial shell dress', vendor: 'Aura Studio', price: 41.5, compareAt: 58.0, rating: 4.9, reviews: 176, image: IMG.p3, swatches: ['#3a3f4a', '#9fb0a0', '#d8c3a5'],
         variants: [
           { id: 'p3-blk-m', title: 'Black / M', price: 41.5, compareAt: 58.0 },
@@ -216,7 +216,7 @@
           { id: 'p3-snd-m', title: 'Sand / M', price: 44.0, compareAt: 60.0 },
           { id: 'p3-grn-l', title: 'Sage / L', price: 44.0, compareAt: 60.0 },
         ] },
-      { id: 'p4', title: 'Street denim jacket', vendor: 'Aura Studio', price: 54.0, compareAt: 72.0, rating: 4.7, reviews: 132, image: IMG.p4, swatches: ['#33415c', '#1b1f24'],
+      { id: 'p4', title: 'Street denim jacket', status: 'draft', vendor: 'Aura Studio', price: 54.0, compareAt: 72.0, rating: 4.7, reviews: 132, image: IMG.p4, swatches: ['#33415c', '#1b1f24'],
         variants: [
           { id: 'p4-ind-m', title: 'Indigo / M', price: 54.0, compareAt: 72.0 },
           { id: 'p4-ind-l', title: 'Indigo / L', price: 56.0, compareAt: 74.0 },
@@ -374,7 +374,7 @@
 
   // Checkout editor page selector — both transaction pages share one theme (Thank you PRD §23.1).
   // Checkout theme is its own editing environment with FOUR multi-template page types
-  // (PRD §3.2/§5.2). Each feeds Funnel nodes, so their usage reads "Used by X funnel nodes".
+  // (PRD §3.2/§5.2).
   const CHECKOUT_PAGES = [
     { value: 'checkout', label: 'Checkout',  multi: true },
     { value: 'upsell',   label: 'Upsell',    multi: true },
@@ -383,72 +383,27 @@
   ];
 
   // Seed template lists per checkout page type (PRD §6.3/§6.4). `isDefault` marks the
-  // built-in fallback. `used` mirrors the current Funnel draft for legacy consumers; the
-  // editor derives authoritative live/draft counts from CHECKOUT_FUNNEL below.
+  // built-in fallback.
   // Upsell/Downsell share one post-purchase offer builder; Funnel/Offer services provide
   // products, prices, routing and payment capability while Theme owns presentation only.
   const CHECKOUT_TEMPLATE_SETS = {
     checkout: [
-      { id: 'standard', name: 'Standard', isDefault: true, used: 2 },
-      { id: 'conversion', name: 'Conversion', used: 2 },
+      { id: 'standard', name: 'Standard', isDefault: true },
+      { id: 'conversion', name: 'Conversion' },
     ],
     upsell: [
-      { id: 'one-click-upsell', name: 'One-click upsell', isDefault: true, used: 1 },
-      { id: 'subscription-upsell', name: 'Subscription upsell', used: 1 },
+      { id: 'one-click-upsell', name: 'One-click upsell', isDefault: true },
+      { id: 'subscription-upsell', name: 'Subscription upsell' },
     ],
     downsell: [
-      { id: 'standard-downsell', name: 'Standard', isDefault: true, used: 1 },
-      { id: 'save-offer', name: 'Save offer', used: 0 },
+      { id: 'standard-downsell', name: 'Standard', isDefault: true },
+      { id: 'save-offer', name: 'Save offer' },
     ],
     thankyou: [
-      { id: 'standard', name: 'Standard', isDefault: true, used: 1 },
-      { id: 'survey-thankyou', name: 'Survey thank-you', used: 1 },
+      { id: 'standard', name: 'Standard', isDefault: true },
+      { id: 'survey-thankyou', name: 'Survey thank-you' },
     ],
   };
-
-  // V1.144 §6 defines one current Funnel canvas per BestCheckout workspace. It contains
-  // system nodes plus multiple page nodes; each page node references a template separately
-  // in the published and draft versions. Traffic and audience rules live on edges, never on
-  // Funnel/page records.
-  const CHECKOUT_FUNNEL = {
-    id: 'primary-funnel',
-    name: 'Funnel',
-    route: '#/bestcheckout/funnel',
-    dirty: true,
-    nodes: [
-      { id: 'shopify-store', kind: 'source', name: 'Shopify store' },
-      { id: 'shopify-checkout', kind: 'control', name: 'Shopify checkout' },
-
-      { id: 'checkout-a', kind: 'page', pageType: 'checkout', name: 'Checkout A', publishedTemplateId: 'standard', draftTemplateId: 'standard' },
-      { id: 'checkout-b', kind: 'page', pageType: 'checkout', name: 'Checkout B', publishedTemplateId: 'conversion', draftTemplateId: 'conversion' },
-      { id: 'checkout-c', kind: 'page', pageType: 'checkout', name: 'Checkout C', publishedTemplateId: 'standard', draftTemplateId: 'conversion' },
-      { id: 'checkout-d', kind: 'page', pageType: 'checkout', name: 'Mobile checkout test', publishedTemplateId: null, draftTemplateId: 'standard' },
-
-      { id: 'upsell-a', kind: 'page', pageType: 'upsell', name: 'Summer bundle offer', publishedTemplateId: 'one-click-upsell', draftTemplateId: 'one-click-upsell' },
-      { id: 'upsell-b', kind: 'page', pageType: 'upsell', name: 'Subscribe & save offer', publishedTemplateId: null, draftTemplateId: 'subscription-upsell' },
-
-      { id: 'downsell-a', kind: 'page', pageType: 'downsell', name: 'Save 10% offer', publishedTemplateId: 'standard-downsell', draftTemplateId: 'standard-downsell' },
-
-      { id: 'thankyou-a', kind: 'page', pageType: 'thankyou', name: 'Order confirmation', publishedTemplateId: 'standard', draftTemplateId: 'standard' },
-      { id: 'thankyou-b', kind: 'page', pageType: 'thankyou', name: 'Post-purchase survey', publishedTemplateId: null, draftTemplateId: 'survey-thankyou' },
-    ],
-    edges: [
-      { id: 'edge-control', from: 'shopify-store', to: 'shopify-checkout', ruleSummary: 'Control group · 20% branch' },
-      { id: 'edge-checkout-a', from: 'shopify-store', to: 'checkout-a', ruleSummary: 'New customers · 50% branch' },
-      { id: 'edge-checkout-b', from: 'shopify-store', to: 'checkout-b', ruleSummary: 'Returning customers · Fallback' },
-      { id: 'edge-checkout-c', from: 'shopify-store', to: 'checkout-c', ruleSummary: 'EU cards · 50% branch' },
-      { id: 'edge-checkout-d', from: 'shopify-store', to: 'checkout-d', ruleSummary: 'Mobile visitors · Draft branch' },
-      { id: 'edge-upsell-a', from: 'checkout-a', to: 'upsell-a', ruleSummary: 'Payment completed' },
-      { id: 'edge-upsell-b', from: 'checkout-b', to: 'upsell-b', ruleSummary: 'Returning customers · Draft branch' },
-      { id: 'edge-downsell-a', from: 'upsell-a', to: 'downsell-a', ruleSummary: 'Upsell declined' },
-      { id: 'edge-thankyou-checkout', from: 'checkout-b', to: 'thankyou-a', ruleSummary: 'Checkout completed' },
-      { id: 'edge-thankyou-upsell', from: 'upsell-a', to: 'thankyou-a', ruleSummary: 'Upsell accepted' },
-      { id: 'edge-thankyou-downsell', from: 'downsell-a', to: 'thankyou-a', ruleSummary: 'Downsell completed' },
-      { id: 'edge-survey', from: 'upsell-b', to: 'thankyou-b', ruleSummary: 'Offer completed · Draft branch' },
-    ],
-  };
-  // Backward-compatible alias for prototype consumers that still read the old export.
-  const CHECKOUT_FUNNEL_NODES = CHECKOUT_FUNNEL.nodes.filter((n) => n.kind === 'page');
 
   const FONT_CK = ['Default', 'Inter', 'Manrope', 'Playfair Display', 'Georgia', 'system-ui'].map((v) => ({ value: v, label: v }));
 
@@ -939,7 +894,7 @@
 
   window.OS_DATA = {
     THEMES, PAGE_OPTIONS, CATALOG, SETTINGS_GROUPS, SAMPLE, DEFAULT_THEME,
-    CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_FUNNEL, CHECKOUT_FUNNEL_NODES, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
+    CHECKOUT_PAGES, CHECKOUT_TEMPLATE_SETS, CHECKOUT_SETTINGS_GROUPS, CHECKOUT_TEMPLATE, CHECKOUT_MOCK, CHECKOUT_COMMERCE, CHECKOUT_CONTENT, CHECKOUT_ZONES, CHECKOUT_CATALOG,
     UPSELL_TEMPLATE, DOWNSELL_TEMPLATE, OFFER_ZONES, OFFER_CATALOG, OFFER_MOCKS,
     THANKYOU_TEMPLATE, THANKYOU_ZONES, THANKYOU_CATALOG, THANKYOU_SNAPSHOT,
   };
