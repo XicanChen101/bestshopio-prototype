@@ -270,7 +270,7 @@
         info: 'Most/Least expensive rules may still return the selected purchased product.',
         visibleWhen: (s) => (s.recommendation_rule || 'best_sellers') !== 'best_sellers' },
       { key: 'maximum_products', label: 'Maximum products', control: 'number', default: 4, min: 1, max: 10,
-        info: 'The storefront displays no more than this number.' },
+        info: 'Enter a value from 1 to 10. The storefront displays no more than this number.' },
       { sub: 'Discount' },
       { key: 'discount_type', label: 'Discount type', control: 'select', default: 'percentage', options: (s, ctx) => [
         { value: 'percentage', label: '% Off' },
