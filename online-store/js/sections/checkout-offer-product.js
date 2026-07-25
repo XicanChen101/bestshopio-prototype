@@ -396,12 +396,12 @@
           (v.id === selectedVariant.id ? ' selected' : '') + '>' + esc(v.title) + '</option>').join('');
         const variant = s.show_variant === false || !variants.length ? '' :
           '<label class="cko-choice cko-variant-choice"><span>' + esc(product.variantLabel || 'Variant') + '</span>' +
-            '<select data-offer-variant>' + variantOptions + '</select></label>';
+            '<select data-offer-variant' + (alreadyAdded ? ' disabled' : '') + '>' + variantOptions + '</select></label>';
         const quantities = (product.quantityOptions || [product.quantity || 1]).map((q) =>
           '<option value="' + esc(String(q)) + '"' + (+q === initialQty ? ' selected' : '') + '>' + esc(String(q)) + '</option>').join('');
         const qty = s.show_quantity === false ? '' :
           '<label class="cko-choice cko-qty-choice"><span>' + esc(s.quantity_label || 'Quantity') + '</span>' +
-            '<select data-offer-qty>' + quantities + '</select></label>';
+            '<select data-offer-qty' + (alreadyAdded ? ' disabled' : '') + '>' + quantities + '</select></label>';
         const choices = variant || qty ? '<div class="cko-choices">' + variant + qty + '</div>' : '';
         const shipping = s.show_shipping === false ? '' :
           '<div class="cko-shipping"><span>Shipping</span><strong>' +
@@ -416,7 +416,8 @@
           '<button class="cko-accept" type="button" data-offer-accept data-accept-template="' + esc(acceptTemplate) +
             '" data-offer-id="' + esc(product.id || String(index + 1)) +
             '"' + (alreadyAdded ? ' disabled data-offer-added="1"' : '') +
-            '" style="background:' + (s.button_background || 'var(--ck-btn-bg)') +
+            ' aria-live="polite"' +
+            ' style="background:' + (s.button_background || 'var(--ck-btn-bg)') +
             ';color:' + (s.button_text_color || 'var(--ck-btn-text)') + '">' + esc(accept) + '</button>' +
           singleFlowActions +
         '</div>';
@@ -444,6 +445,26 @@
       const decline = el.querySelector('[data-offer-decline]');
       const accepts = Array.from(el.querySelectorAll('[data-offer-accept]'));
       const currency = ((ctx || {}).offer && ctx.offer.currency) || 'USD';
+      let adding = false;
+      const disableCardChoices = (card, disabled) => {
+        if (!card) return;
+        card.querySelectorAll('[data-offer-variant],[data-offer-qty]').forEach((control) => {
+          control.disabled = !!disabled;
+        });
+      };
+      const allPurchasableProductsAdded = () => accepts.every((button) =>
+        button.hasAttribute('data-offer-added') || button.hasAttribute('data-offer-unavailable'));
+      const refreshAcceptAvailability = () => {
+        accepts.forEach((button) => {
+          if (button.hasAttribute('data-offer-added')) {
+            button.disabled = true;
+            disableCardChoices(button.closest('[data-offer-card]'), true);
+            return;
+          }
+          const card = button.closest('[data-offer-card]');
+          if (card) updateCard(card);
+        });
+      };
       const updateUpsellThreshold = (card, quote) => {
         if (!ctx || ctx.checkoutPage !== 'upsell') return;
         const stateKey = upsellPreviewKey(ctx);
@@ -483,8 +504,11 @@
         if (accept && !accept.hasAttribute('data-offer-added')) {
           if (!validPrice) {
             accept.disabled = true;
+            accept.setAttribute('data-offer-unavailable', '1');
             accept.textContent = 'Product unavailable';
           } else {
+            accept.removeAttribute('data-offer-unavailable');
+            accept.disabled = adding;
             const amount = formatMoney(quote.subtotal, currency) + ' ' + currency;
             accept.textContent = String(accept.dataset.acceptTemplate || 'Add to my order · {amount}').replace(/\{amount\}/g, amount);
           }
@@ -502,8 +526,10 @@
       accepts.forEach((accept) => {
         accept.addEventListener('click', (e) => {
           e.preventDefault();
-          if (accept.disabled) return;
+          if (accept.disabled || adding) return;
+          adding = true;
           accepts.forEach((button) => { button.disabled = true; });
+          if (decline) decline.disabled = true;
           accept.textContent = 'Adding\u2026';
           setTimeout(() => {
             const id = accept.getAttribute('data-offer-id');
@@ -542,13 +568,23 @@
             const existingLine = locked.findIndex((item) => item.id === line.id);
             if (existingLine >= 0) locked[existingLine] = line; else locked.push(line);
             OS.ckState['post-purchase-accepted-lines'] = locked;
+            accept.setAttribute('data-offer-added', '1');
+            accept.removeAttribute('data-offer-unavailable');
+            disableCardChoices(card, true);
             accept.textContent = 'Added to order';
-            OS.goCheckoutPage('thankyou');
+            adding = false;
+            if (allPurchasableProductsAdded()) {
+              setTimeout(() => OS.goCheckoutPage('thankyou'), 350);
+              return;
+            }
+            refreshAcceptAvailability();
+            if (decline) decline.disabled = false;
           }, 500);
         });
       });
       if (decline) decline.addEventListener('click', (e) => {
         e.preventDefault();
+        if (adding) return;
         OS.goCheckoutPage(ctx && ctx.checkoutPage === 'upsell' ? 'downsell' : 'thankyou');
       });
     },
@@ -588,6 +624,7 @@
   .cko-accept{width:100%;height:var(--ck-btn-h);margin-top:14px;border:0;border-radius:var(--ck-btn-radius);font:inherit;font-weight:700;cursor:pointer}
   .cko-accept:disabled{opacity:.72;cursor:default}
   .cko-decline{align-self:center;margin-top:11px;border:0;background:none;color:var(--ck-accent);font:inherit;font-size:var(--ck-small-fs);text-decoration:underline;cursor:pointer}
+  .cko-decline:disabled{opacity:.5;cursor:wait}
   .cko-payment-note{margin-top:12px;text-align:center;color:var(--ck-muted);font-size:10.5px;line-height:1.4}
   .cko-rec-empty{padding:28px;border:1px dashed var(--ck-divider);border-radius:10px;background:color-mix(in srgb,var(--ck-page-bg) 88%,#fff);text-align:center}
   .cko-rec-empty strong{display:block;font-family:var(--ck-heading-font);font-size:17px}.cko-rec-empty p{max-width:520px;margin:7px auto 0;color:var(--ck-muted);font-size:12px;line-height:1.5}
