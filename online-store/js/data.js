@@ -224,6 +224,20 @@
         ] },
       { id: 'p5', title: 'Crewneck sweater', vendor: 'Aura Studio', price: 44.0, compareAt: 0, rating: 4.5, reviews: 64, image: IMG.p5, swatches: ['#6b705c', '#cb997e'] },
       { id: 'p6', title: 'Pleated midi skirt', vendor: 'Aura Studio', price: 38.0, compareAt: 49.0, rating: 4.4, reviews: 51, image: IMG.p6, swatches: ['#1b1f24', '#b08968'] },
+      { id: 'p7', title: 'Canvas weekender tote', vendor: 'Aura Studio', price: 29.0, compareAt: 39.0, rating: 4.7, reviews: 83, image: IMG.cat1, swatches: ['#b08968', '#2b2f36'] },
+      { id: 'p8', title: 'Everyday rib socks · 3 pack', vendor: 'Aura Studio', price: 16.0, compareAt: 24.0, rating: 4.6, reviews: 119, image: IMG.cat2, swatches: ['#eae3d6', '#1b1f24'] },
+      { id: 'p9', title: 'Mini canvas pouch', vendor: 'Aura Studio', price: 14.0, compareAt: 19.0, rating: 4.5, reviews: 72, image: IMG.p1, swatches: ['#c8b6a6', '#2b2f36'] },
+      { id: 'p10', title: 'Travel care kit', vendor: 'Aura Studio', price: 12.0, compareAt: 18.0, rating: 4.6, reviews: 91, image: IMG.p2, swatches: ['#d9d2c5'] },
+      { id: 'p11', title: 'Essential hair scarf', vendor: 'Aura Studio', price: 18.0, compareAt: 25.0, rating: 4.4, reviews: 54, image: IMG.p3, swatches: ['#1b1f24', '#d8c3a5'] },
+      { id: 'p12', title: 'Cotton sleep mask', vendor: 'Aura Studio', price: 9.5, compareAt: 14.0, rating: 4.7, reviews: 108, image: IMG.p4, swatches: ['#33415c', '#eae3d6'] },
+      { id: 'p13', title: 'Everyday claw clip set', vendor: 'Aura Studio', price: 15.0, compareAt: 21.0, rating: 4.6, reviews: 137, image: IMG.p5, swatches: ['#6b705c', '#cb997e'] },
+      { id: 'p14', title: 'Compact jewelry case', vendor: 'Aura Studio', price: 20.0, compareAt: 28.0, rating: 4.8, reviews: 66, image: IMG.p6, swatches: ['#b08968', '#1b1f24'] },
+      { id: 'p15', title: 'Soft-touch headband', vendor: 'Aura Studio', price: 11.0, compareAt: 16.0, rating: 4.5, reviews: 84, image: IMG.cat1, swatches: ['#d8c3a5', '#1b1f24'] },
+      { id: 'p16', title: 'Linen scrunchie set', vendor: 'Aura Studio', price: 13.0, compareAt: 18.0, rating: 4.6, reviews: 102, image: IMG.cat2, swatches: ['#c8b6a6', '#9fb0a0'] },
+      { id: 'p17', title: 'Pocket mirror', vendor: 'Aura Studio', price: 8.0, compareAt: 12.0, rating: 4.4, reviews: 47, image: IMG.p1, swatches: ['#2b2f36'] },
+      { id: 'p18', title: 'Mini travel comb', vendor: 'Aura Studio', price: 7.5, compareAt: 11.0, rating: 4.5, reviews: 59, image: IMG.p2, swatches: ['#eae3d6'] },
+      { id: 'p19', title: 'Reusable garment bag', vendor: 'Aura Studio', price: 17.0, compareAt: 24.0, rating: 4.7, reviews: 73, image: IMG.p3, swatches: ['#3a3f4a'] },
+      { id: 'p20', title: 'Delicate wash bag set', vendor: 'Aura Studio', price: 10.0, compareAt: 15.0, rating: 4.6, reviews: 96, image: IMG.p4, swatches: ['#eae3d6', '#33415c'] },
     ],
     // Service / membership products bound by the Shipping Insurance & VIP Club components.
     // They carry their own price and show up in the Order Summary like a normal line item.
@@ -669,9 +683,45 @@
         : 'offer',
     })) }));
 
+  // The recommendation preview resolves product + variant references from this catalog. It intentionally
+  // carries product availability alongside Offer quote fields so the editor can demonstrate
+  // filtering without pretending to own the production inventory/Market checks.
+  const offerCatalog = () => SAMPLE.products.map((product, index) => {
+    const price = +product.price;
+    const compareAt = +(product.compareAt || product.price).toFixed(2);
+    const variants = (product.variants || []).map((variant) => {
+      const variantPrice = +variant.price;
+      const variantCompare = +(variant.compareAt || variant.price).toFixed(2);
+      return {
+        id: variant.id, title: variant.title, price: variantPrice, compareAt: variantCompare,
+        total: variantPrice, savings: 'Save ' + Math.max(0, Math.round((1 - variantPrice / variantCompare) * 100)) + '%',
+        available: variant.available !== false,
+      };
+    });
+    return {
+      id: product.id, title: product.title, image: product.image, status: product.status, bestSellerRank: index + 1,
+      published: product.published !== false, marketSupported: product.marketSupported !== false,
+      available: product.available !== false, inventory: product.inventory == null ? 20 : product.inventory,
+      price, compareAt, total: price,
+      savings: 'Save ' + Math.max(0, Math.round((1 - price / compareAt) * 100)) + '%',
+      rating: product.rating, reviewCount: product.reviews,
+      description: 'Add ' + product.title.toLowerCase() + ' to the order you just completed at an exclusive post-purchase price.',
+      variantLabel: variants.length ? 'Color / size' : '', variants,
+      selectedVariantId: variants.length ? variants[0].id : '',
+      quantity: 1, quantityOptions: [1, 2, 3], shippingLabel: 'Free',
+    };
+  });
   const OFFER_MOCKS = {
     upsell: {
       storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
+      catalog: offerCatalog(),
+      mockOrderProducts: [
+        { productId: 'p1', variantId: '', quantity: 1, paidAmount: 32.99 },
+        { productId: 'p2', variantId: '', quantity: 2, paidAmount: 37.98 },
+        { productId: 'p5', variantId: '', quantity: 1, paidAmount: 44.00 },
+      ],
+      previouslyDisplayedProductIds: [],
+      acceptedProductIds: [],
       products: [
         {
           id: 'creatine-3', title: 'Creatine (3 Extra)', image: IMG.p3, compareAt: 49.99, price: 35.00, total: 104.98,
@@ -717,6 +767,20 @@
     },
     downsell: {
       storeName: 'AURA', confirmationNumber: 'NWRGFFKTF', orderNumber: '#1001', currency: 'USD',
+      catalog: offerCatalog(),
+      mockOrderProducts: [
+        { productId: 'p1', variantId: '', quantity: 1, paidAmount: 32.99 },
+        { productId: 'p2', variantId: '', quantity: 2, paidAmount: 37.98 },
+        { productId: 'p5', variantId: '', quantity: 1, paidAmount: 44.00 },
+      ],
+      precedingUpsellOfferProducts: [
+        { productId: 'p3', effectivePrice: 37.35 },
+        { productId: 'p6', effectivePrice: 34.20 },
+        { productId: 'p7', effectivePrice: 26.10 },
+        { productId: 'p8', effectivePrice: 14.40 },
+      ],
+      previouslyDisplayedProductIds: ['p3', 'p6', 'p7', 'p8'],
+      acceptedProductIds: [],
       products: [
         {
           id: 'creatine-1', title: 'Creatine (1 Extra)', image: IMG.p3, compareAt: 29.99, price: 19.99, total: 19.99,

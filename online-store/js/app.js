@@ -190,9 +190,26 @@
     return out;
   }
   function defForKind(kind) { return SECTIONS[kind]; }
-  function schemaDefaults(schema) { const o = {}; (schema || []).forEach((f) => { if (f.key) o[f.key] = f.default; }); return o; }
+  function schemaDefaults(schema) { const o = {}; (schema || []).forEach((f) => { if (f.key && !f.previewOnly) o[f.key] = f.default; }); return o; }
   function sectionDefaults(def) { return Object.assign({}, def ? schemaDefaults(def.schema) : {}, (def && def.defaults) ? def.defaults() : {}); }
   function blockDefaults(bd) { return Object.assign({}, bd ? schemaDefaults(bd.fields) : {}, (bd && bd.defaults) ? bd.defaults() : {}); }
+  function normalizeSectionSettings(def, settings) {
+    (def && def.schema || []).forEach((field) => {
+      if (field.control === 'ordered_variants' && Array.isArray(settings[field.key])) {
+        settings[field.key] = settings[field.key].map((ref) => {
+          const info = variantRefInfo(ref); return info && info.ref;
+        }).filter(Boolean);
+      }
+      if (field.control === 'product_mappings' && Array.isArray(settings[field.key])) {
+        settings[field.key] = settings[field.key].map((mapping) => Object.assign({}, mapping, {
+          recommendedProductIds: (mapping.recommendedProductIds || []).map((ref) => {
+            const info = variantRefInfo(ref); return info && info.ref;
+          }).filter(Boolean),
+        }));
+      }
+    });
+    return settings;
+  }
   function matGlobal(kind, seed) {
     const def = defForKind(kind); seed = seed || {};
     const inst = { kind, hidden: !!seed.hidden, settings: Object.assign(sectionDefaults(def), seed.settings || {}) };
@@ -212,7 +229,8 @@
     const def = defForKind(seed.kind);
     let blocks = [];
     if (def && def.blocks) blocks = seed.blocks ? seed.blocks.map((b) => matBlock(def, b)) : (def.defaultBlocks ? def.defaultBlocks() : []);
-    const inst = { id: seed.id || uid('sec'), kind: seed.kind, hidden: !!seed.hidden, settings: Object.assign(sectionDefaults(def), seed.settings || {}), blocks };
+    const settings = normalizeSectionSettings(def, Object.assign(sectionDefaults(def), seed.settings || {}));
+    const inst = { id: seed.id || uid('sec'), kind: seed.kind, hidden: !!seed.hidden, settings, blocks };
     if (seed.zone) inst.zone = seed.zone;
     return inst;
   }
@@ -251,7 +269,7 @@
         sections: (ckBase[pt] || []).map(matSection),
       })) };
     });
-    theme.checkout = { settings: buildCkSettingsDefaults(), templates: ckTemplates };
+    theme.checkout = { postPurchaseEnabled: false, settings: buildCkSettingsDefaults(), templates: ckTemplates };
     return theme;
   }
 
@@ -404,7 +422,8 @@
   // Checkout theme: each of the four page types has its own template list.
   const ckGroupOf = (pt) => ED.theme.checkout.templates[pt];
   const ckGroup = () => ckGroupOf(ED.checkoutPage);
-  const curCkTplId = () => { const g = ckGroup(); const id = ED.ckTplSel[ED.checkoutPage]; return (id && g.list.some((t) => t.id === id)) ? id : (defaultOf(g) || {}).id; };
+  const ckTplIdOf = (pt) => { const g = ckGroupOf(pt); const id = ED.ckTplSel[pt]; return (id && g.list.some((t) => t.id === id)) ? id : (defaultOf(g) || {}).id; };
+  const curCkTplId = () => ckTplIdOf(ED.checkoutPage);
   const curCkTpl = () => { const g = ckGroup(); return g.list.find((t) => t.id === curCkTplId()) || g.list[0]; };
   const settingsObj = () => isCheckout() ? ED.theme.checkout.settings : ED.theme.settings;
   const isDirty = () => !eq(ED.theme, ED.savedTheme);
@@ -414,6 +433,7 @@
   const isThankyou = () => isCheckout() && ED.checkoutPage === 'thankyou';
   const isUpsell = () => isCheckout() && ED.checkoutPage === 'upsell';
   const isDownsell = () => isCheckout() && ED.checkoutPage === 'downsell';
+  const postPurchaseEnabled = () => !!(ED && ED.theme && ED.theme.checkout && ED.theme.checkout.postPurchaseEnabled);
   const ckPageLabel = (pt) => (D.CHECKOUT_PAGES.find((p) => p.value === pt) || {}).label || pt;
   const pageSections = () => isCheckout() ? curCkTpl().sections : curTpl().sections;
   const pageLabel = () => isCheckout() ? ckPageLabel(ED.checkoutPage) : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage) || {}).label || ED.currentPage);
@@ -454,7 +474,11 @@
     m.querySelector('[data-cancel]').onclick = close;
     back.onclick = (e) => { if (e.target === back) close(); };
     m.querySelector('[data-discard]').onclick = () => { close(); ED.theme = clone(ED.savedTheme); proceed(); };
-    m.querySelector('[data-save]').onclick = () => { close(); ED.savedTheme = clone(ED.theme); ED.meta.updated_time = nowStr(); proceed(); };
+    m.querySelector('[data-save]').onclick = () => {
+      const issues = validate(true);
+      if (issues.length) { close(); openIssues(issues, 'saving'); return; }
+      close(); ED.savedTheme = clone(ED.theme); ED.meta.updated_time = nowStr(); proceed();
+    };
   }
 
   // ==========================================================================
@@ -882,7 +906,21 @@
     if (!secs.length) html += '<div class="os-empty-canvas">This template has no visible sections.<br>Add one from the left, or switch page type.</div>';
     return html;
   }
-  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkout: D.CHECKOUT_MOCK, offer: isOfferPage() ? ((D.OFFER_MOCKS || {})[ED.checkoutPage] || null) : null, snapshot: isThankyou() ? D.THANKYOU_SNAPSHOT : null, ckAddons: CK_ADDONS }; }
+  function thankyouSnapshot() {
+    const snap = clone(D.THANKYOU_SNAPSHOT || {});
+    const accepted = Array.isArray(OS.ckState['post-purchase-accepted-lines'])
+      ? clone(OS.ckState['post-purchase-accepted-lines']) : [];
+    const offerFlow = (OS.ckState || {})['post-purchase-offer-flow'] || {};
+    if (!accepted.length && !offerFlow.visited) return snap;
+    snap.lines = (snap.lines || []).filter((line) => !line.upsell && !line.downsell).concat(accepted);
+    if (accepted[0] && accepted[0].currency) snap.currency = accepted[0].currency;
+    snap.subtotal = snap.lines.reduce((total, line) => total + (+line.price || 0) * (+line.qty || 1), 0);
+    snap.discount = (snap.discounts || []).reduce((total, item) =>
+      total + (+item.product || 0) + (+item.order || 0) + (+item.shipping || 0), 0);
+    snap.total = snap.subtotal - snap.discount + (+snap.shipping || 0) + (+snap.tax || 0);
+    return snap;
+  }
+  function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkoutTemplateId: isCheckout() ? curCkTplId() : '', precedingUpsellTemplateId: isCheckout() ? ckTplIdOf('upsell') : '', checkout: D.CHECKOUT_MOCK, offer: isOfferPage() ? ((D.OFFER_MOCKS || {})[ED.checkoutPage] || null) : null, snapshot: isThankyou() ? thankyouSnapshot() : null, ckAddons: CK_ADDONS }; }
 
   // -------------------------------------------------------------- CHECKOUT canvas
   // Fixed two-column layout on PC (form + summary); single column on mobile with a
@@ -1019,8 +1057,8 @@
     return '<div class="ckpage ty ' + (mob ? 'mob' : '') + '" style="' + pageStyle + '">' + announceHtml + header + mobTopSummary + inner + bottomHtml + '</div>';
   }
   // -------------------------------------------------------------- UPSELL / DOWNSELL canvas
-  // One shared post-purchase offer renderer. It consumes a read-only offer preview payload;
-  // recommendation, pricing, payment and routing remain outside Theme.
+  // One shared post-purchase offer renderer. Theme owns declarative recommendation settings
+  // and editor Mock preview; live eligibility, quote, payment and routing remain service-owned.
   function offerCanvasHtml() {
     const tk = ED.theme.checkout.settings; const mob = ED.device === 'mobile';
     const secs = pageSections();
@@ -1153,7 +1191,7 @@
       const def = SECTIONS[s.kind];
       const rm = isCheckout() ? '' : '<button class="os-remove" data-remove-sec="' + s.id + '">' + I.trash + ' Remove section</button>';
       return panelHead(def ? def.icon : 'layers', sectionLabel(s), def ? def.name : s.kind, s.hidden, 'section', s.id, isCheckout()) +
-        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, s.settings, '', schemaCtx()) : noSettings()) + rm + '</div>';
+        '<div class="os-right-scroll" id="os-form">' + (def ? schemaForm(def.schema, panelSettings(s), '', schemaCtx(s.id)) : noSettings()) + rm + '</div>';
     }
     if (sel.kind === 'block') {
       const s = pageSections().find((x) => x.id === sel.sectionId) || globalBySel(sel.sectionId);
@@ -1167,8 +1205,19 @@
     return emptyRight('Select a section or block to edit.');
   }
   function globalBySel(scope) { return (scope === 'footer' || scope === 'header' || scope === 'announcement') ? ED.theme[scope] : null; }
-  // Page context passed to schema visibleWhen so shared components can hide fields per page.
-  function schemaCtx() { return { surface: ED.surface, checkoutPage: ED.checkoutPage, isThankyou: isThankyou(), isOffer: isOfferPage() }; }
+  function panelSettings(section) {
+    return section ? section.settings : {};
+  }
+  // Page context passed to schema visibleWhen / preview summaries.
+  function schemaCtx(sectionId) {
+    return {
+      surface: ED.surface, checkoutPage: ED.checkoutPage, isThankyou: isThankyou(), isOffer: isOfferPage(),
+      checkoutTemplateId: isCheckout() ? curCkTplId() : '',
+      precedingUpsellTemplateId: isCheckout() ? ckTplIdOf('upsell') : '',
+      offer: isOfferPage() ? ((D.OFFER_MOCKS || {})[ED.checkoutPage] || null) : null,
+      sample: D.SAMPLE,
+    };
+  }
   function panelHead(icon, title, sub, hidden, scope, id, locked) {
     const vis = locked
       ? '<span class="os-rh-vis" title="Required component" style="cursor:default;color:#c4cad3">' + I.lock + '</span>'
@@ -1192,27 +1241,29 @@
     if (f.sub) return visible(f, values, ctx) ? '<div class="os-sub">' + esc(f.sub) + '</div>' : '';
     if (f.info && !f.key) return visible(f, values, ctx) ? '<div class="os-info">' + esc(f.info) + '</div>' : '';
     if (!visible(f, values, ctx)) return '';
+    if (!f.key && typeof f.render === 'function') return f.render(values, ctx);
     const val = values[f.key];
     const hint = f.info ? '<div class="os-fhint">' + esc(f.info) + '</div>' : '';
     if (f.control === 'toggle') {
-      return '<div class="os-fld os-fld-row"><label class="os-flabel">' + esc(f.label) + req(f) + '</label>' + control(f, val) + '</div>' + hint;
+      return '<div class="os-fld os-fld-row"><label class="os-flabel">' + esc(f.label) + req(f) + '</label>' + control(f, val, values, ctx) + '</div>' + hint;
     }
     const valTag = (f.control === 'range') ? '<span class="os-fval">' + esc(fmtRange(f, val)) + '</span>' : '';
-    return '<div class="os-fld"><label class="os-flabel">' + esc(f.label) + req(f) + valTag + '</label>' + control(f, val) + hint + '</div>';
+    return '<div class="os-fld"><label class="os-flabel">' + esc(f.label) + req(f) + valTag + '</label>' + control(f, val, values, ctx) + hint + '</div>';
   }
   function req(f) { return f.required ? '<span class="os-req">*</span>' : ''; }
   function fmtRange(f, v) { v = (v == null ? f.default : v); return v + (f.unit || ''); }
-  function control(f, val) {
+  function control(f, val, values, ctx) {
     const dk = 'data-fkey="' + esc(f.key) + '" data-control="' + f.control + '"';
+    const opts = typeof f.options === 'function' ? (f.options(values, ctx) || []) : (f.options || []);
     switch (f.control) {
       case 'text': case 'url':
         return '<input class="os-input" ' + dk + (f.maxlength ? ' maxlength="' + f.maxlength + '"' : '') + ' type="text" value="' + esc(val) + '" placeholder="' + esc(f.placeholder || '') + '">';
       case 'textarea': case 'custom_css': case 'richtext':
         return '<textarea class="os-input os-ta' + (f.control === 'custom_css' ? ' mono' : '') + '" ' + dk + (f.maxlength ? ' maxlength="' + f.maxlength + '"' : '') + ' rows="' + (f.control === 'custom_css' ? 4 : 3) + '" placeholder="' + esc(f.placeholder || '') + '">' + esc(val) + '</textarea>' + (f.control === 'richtext' ? '<div class="os-fhint">Rich text — basic HTML allowed.' + (f.maxlength ? ' Max ' + f.maxlength + ' characters.' : '') + '</div>' : (f.maxlength ? '<div class="os-fhint">Max ' + f.maxlength + ' characters.</div>' : ''));
       case 'select':
-        return '<select class="os-select" ' + dk + '>' + (f.options || []).map((o) => '<option value="' + esc(o.value) + '"' + (String(o.value) === String(val) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select>';
+        return '<select class="os-select" ' + dk + '>' + opts.map((o) => '<option value="' + esc(o.value) + '"' + (String(o.value) === String(val) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') + '</select>';
       case 'segmented':
-        return '<div class="os-seg2" ' + dk + '>' + (f.options || []).map((o) => '<button data-v="' + esc(o.value) + '" class="' + (String(o.value) === String(val) ? 'on' : '') + '">' + esc(o.label) + '</button>').join('') + '</div>';
+        return '<div class="os-seg2" ' + dk + '>' + opts.map((o) => '<button data-v="' + esc(o.value) + '" class="' + (String(o.value) === String(val) ? 'on' : '') + '">' + esc(o.label) + '</button>').join('') + '</div>';
       case 'toggle':
         return '<span class="os-tg' + (val ? ' on' : '') + '" ' + dk + '><i></i></span>';
       case 'range':
@@ -1238,6 +1289,12 @@
           '</div>';
       case 'collections':
         return collectionsControl(f, val, dk);
+      case 'ordered_products':
+        return orderedProductsControl(f, val, dk);
+      case 'ordered_variants':
+        return orderedVariantsControl(f, val, dk);
+      case 'product_mappings':
+        return productMappingsControl(f, val, dk);
       case 'product': case 'collection': case 'menu': case 'blog': case 'page':
         return pickerControl(f, val, dk);
       default:
@@ -1276,6 +1333,87 @@
       '<div class="os-colsel-list" data-cols-list>' + rows + '</div>' +
       '<button class="os-colsel-change" data-cols-pick>Change</button></div>';
   }
+  function productRowHtml(id, removable) {
+    const p = (D.SAMPLE.products || []).find((x) => x.id === id);
+    if (!p) return '';
+    const unavailable = p.status === 'draft' || p.available === false;
+    return '<div class="os-op-row" draggable="true" data-op-id="' + esc(p.id) + '">' +
+      '<span class="os-op-thumb" style="background-image:url(' + esc(p.image || '') + ')"></span>' +
+      '<span class="os-op-copy"><strong>' + esc(p.title) + '</strong>' +
+        (unavailable ? '<small>Currently unavailable</small>' : '<small>' + money(p.price || 0) + '</small>') + '</span>' +
+      (removable ? '<button type="button" class="os-op-remove" data-op-remove="' + esc(p.id) + '" aria-label="Remove ' + esc(p.title) + '">×</button>' : '') +
+      '<span class="os-op-grip" title="Drag to reorder">' + I_grip + '</span></div>';
+  }
+  const VARIANT_REF_SEP = '::';
+  function variantRefInfo(value) {
+    const raw = value && typeof value === 'object'
+      ? String(value.productId || '') + VARIANT_REF_SEP + String(value.variantId || 'default')
+      : String(value || '');
+    const parts = raw.split(VARIANT_REF_SEP);
+    const product = (D.SAMPLE.products || []).find((item) => item.id === parts[0]);
+    if (!product) return null;
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const variant = variants.find((item) => item.id === parts[1]) || variants.find((item) => item.available !== false) || variants[0] || null;
+    return {
+      ref: product.id + VARIANT_REF_SEP + (variant ? variant.id : 'default'),
+      product,
+      variant,
+      variantTitle: variant ? variant.title : 'Default variant',
+      price: variant ? variant.price : product.price,
+    };
+  }
+  function variantRowHtml(value, removable) {
+    const info = variantRefInfo(value);
+    if (!info) return '';
+    const product = info.product;
+    const unavailable = product.status === 'draft' || product.available === false || (info.variant && info.variant.available === false);
+    return '<div class="os-op-row" draggable="true" data-op-id="' + esc(info.ref) + '">' +
+      '<span class="os-op-thumb" style="background-image:url(' + esc(product.image || '') + ')"></span>' +
+      '<span class="os-op-copy"><strong>' + esc(product.title) + '</strong>' +
+        '<small>' + esc(info.variantTitle) + (unavailable ? ' · Currently unavailable' : ' · ' + money(info.price || 0)) + '</small></span>' +
+      (removable ? '<button type="button" class="os-op-remove" data-op-remove="' + esc(info.ref) + '" aria-label="Remove ' + esc(product.title + ' · ' + info.variantTitle) + '">×</button>' : '') +
+      '<span class="os-op-grip" title="Drag to reorder">' + I_grip + '</span></div>';
+  }
+  function orderedProductsControl(f, val, dk) {
+    const ids = Array.isArray(val) ? val : [];
+    const rows = ids.map((id) => productRowHtml(id, true)).join('');
+    return '<div class="os-oplist" ' + dk + ' data-max="' + (f.max || 10) + '">' +
+      (rows ? '<div class="os-op-rows" data-op-rows>' + rows + '</div>' : '<div class="os-op-empty">No products selected</div>') +
+      '<button type="button" class="os-op-select" data-op-pick>' + (rows ? 'Change products' : 'Select products') + '</button></div>';
+  }
+  function orderedVariantsControl(f, val, dk) {
+    const refs = Array.isArray(val) ? val : [];
+    const rows = refs.map((ref) => variantRowHtml(ref, true)).join('');
+    return '<div class="os-oplist" ' + dk + ' data-max="' + (f.max || 10) + '">' +
+      (rows ? '<div class="os-op-rows" data-op-rows>' + rows + '</div>' : '<div class="os-op-empty">No product variants selected</div>') +
+      '<button type="button" class="os-op-select" data-op-pick>' + (rows ? 'Change variants' : 'Select variants') + '</button></div>';
+  }
+  function productMappingsControl(f, val, dk) {
+    const mappings = Array.isArray(val) ? val : [];
+    const cards = mappings.map((m, index) => {
+      m = m || {};
+      const purchased = m && m.purchasedProductId ? productRowHtml(m.purchasedProductId, false) : '<div class="os-map-empty">Select a purchased product</div>';
+      const recommended = (m && Array.isArray(m.recommendedProductIds) ? m.recommendedProductIds : []).map((ref) => variantRowHtml(ref, true)).join('');
+      const duplicate = m.purchasedProductId && mappings.some((other, otherIndex) => otherIndex < index && other && other.purchasedProductId === m.purchasedProductId);
+      const invalid = !m.purchasedProductId
+        ? 'Select a purchased product.'
+        : duplicate ? 'A mapping for this product already exists.'
+        : !(m.recommendedProductIds || []).length ? 'Select at least one recommended product variant.' : '';
+      return '<div class="os-map-card" draggable="true" data-map-id="' + esc(m.id || String(index)) + '" data-map-index="' + index + '">' +
+        '<div class="os-map-head"><span class="os-map-grip">' + I_grip + '</span><strong>Mapping ' + (index + 1) + '</strong>' +
+          '<button type="button" data-map-remove="' + index + '">Remove</button></div>' +
+        '<label class="os-map-label">Purchased product</label><div class="os-map-purchased">' + purchased + '</div>' +
+        '<button type="button" class="os-map-action" data-map-purchased="' + index + '">' + (m.purchasedProductId ? 'Change product' : 'Select product') + '</button>' +
+        '<label class="os-map-label">Recommended variants</label>' +
+        (recommended ? '<div class="os-op-rows" data-map-rec-list="' + index + '">' + recommended + '</div>' : '<div class="os-map-empty">No recommended variants</div>') +
+        '<button type="button" class="os-map-action" data-map-recommended="' + index + '">' + (recommended ? 'Change variants' : 'Select variants') + '</button>' +
+        (invalid ? '<div class="os-map-error">' + esc(invalid) + '</div>' : '') +
+      '</div>';
+    }).join('');
+    return '<div class="os-mappings" ' + dk + ' data-max="' + (f.max || 50) + '">' +
+      (cards || '<div class="os-op-empty">No mappings configured</div>') +
+      '<button type="button" class="os-op-select" data-map-add>Add mapping</button></div>';
+  }
   function pickerLabel(kind, val, pickFrom) {
     const S = D.SAMPLE;
     if (kind === 'product') {
@@ -1294,11 +1432,15 @@
   function wireRight() {
     const form = document.querySelector('#os-form'); if (!form) return;
     const target = currentSettings(); if (!target) { wireRemove(form); return; }
-    const onChange = (k, v, rerenderPanel) => { target[k] = v; markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight(); };
+    const onChange = (k, v, rerenderPanel) => {
+      target[k] = v; markDirty(); refreshAffectedCanvas(); if (rerenderPanel) refreshRight();
+    };
     form.querySelectorAll('[data-control]').forEach((el) => {
       const k = el.getAttribute('data-fkey'); const ctl = el.getAttribute('data-control');
+      const field = (currentSchema() || []).find((x) => x.key === k) || {};
       if (ctl === 'text' || ctl === 'url' || ctl === 'number') {
         el.oninput = () => onChange(k, ctl === 'number' ? clampNum(el) : el.value, false);
+        if (field.refreshPanel) el.onchange = () => refreshRight();
       } else if (ctl === 'textarea' || ctl === 'custom_css' || ctl === 'richtext') {
         el.oninput = () => onChange(k, el.value, false);
       } else if (ctl === 'select') {
@@ -1324,6 +1466,12 @@
       } else if (ctl === 'collections') {
         const pick = el.querySelector('[data-cols-pick]'); if (pick) pick.onclick = () => openPickerPop(pick, ctl, target[k], (v) => onChange(k, v, true));
         const list = el.querySelector('[data-cols-list]'); if (list) wireColsReorder(list, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
+      } else if (ctl === 'ordered_products') {
+        wireOrderedProducts(el, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
+      } else if (ctl === 'ordered_variants') {
+        wireOrderedVariants(el, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
+      } else if (ctl === 'product_mappings') {
+        wireProductMappings(el, () => (Array.isArray(target[k]) ? target[k] : []), (arr) => onChange(k, arr, true));
       } else if (ctl === 'product' || ctl === 'collection' || ctl === 'menu' || ctl === 'blog' || ctl === 'page') {
         el.onclick = () => openPickerPop(el, ctl, target[k], (v) => onChange(k, v, true), el.getAttribute('data-single') === '1', el.getAttribute('data-pickfrom'));
       }
@@ -1345,6 +1493,100 @@
         let insert = arr.indexOf(targetId); if (insert < 0) insert = arr.length;
         const rect = row.getBoundingClientRect(); if (e.clientY > rect.top + rect.height / 2) insert += 1;
         arr.splice(insert, 0, dragId); setArr(arr);
+      });
+    });
+  }
+  function wireIdRows(list, rowSelector, attr, getArr, setArr) {
+    if (!list) return;
+    let dragId = null;
+    list.querySelectorAll(rowSelector).forEach((row) => {
+      row.addEventListener('dragstart', (e) => {
+        if (e.target.closest('button')) { e.preventDefault(); return; }
+        e.stopPropagation();
+        dragId = row.getAttribute(attr); row.classList.add('dragging');
+        if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {} }
+      });
+      row.addEventListener('dragend', () => { dragId = null; row.classList.remove('dragging'); });
+      row.addEventListener('dragover', (e) => { e.preventDefault(); });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const targetId = row.getAttribute(attr); if (!dragId || dragId === targetId) return;
+        const arr = getArr().slice(); const from = arr.indexOf(dragId); const to = arr.indexOf(targetId);
+        if (from < 0 || to < 0) return;
+        arr.splice(from, 1); arr.splice(to, 0, dragId); setArr(arr);
+      });
+    });
+  }
+  function wireOrderedProducts(root, getArr, setArr) {
+    const max = Math.max(1, +(root.getAttribute('data-max') || 10));
+    const pick = root.querySelector('[data-op-pick]');
+    if (pick) pick.onclick = () => openPickerPop(pick, 'product', getArr(), (v) => setArr(v), false, null, max);
+    root.querySelectorAll('[data-op-remove]').forEach((button) => {
+      button.onclick = (e) => { e.stopPropagation(); setArr(getArr().filter((id) => id !== button.getAttribute('data-op-remove'))); };
+    });
+    wireIdRows(root.querySelector('[data-op-rows]'), '[data-op-id]', 'data-op-id', getArr, setArr);
+  }
+  function wireOrderedVariants(root, getArr, setArr) {
+    const max = Math.max(1, +(root.getAttribute('data-max') || 10));
+    const pick = root.querySelector('[data-op-pick]');
+    if (pick) pick.onclick = () => openVariantPickerPop(pick, getArr(), (refs) => setArr(refs), max);
+    root.querySelectorAll('[data-op-remove]').forEach((button) => {
+      button.onclick = (e) => { e.stopPropagation(); setArr(getArr().filter((ref) => variantRefInfo(ref) && variantRefInfo(ref).ref !== button.getAttribute('data-op-remove'))); };
+    });
+    wireIdRows(root.querySelector('[data-op-rows]'), '[data-op-id]', 'data-op-id',
+      () => getArr().map((ref) => (variantRefInfo(ref) || {}).ref).filter(Boolean), setArr);
+  }
+  function wireProductMappings(root, getArr, setArr) {
+    const max = Math.max(1, +(root.getAttribute('data-max') || 50));
+    const update = (index, patch) => {
+      const arr = clone(getArr()); arr[index] = Object.assign({}, arr[index], patch); setArr(arr);
+    };
+    const add = root.querySelector('[data-map-add]');
+    if (add) add.onclick = () => {
+      const arr = clone(getArr());
+      if (arr.length >= max) { toast('You can create up to ' + max + ' product mappings.', 'err'); return; }
+      arr.push({ id: uid('map'), purchasedProductId: '', recommendedProductIds: [] }); setArr(arr);
+    };
+    root.querySelectorAll('[data-map-remove]').forEach((button) => {
+      button.onclick = () => { const arr = clone(getArr()); arr.splice(+button.getAttribute('data-map-remove'), 1); setArr(arr); };
+    });
+    root.querySelectorAll('[data-map-purchased]').forEach((button) => {
+      button.onclick = () => {
+        const index = +button.getAttribute('data-map-purchased'); const arr = getArr(); const current = (arr[index] || {}).purchasedProductId || '';
+        openPickerPop(button, 'product', current, (id) => {
+          if (arr.some((m, i) => i !== index && m.purchasedProductId === id)) { toast('A mapping for this product already exists.', 'err'); return; }
+          update(index, { purchasedProductId: id });
+        }, true);
+      };
+    });
+    root.querySelectorAll('[data-map-recommended]').forEach((button) => {
+      button.onclick = () => {
+        const index = +button.getAttribute('data-map-recommended'); const arr = getArr();
+        openVariantPickerPop(button, (arr[index] || {}).recommendedProductIds || [], (refs) => update(index, { recommendedProductIds: refs }), 10);
+      };
+    });
+    root.querySelectorAll('[data-map-rec-list]').forEach((list) => {
+      const index = +list.getAttribute('data-map-rec-list');
+      list.querySelectorAll('[data-op-remove]').forEach((button) => {
+        button.onclick = () => update(index, { recommendedProductIds: ((getArr()[index] || {}).recommendedProductIds || []).filter((ref) => {
+          const info = variantRefInfo(ref); return info && info.ref !== button.getAttribute('data-op-remove');
+        }) });
+      });
+      wireIdRows(list, '[data-op-id]', 'data-op-id',
+        () => ((getArr()[index] || {}).recommendedProductIds || []).map((ref) => (variantRefInfo(ref) || {}).ref).filter(Boolean),
+        (ids) => update(index, { recommendedProductIds: ids }));
+    });
+    let dragMap = null;
+    root.querySelectorAll('[data-map-id]').forEach((card) => {
+      card.addEventListener('dragstart', (e) => {
+        dragMap = card.getAttribute('data-map-id'); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', () => { dragMap = null; });
+      card.addEventListener('dragover', (e) => e.preventDefault());
+      card.addEventListener('drop', (e) => {
+        e.preventDefault(); const targetId = card.getAttribute('data-map-id'); if (!dragMap || dragMap === targetId) return;
+        const arr = clone(getArr()); const from = arr.findIndex((m) => m.id === dragMap); const to = arr.findIndex((m) => m.id === targetId);
+        if (from < 0 || to < 0) return; const moved = arr.splice(from, 1)[0]; arr.splice(to, 0, moved); setArr(arr);
       });
     });
   }
@@ -1751,7 +1993,7 @@
   function catalogTotal() { let n = 0; D.CATALOG.forEach((g) => n += g.entries.length); return n; }
 
   // -------------------------------------------------------------- inline resource picker (popover under the control)
-  function openPickerPop(anchor, kind, current, onPick, single, pickFrom) {
+  function openPickerPop(anchor, kind, current, onPick, single, pickFrom, maxItems) {
     closePops();
     const S = D.SAMPLE; const multi = (kind === 'product' || kind === 'collections') && !single;
     const items = kind === 'product' ? (pickFrom === 'services' ? (S.services || []) : S.products) : (kind === 'collection' || kind === 'collections') ? S.collections : kind === 'menu' ? S.menus : kind === 'blog' ? S.blogs : S.pages;
@@ -1774,7 +2016,12 @@
         '<span class="os-pk-name">' + esc(nameOf(it)) + (it.price ? ' · ' + money(it.price) : it.count != null ? ' · ' + it.count + ' items' : '') + '</span></label>').join('') : '<div class="os-pk-empty">No matches for “' + esc(query) + '”</div>';
       list.querySelectorAll('input').forEach((inp) => inp.onchange = () => {
         const id = inp.getAttribute('data-id');
-        if (multi) { inp.checked ? sel.add(id) : sel.delete(id); const r = inp.closest('.os-pk-row'); if (r) r.classList.toggle('on', inp.checked); }
+        if (multi) {
+          if (inp.checked && maxItems && sel.size >= maxItems) {
+            inp.checked = false; toast('You can select up to ' + maxItems + ' products.', 'err'); return;
+          }
+          inp.checked ? sel.add(id) : sel.delete(id); const r = inp.closest('.os-pk-row'); if (r) r.classList.toggle('on', inp.checked);
+        }
         else { closePops(); onPick(id); }
       });
     };
@@ -1788,6 +2035,118 @@
     const ph = pop.offsetHeight || 320;
     if (r.bottom + 6 + ph > window.innerHeight && r.top - 6 - ph > 8) pop.style.top = Math.round(r.top - 6 - ph) + 'px';
     else pop.style.top = Math.round(r.bottom + 6) + 'px';
+    setTimeout(() => qEl.focus(), 0);
+    closeOnOutside(pop, anchor);
+  }
+  function openVariantPickerPop(anchor, current, onPick, maxItems) {
+    closePops();
+    const products = (D.SAMPLE.products || []).map((product) => ({
+      product,
+      variants: (Array.isArray(product.variants) && product.variants.length
+        ? product.variants : [{ id: 'default', title: 'Default variant', price: product.price, available: product.available }])
+        .map((variant) => ({
+          ref: product.id + VARIANT_REF_SEP + variant.id,
+          productId: product.id,
+          title: variant.title,
+          price: variant.price,
+          unavailable: product.status === 'draft' || product.available === false || variant.available === false,
+        })),
+    }));
+    const sel = new Set((Array.isArray(current) ? current : []).map((ref) => {
+      const info = variantRefInfo(ref); return info && info.ref;
+    }).filter(Boolean));
+    const expanded = new Set(Array.from(sel).map((ref) => {
+      const info = variantRefInfo(ref); return info && info.product.id;
+    }).filter(Boolean));
+    const layer = h('<div class="pop-layer" style="z-index:250"></div>');
+    const pop = h('<div class="os-pkpop os-vpkpop"></div>');
+    pop.innerHTML =
+      '<div class="os-pkpop-search"><span class="os-pkpop-ico">' + I.search + '</span><input type="text" id="vpk-q" placeholder="Search products or variants" autocomplete="off"></div>' +
+      '<div class="os-pkpop-list" id="vpk-list"></div>' +
+      '<div class="os-pkpop-foot"><button type="button" class="btn btn-primary" data-ok>Done</button></div>';
+    layer.appendChild(pop); document.body.appendChild(layer);
+    const list = pop.querySelector('#vpk-list');
+    let query = '';
+    const selectedProductIds = () => new Set(Array.from(sel).map((ref) => {
+      const info = variantRefInfo(ref); return info && info.product.id;
+    }).filter(Boolean));
+    const draw = () => {
+      const q = query.trim().toLowerCase();
+      const shown = q ? products.filter(({ product, variants }) =>
+        (product.title + ' ' + variants.map((variant) => variant.title).join(' ')).toLowerCase().indexOf(q) >= 0) : products;
+      list.innerHTML = shown.length ? shown.map(({ product, variants }) => {
+        const availableRefs = variants.filter((variant) => !variant.unavailable).map((variant) => variant.ref);
+        const selectedCount = variants.filter((variant) => sel.has(variant.ref)).length;
+        const selectedAvailableCount = availableRefs.filter((ref) => sel.has(ref)).length;
+        const selected = selectedCount > 0;
+        const open = selected && expanded.has(product.id);
+        const disabled = !availableRefs.length;
+        const status = product.status === 'draft' ? '<span class="os-vpk-status">Draft</span>' : '';
+        const variantRows = open ? '<div class="os-vpk-variants">' + variants.map((variant) =>
+          '<label class="os-vpk-variant' + (sel.has(variant.ref) ? ' on' : '') + (variant.unavailable ? ' disabled' : '') + '">' +
+            '<input type="checkbox" data-variant-ref="' + esc(variant.ref) + '" data-product-id="' + esc(product.id) + '"' +
+              (sel.has(variant.ref) ? ' checked' : '') + (variant.unavailable ? ' disabled' : '') + '>' +
+            '<span class="os-vpk-vthumb" style="background-image:url(' + esc(product.image || '') + ')"></span>' +
+            '<span class="os-vpk-vname">' + esc(variant.title) + '</span><span class="os-vpk-vprice">' + money(variant.price || 0) + '</span>' +
+          '</label>').join('') + '</div>' : '';
+        return '<div class="os-vpk-product' + (selected ? ' on' : '') + (disabled ? ' disabled' : '') + '">' +
+          '<div class="os-vpk-product-row"><label class="os-vpk-product-main">' +
+            '<input type="checkbox" data-product-toggle="' + esc(product.id) + '"' + (availableRefs.length && selectedAvailableCount === availableRefs.length ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' +
+            '<span class="os-pk-thumb" style="background-image:url(' + esc(product.image || '') + ')"></span>' +
+            '<span class="os-vpk-product-copy"><strong>' + esc(product.title) + '</strong><small>' + variants.length + ' variant' + (variants.length === 1 ? '' : 's') + '</small></span>' +
+          '</label>' + status + '<strong class="os-vpk-product-price">' + money(product.price || 0) + '</strong>' +
+          (selected ? '<button type="button" class="os-vpk-expand' + (open ? ' open' : '') + '" data-product-expand="' + esc(product.id) + '" aria-label="' + (open ? 'Collapse' : 'Expand') + ' variants">' + I.chevR + '</button>' : '') +
+          '</div>' + variantRows + '</div>';
+      }).join('') : '<div class="os-pk-empty">No matches for “' + esc(query) + '”</div>';
+      list.querySelectorAll('[data-product-toggle]').forEach((input) => {
+        const productId = input.getAttribute('data-product-toggle');
+        const group = products.find((item) => item.product.id === productId);
+        const refs = group ? group.variants.filter((variant) => !variant.unavailable).map((variant) => variant.ref) : [];
+        const count = refs.filter((ref) => sel.has(ref)).length;
+        input.indeterminate = count > 0 && count < refs.length;
+        input.onchange = () => {
+          if (input.checked) {
+            if (!selectedProductIds().has(productId) && maxItems && selectedProductIds().size >= maxItems) {
+              input.checked = false; toast('You can select up to ' + maxItems + ' products.', 'err'); return;
+            }
+            refs.forEach((ref) => sel.add(ref)); expanded.add(productId);
+          } else {
+            refs.forEach((ref) => sel.delete(ref)); expanded.delete(productId);
+          }
+          draw();
+        };
+      });
+      list.querySelectorAll('[data-variant-ref]').forEach((input) => {
+        input.onchange = () => {
+          const ref = input.getAttribute('data-variant-ref');
+          const productId = input.getAttribute('data-product-id');
+          if (input.checked && !selectedProductIds().has(productId) && maxItems && selectedProductIds().size >= maxItems) {
+            input.checked = false; toast('You can select up to ' + maxItems + ' products.', 'err'); return;
+          }
+          input.checked ? sel.add(ref) : sel.delete(ref);
+          if (selectedProductIds().has(productId)) expanded.add(productId); else expanded.delete(productId);
+          draw();
+        };
+      });
+      list.querySelectorAll('[data-product-expand]').forEach((button) => {
+        button.onclick = () => {
+          const productId = button.getAttribute('data-product-expand');
+          expanded.has(productId) ? expanded.delete(productId) : expanded.add(productId);
+          draw();
+        };
+      });
+    };
+    draw();
+    const qEl = pop.querySelector('#vpk-q');
+    qEl.oninput = () => { query = qEl.value; draw(); };
+    pop.querySelector('[data-ok]').onclick = () => { closePops(); onPick(Array.from(sel)); };
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.min(Math.max(Math.round(rect.width), 520), window.innerWidth - 24);
+    pop.style.width = width + 'px';
+    pop.style.left = Math.max(8, Math.min(Math.round(rect.left), window.innerWidth - width - 12)) + 'px';
+    const height = pop.offsetHeight || 380;
+    pop.style.top = (rect.bottom + 6 + height > window.innerHeight && rect.top - 6 - height > 8)
+      ? Math.round(rect.top - 6 - height) + 'px' : Math.round(rect.bottom + 6) + 'px';
     setTimeout(() => qEl.focus(), 0);
     closeOnOutside(pop, anchor);
   }
@@ -1872,7 +2231,7 @@
   // Shopify-style popover: page types at root (multi types drill into a template submenu with
   // Create template); a "Checkout theme" jump; and, on the checkout
   // surface, the Checkout / Thank you pages with a back link to the online store.
-  function openPageSelector(anchor, forceRoot) {
+  function openPageSelector(anchor, forceRoot, forceLevel) {
     closePops();
     const layer = h('<div class="pop-layer"></div>');
     const pop = h('<div class="os-pkpop os-pgpop"></div>');
@@ -1881,7 +2240,7 @@
     // ('os' online store / 'ck' checkout theme). Jump links actually enter the other editor
     // and reopen this popover on its first-level menu (forceRoot). level: 'root' | <page type>.
     const env = isCheckout() ? 'ck' : 'os';
-    let level = forceRoot ? 'root' : (isCheckout() ? ED.checkoutPage : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root'));
+    let level = forceLevel || (forceRoot ? 'root' : (isCheckout() ? ED.checkoutPage : ((D.PAGE_OPTIONS.find((p) => p.value === ED.currentPage && p.multi)) ? ED.currentPage : 'root')));
     let query = '';
 
     const rootTypes = () => (env === 'ck') ? (D.CHECKOUT_PAGES || []) : D.PAGE_OPTIONS;
@@ -1898,10 +2257,25 @@
     // A page-type row (drills into its template list when multi).
     function rowType(p) {
       const on = (env === 'ck') ? (isCheckout() && p.value === ED.checkoutPage) : (!isCheckout() && p.value === ED.currentPage);
+      const optionalOffer = env === 'ck' && (p.value === 'upsell' || p.value === 'downsell');
+      const state = optionalOffer
+        ? '<span class="os-pg-status ' + (postPurchaseEnabled() ? 'enabled' : 'off') + '">' + (postPurchaseEnabled() ? 'Enabled' : 'Off') + '</span>' : '';
       return '<div class="os-pg-row' + (on ? ' on' : '') + '" data-type="' + esc(p.value) + '">' +
         '<span class="os-pg-ico">' + pageIco(p.value) + '</span>' +
         '<span class="os-pg-name">' + esc(p.label) + '</span>' +
+        state +
         (p.multi ? '<span class="os-pg-arrow">' + I.chevR + '</span>' : '') + '</div>';
+    }
+    function flowControlHtml() {
+      if (env !== 'ck') return '';
+      const enabled = postPurchaseEnabled();
+      return '<div class="os-pg-flow">' +
+        '<div class="os-pg-flow-copy"><strong>Upsell &amp; Downsell</strong><small>' +
+          (enabled ? 'Both pages are active after checkout' : 'Both pages are skipped after checkout') +
+        '</small></div>' +
+        '<button type="button" class="os-pg-switch' + (enabled ? ' on' : '') + '" data-post-toggle aria-pressed="' + enabled + '" aria-label="' +
+          (enabled ? 'Turn off Upsell and Downsell' : 'Turn on Upsell and Downsell') + '"><span></span></button>' +
+      '</div><div class="os-pg-sep"></div>';
     }
     // A template row. `nested` indents it under a page-type header in search results.
     function rowTpl(pt, t, nested) {
@@ -1950,6 +2324,7 @@
       }
       // Template list for `level`. Shopify-style: no per-row edit menu — just switch/create.
       const g = groupOf(level); let html = '<div class="os-pkpop-list">';
+      if (env === 'ck' && (level === 'upsell' || level === 'downsell')) html += flowControlHtml();
       (g ? g.list : []).forEach((t) => { html += rowTpl(level, t, false); });
       html += '<div class="os-pg-create" data-create="' + esc(level) + '">' + I.plus + ' Create template</div>';
       html += '</div>';
@@ -1974,6 +2349,11 @@
     pop.addEventListener('input', (e) => { if (e.target && e.target.id === 'pg-q') { query = e.target.value; drawBody(); } });
     pop.addEventListener('click', (e) => {
       if (e.target.closest('[data-back]')) { level = 'root'; query = ''; draw(); return; }
+      if (e.target.closest('[data-post-toggle]')) {
+        ED.theme.checkout.postPurchaseEnabled = !postPurchaseEnabled();
+        const reopenLevel = level;
+        markDirty(); reopenSelectorAtLevel(reopenLevel); return;
+      }
       const jump = e.target.closest('[data-jump]');
       // Jump = enter the OTHER editor environment, then reopen this popover on its
       // first-level menu (§5.1/§5.2) — no drilling into a specific template list.
@@ -2128,6 +2508,9 @@
   function reopenSelectorAtRoot() {
     setTimeout(() => { const btn = document.getElementById('t-page'); if (btn) openPageSelector(btn, true); }, 0);
   }
+  function reopenSelectorAtLevel(level) {
+    setTimeout(() => { const btn = document.getElementById('t-page'); if (btn) openPageSelector(btn, false, level); }, 0);
+  }
   function defaultSelection() {
     if (isCheckout()) { const s = pageSections()[0]; return s ? { kind: 'section', sectionId: s.id } : { kind: 'theme-settings' }; }
     return { kind: 'header' };
@@ -2137,6 +2520,8 @@
   // is executed and no template assignment is changed.
   function goCheckoutPage(page) {
     if (!ED || !isCheckout() || !isCkType(page)) return;
+    if ((page === 'upsell' || page === 'downsell') && !postPurchaseEnabled()) page = 'thankyou';
+    if (isOfferPage() && page === 'thankyou') OS.ckSet('post-purchase-offer-flow', { visited: true });
     ED.checkoutPage = page;
     ED.selection = defaultSelection();
     ED.leftMode = 'sections';
@@ -2157,7 +2542,10 @@
   //  SAVE / DISCARD / PUBLISH  (+ validation)
   // ==========================================================================
   function onSave() {
-    if (!isDirty()) return; ED.busy = 'saving'; refreshTop();
+    if (!isDirty()) return;
+    const issues = validate(true);
+    if (issues.length) { openIssues(issues, 'saving'); return; }
+    ED.busy = 'saving'; refreshTop();
     setTimeout(() => { ED.savedTheme = clone(ED.theme); ED.meta.updated_time = nowStr(); ED.busy = null; refreshTop(); toast('Draft saved'); }, 360);
   }
   function onDiscard() {
@@ -2171,13 +2559,20 @@
     ED.busy = 'publishing'; refreshTop();
     setTimeout(() => { if (isDirty()) ED.savedTheme = clone(ED.theme); ED.publishedTheme = clone(ED.savedTheme); ED.busy = null; refreshTop(); toast('Published to storefront'); }, 480);
   }
-  function validate() {
+  function validate(customOnly) {
     const out = [];
-    if (!ED.theme.name || !ED.theme.name.trim()) out.push({ where: 'Theme', msg: 'Theme name is required' });
+    if (!customOnly && (!ED.theme.name || !ED.theme.name.trim())) out.push({ where: 'Theme', msg: 'Theme name is required' });
     const checkInst = (inst, label) => {
       if (inst.hidden) return; const def = SECTIONS[inst.kind]; if (!def) return;
-      (def.schema || []).forEach((f) => { if (f.key && f.required && isMissing(inst.settings[f.key])) out.push({ where: label, msg: f.label + ' is required' }); });
-      (inst.blocks || []).forEach((bl, i) => { if (bl.hidden) return; const bd = blockDef(def, bl.kind); (bd && bd.fields || []).forEach((f) => { if (f.key && f.required && isMissing(bl.settings[f.key])) out.push({ where: label + ' · ' + (bd.name || 'Block') + ' #' + (i + 1), msg: f.label + ' is required' }); }); });
+      if (!customOnly) {
+        (def.schema || []).forEach((f) => { if (f.key && f.required && isMissing(inst.settings[f.key])) out.push({ where: label, msg: f.label + ' is required' }); });
+      }
+      if (typeof def.validate === 'function') {
+        (def.validate(inst.settings) || []).forEach((msg) => out.push({ where: label, msg: msg }));
+      }
+      if (!customOnly) {
+        (inst.blocks || []).forEach((bl, i) => { if (bl.hidden) return; const bd = blockDef(def, bl.kind); (bd && bd.fields || []).forEach((f) => { if (f.key && f.required && isMissing(bl.settings[f.key])) out.push({ where: label + ' · ' + (bd.name || 'Block') + ' #' + (i + 1), msg: f.label + ' is required' }); }); });
+      }
     };
     checkInst(ED.theme.announcement, 'Announcement bar'); checkInst(ED.theme.header, 'Header'); checkInst(ED.theme.footer, 'Footer');
     Object.keys(ED.theme.templates).forEach((pg) => {
@@ -2197,10 +2592,10 @@
     return out;
   }
   function isMissing(v) { return v == null || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length); }
-  function openIssues(issues) {
+  function openIssues(issues, action) {
     const back = h('<div class="modal-backdrop" style="z-index:240"></div>');
     const m = h('<div class="modal" style="width:480px"></div>');
-    m.innerHTML = '<div class="modal-head">Fix ' + issues.length + ' issue' + (issues.length > 1 ? 's' : '') + ' before publishing</div>' +
+    m.innerHTML = '<div class="modal-head">Fix ' + issues.length + ' issue' + (issues.length > 1 ? 's' : '') + ' before ' + (action || 'publishing') + '</div>' +
       '<div class="modal-body"><div class="os-issues">' + issues.slice(0, 12).map((x) => '<div class="os-issue"><span class="os-issue-w">' + esc(x.where) + '</span><span>' + esc(x.msg) + '</span></div>').join('') + (issues.length > 12 ? '<div class="os-info">…and ' + (issues.length - 12) + ' more</div>' : '') + '</div></div>' +
       '<div class="modal-foot"><button class="btn btn-primary" data-ok>Got it</button></div>';
     back.appendChild(m); document.body.appendChild(back);
@@ -2219,7 +2614,11 @@
     const close = () => back.remove();
     m.querySelector('[data-cancel]').onclick = close; back.onclick = (e) => { if (e.target === back) close(); };
     m.querySelector('[data-discard]').onclick = () => { close(); proceed(); };
-    m.querySelector('[data-save]').onclick = () => { close(); ED.savedTheme = clone(ED.theme); proceed(); };
+    m.querySelector('[data-save]').onclick = () => {
+      const issues = validate(true);
+      if (issues.length) { close(); openIssues(issues, 'saving'); return; }
+      close(); ED.savedTheme = clone(ED.theme); proceed();
+    };
   }
 
   // -------------------------------------------------------------- confirm modal
@@ -2431,6 +2830,12 @@
   .os-pg-ico{display:inline-flex;color:var(--ink-muted);flex:none}
   .os-pg-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .os-pg-arrow{display:inline-flex;color:var(--ink-muted);flex:none}
+  .os-pg-status{flex:none;padding:2px 7px;border-radius:999px;font-size:10.5px;font-weight:600;line-height:1.4}
+  .os-pg-status.enabled{background:#e8f7ee;color:#18713d}.os-pg-status.off{background:#eef0f3;color:#6b7280}
+  .os-pg-flow{display:flex;align-items:center;gap:12px;padding:9px 10px}
+  .os-pg-flow-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}.os-pg-flow-copy strong{font-size:12.5px;color:var(--ink)}.os-pg-flow-copy small{font-size:10.5px;color:var(--ink-muted);line-height:1.35}
+  .os-pg-switch{position:relative;width:36px;height:20px;padding:0;border:0;border-radius:999px;background:#c8cdd5;cursor:pointer;transition:background .15s;flex:none}
+  .os-pg-switch span{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}.os-pg-switch.on{background:var(--brand)}.os-pg-switch.on span{transform:translateX(16px)}
   .os-pg-tplinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
   .os-pg-tplinfo .os-pg-name{flex:none}
   .os-pg-sub{font-size:12px;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2613,6 +3018,18 @@
   .os-pkpop-list .os-pk-row{padding:8px 6px;border-radius:8px;border-bottom:0}
   .os-pkpop-list .os-pk-row:hover{background:var(--panel)}
   .os-pkpop-list .os-pk-row.on{background:var(--brand-50)}
+  .os-pkpop-list .os-pk-row.disabled{opacity:.55;cursor:not-allowed}
+  .os-vpkpop{max-height:min(520px,calc(100vh - 80px))}
+  .os-vpkpop .os-pkpop-list{padding:0}
+  .os-vpk-product{border-bottom:1px solid var(--hair);background:#fff}.os-vpk-product.on{background:#f7f7f8}.os-vpk-product.disabled{opacity:.6}
+  .os-vpk-product-row{display:flex;align-items:center;gap:9px;min-height:56px;padding:4px 12px}
+  .os-vpk-product-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1;cursor:pointer}.os-vpk-product-main>input,.os-vpk-variant>input{width:16px;height:16px;accent-color:var(--brand);flex:none}
+  .os-vpk-product-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}.os-vpk-product-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:12.5px}.os-vpk-product-copy small{color:var(--ink-muted);font-size:10.5px}
+  .os-vpk-product-price{font-size:12px;color:var(--ink);flex:none}.os-vpk-status{padding:3px 8px;border-radius:999px;background:#fde1b5;color:#77511c;font-size:10px;font-weight:700;text-transform:uppercase}
+  .os-vpk-expand{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;background:transparent;color:var(--ink-muted);cursor:pointer;transition:transform .15s}.os-vpk-expand.open{transform:rotate(90deg)}
+  .os-vpk-variants{margin:0 12px 0 44px;border-top:1px solid var(--hair)}
+  .os-vpk-variant{display:flex;align-items:center;gap:9px;min-height:54px;padding:4px 0;border-bottom:1px solid var(--hair);cursor:pointer}.os-vpk-variant:last-child{border-bottom:0}.os-vpk-variant.disabled{opacity:.55;cursor:not-allowed}
+  .os-vpk-vthumb{width:38px;height:38px;border-radius:6px;background:var(--panel) center/cover no-repeat;flex:none}.os-vpk-vname{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:12.5px;font-weight:600}.os-vpk-vprice{color:var(--ink);font-size:12px;flex:none}
   .os-pkpop-foot{flex:none;display:flex;justify-content:flex-end;padding:8px 10px;border-top:1px solid var(--hair)}
   .os-pkpop-foot .btn{height:32px;padding:0 16px}
   /* Template preview resource picker: All / Assigned + search + paged resource list. */
@@ -2636,6 +3053,26 @@
   .os-rs-empty{padding:28px 12px;text-align:center;color:var(--ink-muted);font-size:12.5px;line-height:1.45}
   .os-picker{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;height:34px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#fff;font-size:13px;color:var(--ink);cursor:pointer;font-family:inherit}
   .os-picker:hover{border-color:var(--brand)}.os-picker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .os-oplist,.os-mappings{display:flex;flex-direction:column;gap:8px}
+  .os-op-rows{display:flex;flex-direction:column;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:#fff}
+  .os-op-row{display:flex;align-items:center;gap:9px;min-height:48px;padding:6px 8px;border-bottom:1px solid var(--hair);background:#fff}
+  .os-op-row:last-child{border-bottom:0}.os-op-row.dragging{opacity:.45}
+  .os-op-thumb{width:34px;height:34px;flex:none;border:1px solid var(--hair);border-radius:6px;background:var(--panel) center/cover no-repeat}
+  .os-op-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:1px}
+  .os-op-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600}
+  .os-op-copy small{color:var(--ink-muted);font-size:10.5px}.os-op-copy small:first-letter{text-transform:uppercase}
+  .os-op-remove{width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--ink-muted);font-size:18px;line-height:1;cursor:pointer}
+  .os-op-remove:hover{background:#f7e9e7;color:#b3261e}
+  .os-op-grip,.os-map-grip{display:inline-flex;flex:none;color:var(--ink-muted);cursor:grab}
+  .os-op-empty,.os-map-empty{padding:10px;border:1px dashed var(--ctl);border-radius:8px;color:var(--ink-muted);font-size:11.5px;line-height:1.4}
+  .os-op-select,.os-map-action{align-self:flex-start;height:32px;padding:0 12px;border:1px solid var(--ctl);border-radius:7px;background:#fff;color:var(--ink);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .os-op-select:hover,.os-map-action:hover{border-color:var(--brand);color:var(--brand)}
+  .os-map-card{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid var(--hair);border-radius:9px;background:#fff}
+  .os-map-head{display:flex;align-items:center;gap:7px;padding-bottom:7px;border-bottom:1px solid var(--hair);cursor:grab}
+  .os-map-head strong{flex:1;font-size:12.5px}.os-map-head button{border:0;background:none;color:#b3261e;font-family:inherit;font-size:11px;cursor:pointer}
+  .os-map-label{margin-top:3px;color:var(--ink-muted);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.03em}
+  .os-map-purchased .os-op-row{border:1px solid var(--hair);border-radius:8px}.os-map-action{height:29px}
+  .os-map-error{padding:6px 8px;border-radius:6px;background:#fff2f0;color:#9d241d;font-size:10.5px;line-height:1.35}
   .os-colsel{display:flex;flex-direction:column}
   .os-colsel-btn{align-self:flex-start;height:32px;padding:0 16px;border:1px solid var(--ctl);border-radius:8px;background:var(--panel);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
   .os-colsel-btn:hover{background:#eceef2}

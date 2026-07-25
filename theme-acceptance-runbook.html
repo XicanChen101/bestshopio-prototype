@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V1.137 Theme 手工验收作战台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f6f7;
+      --surface: #fff;
+      --text: #202223;
+      --muted: #6d7175;
+      --border: #dfe3e8;
+      --primary: #303030;
+      --primary-soft: #f1f1f1;
+      --blue: #005bd3;
+      --blue-soft: #eaf4ff;
+      --green: #008060;
+      --green-soft: #e3f5ee;
+      --orange: #b98900;
+      --orange-soft: #fff5d9;
+      --red: #d72c0d;
+      --red-soft: #fff0ee;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button { font: inherit; }
+    .shell { width: min(1460px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+    .top { display: flex; align-items: flex-start; gap: 20px; }
+    .top-copy { flex: 1; }
+    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.02em; }
+    h2 { margin: 0 0 14px; font-size: 19px; }
+    h3 { margin: 0; font-size: 15px; }
+    p { margin: 0; line-height: 1.65; }
+    .muted { color: var(--muted); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .button {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600;
+    }
+    .button:hover { background: var(--primary-soft); }
+    .button.danger { color: var(--red); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 17px; }
+    .stat strong { display: block; font-size: 24px; margin-bottom: 4px; }
+    .stat span { color: var(--muted); font-size: 13px; }
+    .progress { height: 7px; background: #e8e8e8; border-radius: 99px; overflow: hidden; margin-top: 12px; }
+    .progress > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
+    .tabs {
+      position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; flex-wrap: wrap;
+      padding: 12px 0; margin-bottom: 18px; background: color-mix(in srgb, var(--bg) 92%, transparent);
+      backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+    }
+    .tab { border: 0; background: transparent; border-radius: 999px; padding: 8px 13px; cursor: pointer; color: var(--muted); }
+    .tab.active { background: var(--primary); color: white; font-weight: 650; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .grid-2 { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .stack { display: grid; gap: 12px; }
+    .callout { border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--blue-soft); border: 1px solid #b5d9ff; }
+    .callout.warning { background: var(--orange-soft); border-color: #ead58c; }
+    .callout.danger { background: var(--red-soft); border-color: #ffc2b8; }
+    .callout strong { display: block; margin-bottom: 4px; }
+    .round { padding: 13px 0; border-bottom: 1px solid var(--border); }
+    .round:last-child { border-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; line-height: 1.5; }
+    th { background: #f7f7f7; color: var(--muted); font-weight: 650; position: sticky; top: 55px; z-index: 5; }
+    tr:last-child td { border-bottom: 0; }
+    .section-head { display: flex; align-items: center; gap: 12px; margin: 24px 0 12px; }
+    .section-head h2 { margin: 0; }
+    .section-head .spacer { flex: 1; }
+    .count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .filters { display: flex; gap: 7px; flex-wrap: wrap; }
+    .filter { border: 1px solid var(--border); background: var(--surface); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+    .filter.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .risk { display: inline-flex; min-width: 34px; justify-content: center; border-radius: 99px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
+    .risk.P0 { color: #8b2500; background: var(--orange-soft); }
+    .risk.P1 { color: #004c99; background: var(--blue-soft); }
+    .risk.P2 { color: var(--muted); background: var(--primary-soft); }
+    details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 9px; overflow: hidden; }
+    summary { padding: 13px 15px; cursor: pointer; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+    summary::marker { color: var(--muted); }
+    .summary-meta { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; }
+    .check-row {
+      display: grid; grid-template-columns: 24px minmax(170px, .42fr) minmax(280px, 1fr);
+      gap: 10px; align-items: start; padding: 11px 15px; border-top: 1px solid var(--border);
+    }
+    .check-row.simple { grid-template-columns: 24px minmax(0, 1fr); }
+    .check-row.done .check-title, .check-row.done .check-copy { text-decoration: line-through; color: #8c9196; }
+    .checkbox { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--green); cursor: pointer; }
+    .check-title { font-weight: 650; }
+    .check-copy { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .list { margin: 0; padding-left: 19px; display: grid; gap: 8px; color: var(--muted); line-height: 1.55; }
+    .decision { padding: 15px; }
+    .decision p + p { margin-top: 8px; }
+    .footer-note { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 20px, 1460px); padding-top: 20px; }
+      .top, .grid-2 { display: grid; grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .check-row { grid-template-columns: 24px minmax(0, 1fr); }
+      .check-copy { grid-column: 2; }
+      .table-wrap { overflow-x: auto; }
+      table { min-width: 720px; }
+    }
+    @media print {
+      .actions, .tabs, .filters, .button { display: none !important; }
+      .panel { display: block !important; page-break-before: always; }
+      .panel:first-of-type { page-break-before: auto; }
+      details > * { display: block !important; }
+      details { break-inside: avoid; }
+      body { background: #fff; }
+      .shell { width: 100%; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div class="top-copy">
+        <h1>V1.137 Theme 手工验收作战台</h1>
+        <p class="muted">覆盖 Theme Editor、发布链路、20 个 Header/Home/Footer 组件、8 组 Theme settings 与真实 Storefront。</p>
+      </div>
+      <div class="actions">
+        <button class="button" id="printBtn">打印 / 导出 PDF</button>
+        <button class="button" id="exportBtn">导出进度</button>
+        <button class="button danger" id="resetBtn">重置全部</button>
+      </div>
+    </header>
+
+    <section class="stats">
+      <div class="stat"><strong id="coreTotal">60</strong><span>Editor / 发布场景</span></div>
+      <div class="stat"><strong id="componentTotal">105</strong><span>组件详细检查</span></div>
+      <div class="stat"><strong id="settingTotal">40</strong><span>设置详细检查</span></div>
+      <div class="stat"><strong id="allProgress">0%</strong><span id="allProgressCopy">总体完成进度</span><div class="progress"><i id="progressBar"></i></div></div>
+    </section>
+
+    <nav class="tabs" aria-label="验收内容">
+      <button class="tab active" data-tab="overview">总览</button>
+      <button class="tab" data-tab="core">执行清单</button>
+      <button class="tab" data-tab="components">组件清单</button>
+      <button class="tab" data-tab="settings">Theme settings</button>
+      <button class="tab" data-tab="schedule">验收节奏</button>
+      <button class="tab" data-tab="decisions">待拍板风险</button>
+    </nav>
+
+    <section class="panel active" id="overview">
+      <div class="callout">
+        <strong>完整手工验收范围</strong>
+        共 60 条 Editor/发布场景、105 条组件检查和 40 条 Theme settings 检查；首次正式验收建议安排 1.5–2 天。
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>六轮手工验收</h2>
+          <div class="round"><h3>1 · 编辑器骨架</h3><p class="muted">入口、加载/失败、模板切换、结构树、配置控件、PC/M 预览和脏状态。</p></div>
+          <div class="round"><h3>2 · 数据安全与发布</h3><p class="muted">Save、Discard、离开保护、Publish 成功/失败、缓存、会话过期和历史配置兼容。</p></div>
+          <div class="round"><h3>3 · P0 组件详验</h3><p class="muted">全局、成交、视频、订阅和 Custom HTML 组件逐项覆盖正常、边界、异常和 Mobile。</p></div>
+          <div class="round"><h3>4 · P1/P2 组件全量</h3><p class="muted">每个组件检查布局、条件字段、资源失败、交互和移动端。</p></div>
+          <div class="round"><h3>5 · Theme settings 全量</h3><p class="muted">8 组覆盖 Token 消费、继承优先级、边界和真实前台。</p></div>
+          <div class="round"><h3>6 · 真实 Storefront</h3><p class="muted">Home/Product/Collection × PC/M，验证全局同步、页面隔离、缓存与匿名访问。</p></div>
+        </div>
+        <div class="card">
+          <h2>上线门槛</h2>
+          <ul class="list">
+            <li>60 条核心场景全部通过。</li>
+            <li>组件 P0 全通过；P1/P2 无未说明的功能缺口。</li>
+            <li>8 组 Theme settings 继承与真实前台一致。</li>
+            <li>无 Blocker/P0；P1 必须有 owner 与修复日期。</li>
+            <li>设计已批准视觉差异。</li>
+            <li>真实 PC/M Storefront 已验证。</li>
+            <li>范围裁剪与 PRD 偏差已有书面记录。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section-head"><h2>固定覆盖矩阵</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>必须覆盖</th><th>不允许替代</th></tr></thead>
+          <tbody>
+            <tr><td>页面</td><td>Home、Product、Collection</td><td>只验 Home</td></tr>
+            <tr><td>设备</td><td>Desktop + 390px + 至少一台真机</td><td>只缩浏览器窗口</td></tr>
+            <tr><td>状态</td><td>默认、修改、隐藏、空数据、失效资源、接口失败</td><td>只看默认 Demo 数据</td></tr>
+            <tr><td>版本</td><td>草稿、最近保存、已发布</td><td>把 Save 当作 Publish</td></tr>
+            <tr><td>访问</td><td>编辑账号 + 匿名无痕窗口</td><td>只在编辑器登录态查看</td></tr>
+            <tr><td>证据</td><td>步骤、期望、实际、页面、版本、截图/录屏</td><td>只写一句“有问题”</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="core">
+      <div class="callout warning">
+        <strong>没有证据包，不开始产品验收</strong>
+        至少要有测试结论、已知问题、验收版本、设计基线、真实 Storefront URL 和固定种子数据。
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>固定种子数据</h2>
+          <ul class="list">
+            <li>商品：单规格、多变体、售罄、缺图、无评分各 1 个。</li>
+            <li>Collection：正常、空集合；Blog：正常、无封面。</li>
+            <li>Menu：3 级、空菜单、被删除引用。</li>
+            <li>媒体：有效、404、慢加载；Newsletter：新邮箱、已订阅邮箱。</li>
+            <li>文案：空值、1 字、超长、Emoji、中英文混排。</li>
+            <li>链接：站内、站外、空值、非法 URL；颜色：HEX、Transparent、清空。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>开始前资料</h2>
+          <ul class="list">
+            <li>Build/commit/API/数据库版本与验收环境 URL。</li>
+            <li>研发/测试已通过、未通过和已知问题。</li>
+            <li>最终 UI 设计稿与本期不做项。</li>
+            <li>真实 Storefront URL 和缓存刷新方式。</li>
+            <li>已发布基线 + 独立验收草稿，禁止直接改生产店。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section-head"><h2>核心验收场景</h2><span class="spacer"></span><span class="count" id="coreCount">0/60 完成</span><button class="button" data-reset="core">重置本页</button></div>
+      <div id="coreList"></div>
+    </section>
+
+    <section class="panel" id="components">
+      <div class="callout">
+        <strong>20 个组件全量验收</strong>
+        P0 覆盖全部正常与异常场景；P1/P2 至少覆盖布局、条件字段、资源失败和 Mobile。
+      </div>
+      <div class="section-head">
+        <h2>逐组件详细检查</h2><span class="spacer"></span>
+        <div class="filters" id="riskFilters">
+          <button class="filter active" data-risk="All">All</button>
+          <button class="filter" data-risk="P0">P0</button>
+          <button class="filter" data-risk="P1">P1</button>
+          <button class="filter" data-risk="P2">P2</button>
+        </div>
+        <span class="count" id="componentCount">0/105 完成</span>
+        <button class="button" data-reset="component">重置本页</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>组件</th><th>族</th><th>风险</th><th>手工验收重点</th><th>保留证据</th></tr></thead>
+          <tbody id="componentSummary"></tbody>
+        </table>
+      </div>
+      <div class="section-head"><h2>详细用例</h2></div>
+      <div id="componentList"></div>
+    </section>
+
+    <section class="panel" id="settings">
+      <div class="callout">
+        <strong>8 组完整验收</strong>
+        每组验证字段生效、边界值、Section/Block 覆盖、清除覆盖后的继承，以及发布到真实 Storefront 的结果。
+      </div>
+      <div class="section-head"><h2>逐组详细检查</h2><span class="spacer"></span><span class="count" id="settingCount">0/40 完成</span><button class="button" data-reset="setting">重置本页</button></div>
+      <div id="settingList"></div>
+      <div class="callout warning">
+        <strong>继承优先级必须单独留证</strong>
+        至少选 Product cards、Buttons、Colors 各做一次“Theme 设置 → Section 覆盖 → 清除覆盖”的完整往返；false、0、Transparent 不能错误回退成 Theme 默认值。
+      </div>
+    </section>
+
+    <section class="panel" id="schedule">
+      <div class="callout">
+        <strong>首次正式验收按 1.5–2 天安排</strong>
+        若因版本回归只能压缩，仍要保留 Editor 数据安全、P0 组件、Theme settings 继承和真实 Storefront。
+      </div>
+      <h2>标准版 · 约 1.5 天</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>阶段</th><th>时间</th><th>范围</th><th>完成标准</th></tr></thead>
+          <tbody>
+            <tr><td>0. 预检</td><td>30 min</td><td>Build、权限、范围、种子数据和已知问题</td><td>阻塞项清零</td></tr>
+            <tr><td>1. Editor 基础</td><td>2 h</td><td>入口、加载、模板、结构树、配置控件、预览</td><td>前 40 条清单</td></tr>
+            <tr><td>2. 数据安全</td><td>1.5 h</td><td>Save、Discard、离开保护、Publish、缓存、兼容</td><td>剩余核心清单</td></tr>
+            <tr><td>3. P0 组件</td><td>3 h</td><td>8 个高风险组件全部详细项</td><td>正常 + 异常 + Mobile</td></tr>
+            <tr><td>4. P1/P2 组件</td><td>2 h</td><td>其余 12 个组件全部详细项</td><td>资源和边界不跳过</td></tr>
+            <tr><td>5. Theme settings</td><td>1.5 h</td><td>8 组字段族、继承与覆盖</td><td>40 条完成</td></tr>
+            <tr><td>6. 真实前台</td><td>1 h</td><td>Home/Product/Collection × PC/M</td><td>匿名访问一致</td></tr>
+            <tr><td>7. 结论</td><td>30 min</td><td>缺陷分级、证据、owner、范围偏差</td><td>可作上线决策</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-head"><h2>完整两天版</h2></div>
+      <div class="grid-2">
+        <div class="card stack">
+          <h3>Day 1 · Editor 与 P0</h3>
+          <p>09:30–10:00：版本、范围、权限、种子数据。</p>
+          <p>10:00–12:00：Editor 入口、模板、结构、配置控件、PC/M 预览。</p>
+          <p>13:30–15:00：Save、Discard、离开保护、Publish、缓存和异常恢复。</p>
+          <p>15:00–17:30：Header、Footer、Slideshow、Featured collection、Featured Product。</p>
+        </div>
+        <div class="card stack">
+          <h3>Day 2 · 其余组件、设置与前台</h3>
+          <p>09:30–10:30：Video feed、Newsletter、Custom HTML。</p>
+          <p>10:30–12:00：P1 组件详细清单。</p>
+          <p>13:30–14:30：P2 组件与问题复测。</p>
+          <p>14:30–16:00：Theme settings 8 组与继承优先级。</p>
+          <p>16:00–17:00：真实 Storefront 三页面 × PC/M。</p>
+          <p>17:00–17:45：缺陷分级、证据和结论。</p>
+        </div>
+      </div>
+      <div class="callout warning" style="margin-top:18px">
+        <strong>每个组件统一执行九步</strong>
+        添加 → 修改核心字段 → 触发条件字段 → 验布局边界 → 验失效资源 → 切 Mobile → Save 刷新 → 隐藏恢复 → Publish 后到真实前台核对。
+      </div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="callout danger"><strong>这些不是测试细节，是验收前必须拍板的范围问题</strong>若不先定，测试通过与产品通过会使用不同口径。</div>
+      <div id="decisionList"></div>
+      <div class="section-head"><h2>缺陷严重级别</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>级别</th><th>Theme 场景</th><th>上线策略</th></tr></thead>
+          <tbody>
+            <tr><td><span class="risk P0">Blocker</span></td><td>数据丢失、草稿污染线上、发布覆盖错误主题、XSS、编辑器/前台核心配置完全不一致</td><td>必须修复</td></tr>
+            <tr><td><span class="risk P0">P0</span></td><td>Save/Discard/Publish 失败、Header/Footer 不全站、核心组件不可用、移动核心页溢出</td><td>必须修复</td></tr>
+            <tr><td><span class="risk P1">P1</span></td><td>单个布局/边界/资源回退错误，有绕行路径</td><td>明确 owner 与日期后决策</td></tr>
+            <tr><td><span class="risk P2">P2</span></td><td>轻微间距、非核心文案、低频视觉差异</td><td>可带病上线并进入清单</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="footer-note">来源：V1.137 Theme-Home、V1.137.1 Home/Header/Footer、V1.137.2 Theme Editor、V1.137.3 Theme settings、V1.137.4 Variant Colour Swatch；项目资料与生产代码快照。更新日期：2026-07-21。</p>
+  </main>
+
+  <script>
+    const coreScenarios = [
+      ["scope","范围冻结","确认 20 个组件、8 组 Theme settings、Editor 能力和本期明确不做项。"],
+      ["gate-build","冻结验收 Build","记录 Admin、Theme 微应用、Storefront、后端版本与环境。"],
+      ["account","验收账号与权限","账号可进入编辑器、保存和发布；权限不足时有明确提示。"],
+      ["seed","种子数据就绪","商品、集合、菜单、博客、媒体、订阅邮箱的正常与异常数据齐全。"],
+      ["entry","编辑器入口","从 Theme 列表进入正确主题，主题名称、预览图和更新时间正确。"],
+      ["loading","初始化 Loading","加载期间不可误操作；完成后结构树、配置和预览同时就绪。"],
+      ["load-fail","初始化失败与重试","接口或微应用失败时有错误态；重试后可恢复。"],
+      ["handle-contract","Theme handle 主键","请求使用 theme.handle 生成 page/global handle，禁止用展示标题代替。"],
+      ["page-types","基础模板齐全","Home、Product、Collection 均可进入并加载各自主体。"],
+      ["switch-clean","无修改切换模板","直接切换成功，页面主体变化，Header/Footer 保持一致。"],
+      ["switch-cancel","有修改切换 · Cancel","弹窗出现；Cancel 后停留原模板且修改保留。"],
+      ["switch-discard","有修改切换 · Discard","放弃后切换；返回原模板时未保存修改不存在。"],
+      ["switch-save","有修改切换 · Save","保存完成后再切换；返回原模板时保存结果存在。"],
+      ["groups","三组结构","Header Group、Template、Footer Group 层级与固定位置正确。"],
+      ["section-add","添加 Section","组件选择器分类、搜索、关闭和添加位置正确。"],
+      ["section-allowed","Section 可添加范围","只能添加当前模板允许的组件；达到上限后禁止新增。"],
+      ["section-sort","Section 排序","拖拽后树与预览同步；Save 刷新后顺序保留。"],
+      ["section-hide","Section 隐藏与恢复","隐藏不丢配置；编辑器有标识，真实前台不占空间。"],
+      ["section-delete","Section 删除","Cancel 不删除；Confirm 后树、面板和预览同步移除。"],
+      ["block-add","添加 Block","仅展示当前 Section 支持的 Block，添加后默认值正确。"],
+      ["block-limit","Block 数量上限","达到上限后按钮禁用并说明原因。"],
+      ["block-sort","Block 排序","拖拽后预览同步，Save 刷新后顺序保留。"],
+      ["block-hide","Block 隐藏与恢复","单 Block 隐藏不影响同级；恢复后配置不丢。"],
+      ["block-delete","Block 删除","确认流程正确；删除当前 Block 后面板回到父级或空态。"],
+      ["select-section","选中 Section 联动","左侧或预览点击 Section 后，右侧展示正确 Section settings。"],
+      ["select-block","选中 Block 联动","左侧或预览点击 Block 后，右侧展示正确 Block settings。"],
+      ["empty-panel","配置面板空态","未选择、无 Section settings、无 Block settings 三种文案正确。"],
+      ["text-controls","文本与富文本控件","输入、清空、加粗、列表、链接均实时预览并可保存。"],
+      ["conditional-controls","Select/Toggle 条件联动","依赖字段即时显隐；切回后原值是否保留符合统一口径。"],
+      ["number-controls","Range/Number 边界","最小、最大、步长、手输越界处理与单位展示正确。"],
+      ["color-controls","颜色与 Transparent","取色、HEX、清空、Transparent 与 Follow theme 语义不混淆。"],
+      ["resource-picker","资源选择器","Image/Video/Product/Collection/Menu/Blog 可搜索、选择、更换和清除。"],
+      ["field-validation","字段校验","必填、URL、数字范围、资源失效和 Custom CSS 提示符合 PRD。"],
+      ["dirty-positive","触发 Unsaved changes","改字段、增删排显隐 Section/Block、Theme settings 均变脏。"],
+      ["dirty-negative","不触发 Unsaved changes","设备切换、选中、展开树、滚动预览不变脏。"],
+      ["preview-desktop","Desktop 预览","内容、顺序、交互和容器宽度正确，无异常裁切。"],
+      ["preview-mobile","Mobile 预览","典型手机宽度下无页面级横向溢出，CTA 可达。"],
+      ["preview-hidden","隐藏内容预览","编辑器可识别隐藏项；线上预览与真实前台均不展示。"],
+      ["preview-media-fail","媒体加载失败","图片显示占位；视频回退封面；页面结构不坍塌。"],
+      ["preview-fail","预览加载失败","显示 Retry；重试后恢复且当前编辑数据不丢。"],
+      ["save-state","Save 按钮状态","无修改禁用；有修改可用；保存中 Loading 并防重复点击。"],
+      ["save-success","Save 成功与刷新","状态变 Saved；刷新、退出重进后草稿保持一致。"],
+      ["save-fail","Save 失败","当前修改不丢、错误明确、按钮恢复并可重试。"],
+      ["discard","Discard 完整回退","确认弹窗；恢复最近保存状态；树、面板、预览同步。"],
+      ["leave","返回/关闭页面保护","Save、Discard、Cancel 三条分支正确；浏览器关闭有保护。"],
+      ["publish-unsaved","未保存时 Publish","提示先保存或 Save and publish；Cancel 不改变线上。"],
+      ["publish-validation","发布前校验","必填、Schema、Section/Block type 和资源引用异常会阻止发布。"],
+      ["publish-success","Publish 成功","防重复提交；状态更新；真实 Storefront 使用新版本。"],
+      ["publish-fail","Publish 失败保护","草稿保留，线上旧版本不变，错误明确并可重试。"],
+      ["global","Header/Footer 全站","Home 修改后，Product/Collection 同步；隐藏状态也同步。"],
+      ["page-isolation","页面主体隔离","Home 主体修改不会串到 Product/Collection，反向同理。"],
+      ["inheritance","Theme settings 继承","Block > Section > Theme > 系统默认；false、0、Transparent 可显式覆盖。"],
+      ["resource-invalid","资源删除/下架/无权限","编辑器标记失效；前台隐藏或降级；无死链和错误商品。"],
+      ["mobile-real","真实移动端","390px 与一台真机检查 Header、轮播、表单、Footer 和触摸交互。"],
+      ["parity","编辑器与 Storefront 一致","文案、顺序、资源、样式和显隐在两端一致。"],
+      ["storefront-target","真实前台渲染目标","在实际承载新 Theme renderer 的部署验收，不以旧 shop-pc 代替。"],
+      ["cache","发布缓存与匿名访问","无痕窗口、硬刷新后读取新版本，不依赖编辑账号缓存。"],
+      ["legacy","历史配置兼容","旧 JSON、缺字段、Unknown Section/Block 不导致页面崩溃。"],
+      ["network-session","断网与登录过期","保留未保存编辑内容；重新登录或恢复网络后可继续。"],
+      ["reopen","最终重进核对","登出/重登、刷新、重新进入编辑器后状态与真实前台一致。"]
+    ];
+
+    const components = [
+      ["Announcement bar","Global","P0","1/多消息切换、轮播条件、全站一致","PC/M 截图；单条与多条各一次"],
+      ["Header","Global","P0","菜单、搜索、移动抽屉、账号/购物车、全站一致","PC/M 录屏；三级菜单往返一次"],
+      ["Slideshow","Hero","P0","新增/排序 Slide、轮播、移动图回退、CTA","单张/多张截图；CTA 实际落地页"],
+      ["Image link blocks","Resource","P1","Collection 回填、点击去向、移动横滑","有效资源与空资源各一次"],
+      ["Featured collection","Commerce","P0","Collection/手选、Tab、折扣/库存/快速加购","PC/M 截图；商品详情或加购结果"],
+      ["Featured Product","Commerce","P0","多变体联动图片/价格/库存、加购与详情","可售与售罄变体各一次"],
+      ["Media With Text","Content","P1","多 Block 顺序、视频优先、移动堆叠","PC/M 各一张；长文案不溢出"],
+      ["Text With Icon","Content","P2","内置与自定义图标、布局和移动堆叠","默认态 + Mobile 截图"],
+      ["Testimonial","Social proof","P1","溢出轮播、关联商品跳转、失效商品隐藏","轮播录屏；商品落地页"],
+      ["UGC Gallery","Social proof","P1","四种点击模式、布局与资源回退","两种点击结果各一次"],
+      ["Video feed","Media","P0","仅一条播放、静音自动播、离屏暂停、失败回封面","PC/M 各一段短录屏"],
+      ["Before/after image","Media","P1","拖拽 0/50/100、移动图回退","PC 鼠标 + Mobile 触摸各一次"],
+      ["As Seen In","Social proof","P2","Marquee、Hover 暂停和失效 Logo","一段 5 秒录屏"],
+      ["FAQ","Engagement","P1","展开/收起、布局切换、CTA 去向","PC/M 展开态各一张"],
+      ["Blog posts","Resource","P1","文章/全量链接、摘要与封面回退","正常文章 + 缺封面文章"],
+      ["Newsletter","Conversion","P0","空/非法/成功/重复/失败，确认写入 Customer","五种提示与 Customer 记录"],
+      ["Feature cards","Content","P2","布局、图标、整卡跳转和 Mobile","默认态 + Mobile 截图"],
+      ["Media grid","Media","P1","图片/视频、Caption、布局与链接","图片与视频卡各一次"],
+      ["Custom HTML","Extension","P0","合法 HTML、生效范围隔离；脚本/全局样式不得污染","正常 HTML + 污染尝试结果"],
+      ["Footer","Global","P0","Menu、订阅、支付图标、移动 Accordion、全站一致","PC/M 截图；跨三类页面"]
+    ];
+
+    const componentCases = {
+      "Announcement bar":["0、1、5 条 Message 下的空态、箭头和轮播表现","Arrows / Auto-scrolling 与 Auto rotate 字段显隐正确","4s、20s 边界生效；单条消息不发生无意义切换","长文案、链接为空、背景/文字色在 PC/M 正常","Sticky 开启后与 Header 叠放顺序正确"],
+      "Header":["Basic / Search variant 切换后的布局与字段联动","Logo 图片、文字兜底、PC/M 宽度与首页跳转","Menu 绑定、Dropdown/Mega、3 级移动抽屉与返回","搜索 Overlay/In drawer/Bar、ESC/遮罩关闭与回车跳转","账号、购物车、语言/币种、Sticky、边框和颜色开关","菜单删除、空菜单、推荐商品不足等异常降级"],
+      "Slideshow":["0、1、5 个 Slide 的空态、控制器和上限","PC/M 图片、内容位置、标题尺寸、遮罩与 CTA","Button text 为空时整图点击；Link 为空时不误跳","自动轮播 4s/20s、单 Slide 不轮播、手动切换","移动图片缺失、图片失败、背景色回退"],
+      "Image link blocks":["Collection 自动标题/图片/链接与手工覆盖优先级","Image cards/Circle/Carousel 三种布局","PC 2–6 列；Mobile 1/2 列与 Horizontal scroll","无图片、空 Collection、资源删除后的降级","Hover、Overlay、圆角、整卡链接与长标题"],
+      "Featured collection":["Collection 与手选商品两种数据源切换","0、1、多 Tab；Tab 命名、默认选中与切换不刷新","Grid/Carousel、PC/M 列数、Limit 与 View all 优先级","折扣、评分、Swatch、划线价、Quick add 开关","单规格加购、多规格 Choose options、售罄状态","空 Collection、下架商品、缺图/评分/Swatch 降级"],
+      "Featured Product":["未选、有效、下架 Product 的空态与前台显隐","图片/视频、缩放、标题、价格、评分、描述 Block 排序","多变体切换联动图片、价格、库存和按钮","数量边界、可售/售罄/未选规格的按钮状态","Add to cart、PayPal 条件、View details 与分享链接","描述来源、折叠行、缺图/价格/评分异常"],
+      "Media With Text":["0、1、多 Media Block 的空态、顺序与交替布局","图片/视频同时配置时视频优先、图片作封面","媒体宽度、左右位置、内容位置和间距","富文本、按钮样式、链接与新标签页","Mobile 堆叠、长文案、媒体失败和全部隐藏"],
+      "Text With Icon":["0、默认 4、上限 8 个 Block","内置/None/Custom 图标与自定义图缺失","Icon top/left、PC/M 列数、Stack on mobile","图标尺寸、背景形状、颜色和文字对齐","长文案、全部隐藏与资源失败不溢出"],
+      "Testimonial":["0、1、超过一屏评论的空态与轮播箭头","1–5 含半星评分、头像圆角、Verified Buyer","Review image、关联商品、商品价格开关","长正文截断/换行和卡片等高","Mobile 露出下一卡；失效商品不影响评价正文"],
+      "UGC Gallery":["Masonry/Grid/Carousel 与 PC/M 列数","Section clickBehavior 与 Block linkMode 优先级","Product/Custom link/Image preview/None 四种行为","Caption、Social handle、Hover overlay 显隐","图片比例、移动宽度、缺图/失效商品/空链接"],
+      "Video feed":["Upload/External URL/Embed code 三种来源字段联动","Carousel/Grid 与 Simple/Social/Product card","Hover/Click/Visible 播放；同一时间仅一个视频","自动播放静音、Loop、离屏暂停和移动端限制","封面、平台/作者、关联商品与进度条","无效 URL、视频失败、慢网络时封面优先"],
+      "Before/after image":["Before/After 成对必填及缺任一图片空态","0%、50%、100% 初始位置与拖拽边界","PC 鼠标、Mobile 触摸拖动且不劫持纵向滚动","PC/M 图片回退、尺寸不一致提示与统一裁切","标签位置、颜色、背景和图片失败降级"],
+      "As Seen In":["0、少量、20 个 Logo 的空态与上限","Inline/Marquee、速度、循环和 Hover 暂停","PC/M 每行数量、高度和间距","单 Logo 高度覆盖与链接","隐藏/失效 Logo 自动退出布局"],
+      "FAQ":["0、1、20 个 Item；Question/Answer 必填提示","FAQ and text / FAQ and media 布局切换","客服头像、工作时间、回复时间和 CTA","展开/收起、长答案、富文本链接与列表","媒体失败、空链接、Mobile 单列与滚动位置"],
+      "Blog posts":["未选 Blog、有效文章、无可见文章的空态","封面、日期、作者、分类、摘要开关","Grid/Carousel 与 PC/M 列数","文章详情、View all 链接和空链接","无封面/摘要回退、删除/未发布文章重排"],
+      "Newsletter":["Stacked/Inline/Image side 与移动端塌缩","空邮箱、非法邮箱、成功、重复、接口失败五种反馈","成功后 Customer/订阅记录真实写入","失败后输入保留并允许重试，防重复提交","隐私文案/链接、按钮兜底和图片失败"],
+      "Feature cards":["0、1、18 张卡片的空态与上限","Grid/Carousel；Mobile Carousel/单列/双列","内置/Custom/None 图标与字段联动","整卡链接、新标签页、无链接无虚假 Hover","等高、长文案、单卡无箭头与全部隐藏"],
+      "Media grid":["0、1、18 个 Media item 的空态与上限","Image/Video 切换、封面和移动图片回退","PC 列数、Mobile 单/双列/横滑与 Gap","Caption 四种位置、比例、Fit、圆角和颜色","资源失败、空标题/链接、全部隐藏"],
+      "Custom HTML":["合法标题、段落、图片、链接与简单布局","空 HTML 与轻微格式错误的编辑器/前台行为","Full width、移除水平/垂直间距","script、事件属性、iframe 等危险内容处理","全局 CSS 与超宽内容不得污染其他 Section 或产生页面横滚"],
+      "Footer":["无 Block、Multi column、Simple horizontal","Links/Menu、Text、Contact、Logo、Newsletter Block","Payment icons 多组、图标排序/删除/链接/Alt","Policy、Copyright、Powered by、社媒、语言/币种","Mobile Stacked/Accordion、换行与展开收起","空/删除 Menu、未配置社媒/语言、订阅异常与全站一致"]
+    };
+
+    const settingCases = {
+      "Colors":["Primary/Secondary、页面背景、正文、标题、链接和边框色逐类生效","Sale/Error/Success 状态色在商品卡和提示中生效","颜色清空、非法 HEX、Transparent 的处理明确","Section 自定义颜色覆盖 Theme，清除覆盖后恢复继承","Header/Footer 与普通 Section 对同一 Token 的消费一致"],
+      "Typography":["Heading/Body font 分别作用于标题与正文","Base font size 最小/最大时页面仍可读、无溢出","Heading scale 对不同层级标题按比例生效","字重、行高、字间距边界值正确","字体加载失败有系统字体回退，无明显布局抖动"],
+      "Buttons":["Primary/Secondary 的背景、文字和边框分别生效","Border width、Radius、Height、Padding 边界值正确","None/Uppercase/Lowercase 文案转换正确","Section 按钮覆盖 Theme；清除后恢复继承","Hover/Focus/Disabled 状态仍清晰可识别"],
+      "Layout":["Page width 最小/最大影响内容容器，不影响通栏背景","Section spacing Desktop/Mobile 分别生效","Grid gap Desktop/Mobile 分别生效","图片/卡片圆角由默认继承并可被 Section 覆盖","PC/M 水平 Padding 边界下无横向溢出"],
+      "Product cards":["Portrait/Square/Landscape 比例与 Cover/Contain","标题大小和左/中对齐","Vendor、Rating、Sale badge、Swatch、Quick add 默认开关","Theme ON→Section OFF，以及 Theme OFF→Section ON","折扣、无评分、无 Swatch、售罄商品状态不留空洞"],
+      "Forms":["背景、输入文字、Placeholder、默认/Focus 边框颜色","Radius、Height、Horizontal padding 边界值","Header Search 与 Newsletter 均继承","Section 局部覆盖后不影响其他表单","键盘聚焦、错误、Disabled 状态清晰且 Mobile 可操作"],
+      "Social media":["六个平台 URL 分别输入后在引用组件出现","空 URL 对应平台全站隐藏","合法/非法 URL 的保存提示","Footer/Header 开关关闭时不展示但配置保留","外链打开方式、图标与无障碍名称正确"],
+      "Favicon":["上传合法图片后编辑器预览更新","Save/Publish 后真实浏览器标签图标更新","删除图片后使用系统默认图标","失效 URL/加载失败不显示破图","刷新、无痕窗口和不同页面使用同一 Favicon"]
+    };
+
+    const decisions = [
+      ["Publish 是否仍是 P0？","Theme Editor PRD 要求 Save 草稿与 Publish 上线分离；生产快照的宿主只有 Save。","若当前 Build 仍无 Publish，除非正式变更 PRD，否则判阻塞。"],
+      ["Theme 列表传的是 handle 还是 title？","生产快照把 theme.title 传给编辑器，但 API、设计文档和测试均以 theme.handle 为主键。","把 Network 主键检查放在验收第一个 5 分钟；错误时判 Blocker。"],
+      ["Theme settings 到底是 3 组还是 8 组？","Editor PRD 摘要写基础三组；独立 Theme settings PRD 定义 8 组。","以独立 PRD 为准验收 8 组；裁剪需先形成范围变更。"],
+      ["Mobile 是独立装修还是 PC 响应式派生？","资料与宿主代码显示当前 mobile 配置会被 PC 覆盖。","本期验响应式结果，不验独立移动配置；对外说明保持一致。"],
+      ["颜色 Swatch 是否属于 Theme 验收？","Home PRD 要求商品卡展示 Swatch；Swatch PRD 又把 Storefront 消费标为路线图。","先拍板只验展示开关，还是验真实商品 color/pic 打通。"],
+      ["Custom HTML 的安全边界","PRD 允许 HTML 并要求限制危险脚本和全局样式污染，但未给明确白名单。","研发/安全给出 sanitization 契约；脚本执行或跨 Section 污染按 Blocker。"],
+      ["Canvas 与当前生产 Build 的关系","交付包是交互/视觉参考，生产快照也早于本次验收。","PRD 是规格、设计稿是视觉基线、当前 Build 是被验对象。"],
+      ["Home 页面究竟由哪个 Storefront 渲染？","旧 shop-pc 主要消费 Global Header/Footer；新 Theme renderer 位于另一前台部署。","邀请中写清真实前台 URL、部署版本和缓存策略，不以旧前台代替。"]
+    ];
+
+    const STORAGE_KEY = "bestshopio-theme-acceptance-v1";
+    let checked = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    let currentRisk = "All";
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(checked));
+      updateProgress();
+    }
+
+    function makeCheck(id, title, copy, simple = false) {
+      const row = document.createElement("label");
+      row.className = `check-row${simple ? " simple" : ""}${checked[id] ? " done" : ""}`;
+      row.innerHTML = `<input class="checkbox" type="checkbox" ${checked[id] ? "checked" : ""}><span class="check-title">${title}</span>${simple ? "" : `<span class="check-copy">${copy}</span>`}`;
+      const input = row.querySelector("input");
+      input.addEventListener("change", () => {
+        checked[id] = input.checked;
+        row.classList.toggle("done", input.checked);
+        save();
+      });
+      return row;
+    }
+
+    function renderCore() {
+      const root = document.getElementById("coreList");
+      root.innerHTML = "";
+      coreScenarios.forEach(([id, title, copy], index) => root.appendChild(makeCheck(`core:${id}`, `${String(index + 1).padStart(2, "0")} · ${title}`, copy)));
+    }
+
+    function renderComponents() {
+      const summary = document.getElementById("componentSummary");
+      const list = document.getElementById("componentList");
+      summary.innerHTML = "";
+      list.innerHTML = "";
+      components.filter(([, , risk]) => currentRisk === "All" || risk === currentRisk).forEach(([name, family, risk, acceptance, evidence]) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><strong>${name}</strong></td><td>${family}</td><td><span class="risk ${risk}">${risk}</span></td><td>${acceptance}</td><td>${evidence}</td>`;
+        summary.appendChild(tr);
+        const details = document.createElement("details");
+        if (risk === "P0") details.open = true;
+        const done = componentCases[name].filter((_, index) => checked[`component:${name}:${index}`]).length;
+        details.innerHTML = `<summary>${name}<span class="risk ${risk}">${risk}</span><span class="summary-meta">${done}/${componentCases[name].length}</span></summary>`;
+        componentCases[name].forEach((item, index) => details.appendChild(makeCheck(`component:${name}:${index}`, item, "", true)));
+        list.appendChild(details);
+      });
+    }
+
+    function renderSettings() {
+      const root = document.getElementById("settingList");
+      root.innerHTML = "";
+      Object.entries(settingCases).forEach(([name, items]) => {
+        const details = document.createElement("details");
+        details.open = true;
+        const done = items.filter((_, index) => checked[`setting:${name}:${index}`]).length;
+        details.innerHTML = `<summary>${name}<span class="summary-meta">${done}/${items.length}</span></summary>`;
+        items.forEach((item, index) => details.appendChild(makeCheck(`setting:${name}:${index}`, item, "", true)));
+        root.appendChild(details);
+      });
+    }
+
+    function renderDecisions() {
+      const root = document.getElementById("decisionList");
+      root.innerHTML = decisions.map(([title, evidence, action], index) => `
+        <details ${index < 2 ? "open" : ""}>
+          <summary>${index + 1} · ${title}</summary>
+          <div class="decision"><p class="muted">${evidence}</p><p><strong>${action}</strong></p></div>
+        </details>`).join("");
+    }
+
+    function countPrefix(prefix) {
+      return Object.entries(checked).filter(([key, value]) => key.startsWith(prefix) && value).length;
+    }
+
+    function updateProgress() {
+      const coreDone = countPrefix("core:");
+      const componentDone = countPrefix("component:");
+      const settingDone = countPrefix("setting:");
+      const total = coreScenarios.length + Object.values(componentCases).flat().length + Object.values(settingCases).flat().length;
+      const done = coreDone + componentDone + settingDone;
+      const percent = total ? Math.round(done / total * 100) : 0;
+      document.getElementById("coreCount").textContent = `${coreDone}/${coreScenarios.length} 完成`;
+      document.getElementById("componentCount").textContent = `${componentDone}/${Object.values(componentCases).flat().length} 完成`;
+      document.getElementById("settingCount").textContent = `${settingDone}/${Object.values(settingCases).flat().length} 完成`;
+      document.getElementById("allProgress").textContent = `${percent}%`;
+      document.getElementById("allProgressCopy").textContent = `${done}/${total} 项完成`;
+      document.getElementById("progressBar").style.width = `${percent}%`;
+      document.getElementById("coreTotal").textContent = coreScenarios.length;
+      document.getElementById("componentTotal").textContent = Object.values(componentCases).flat().length;
+      document.getElementById("settingTotal").textContent = Object.values(settingCases).flat().length;
+    }
+
+    document.querySelectorAll(".tab").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(item => item.classList.toggle("active", item === button));
+        document.querySelectorAll(".panel").forEach(panel => panel.classList.toggle("active", panel.id === button.dataset.tab));
+        history.replaceState(null, "", `#${button.dataset.tab}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    document.querySelectorAll(".filter").forEach(button => {
+      button.addEventListener("click", () => {
+        currentRisk = button.dataset.risk;
+        document.querySelectorAll(".filter").forEach(item => item.classList.toggle("active", item === button));
+        renderComponents();
+      });
+    });
+
+    document.querySelectorAll("[data-reset]").forEach(button => {
+      button.addEventListener("click", () => {
+        if (!confirm("确认重置本页勾选进度？")) return;
+        const prefix = `${button.dataset.reset}:`;
+        Object.keys(checked).forEach(key => { if (key.startsWith(prefix)) delete checked[key]; });
+        save();
+        renderCore();
+        renderComponents();
+        renderSettings();
+      });
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      if (!confirm("确认清空全部验收进度？此操作无法撤销。")) return;
+      checked = {};
+      save();
+      renderCore();
+      renderComponents();
+      renderSettings();
+    });
+
+    document.getElementById("printBtn").addEventListener("click", () => window.print());
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), checked }, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `theme-acceptance-progress-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    renderCore();
+    renderComponents();
+    renderSettings();
+    renderDecisions();
+    updateProgress();
+
+    const initialTab = location.hash.slice(1);
+    const initialButton = document.querySelector(`.tab[data-tab="${initialTab}"]`);
+    if (initialButton) initialButton.click();
+  </script>
+</body>
+</html>

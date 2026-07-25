@@ -1,22 +1,288 @@
 /* Checkout Theme · Post-purchase offers.
-   Products, ranking, price, eligibility and one-click charge capability are read-only preview
-   payloads supplied by Funnel/Offer/Payment services; Theme controls presentation. */
+   The template owns recommendation-rule configuration and editor preview. Production
+   availability, Session locking, quote calculation and one-click charge remain service-owned. */
 (function () {
   if (!window.OS) return;
   const { esc, money } = OS;
 
-  const getProducts = (offer) => {
-    const products = Array.isArray(offer && offer.products) ? offer.products : [offer || {}];
-    return products.filter(Boolean).slice(0, 4);
+  const RULE_LABELS = {
+    best_sellers: 'Best sellers',
+    specific: 'Specific products',
+    mapping: 'Order product mapping',
+    most_expensive: 'Most expensive purchased product',
+    least_expensive: 'Least expensive purchased product',
   };
+  const currencyDigits = (currency) => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: String(currency || 'USD').toUpperCase(),
+      }).resolvedOptions().maximumFractionDigits;
+    } catch (_) {
+      return 2;
+    }
+  };
+  const roundCurrency = (value, currency) => {
+    const factor = Math.pow(10, currencyDigits(currency));
+    return Math.round((+value + Number.EPSILON) * factor) / factor;
+  };
+  const formatMoney = (value, currency) => {
+    const code = String(currency || 'USD').toUpperCase();
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: code,
+        minimumFractionDigits: currencyDigits(code), maximumFractionDigits: currencyDigits(code),
+      }).format(+value || 0);
+    } catch (_) {
+      return money(value);
+    }
+  };
+  const discountValue = (settings) => {
+    const value = settings.discount_value == null || settings.discount_value === '' ? 0 : +settings.discount_value;
+    return Number.isFinite(value) ? value : 0;
+  };
+  const quotePrice = (basePrice, quantity, settings, currency) => {
+    const base = Math.max(0, +basePrice || 0);
+    const qty = Math.max(1, +quantity || 1);
+    const type = settings.discount_type || 'percentage';
+    const value = discountValue(settings);
+    const rawFinal = type === 'fixed'
+      ? Math.max(base - value, 0)
+      : Math.max(base * (1 - value / 100), 0);
+    const finalUnit = roundCurrency(rawFinal, currency);
+    const discountAmount = roundCurrency(Math.max(base - finalUnit, 0), currency);
+    const subtotal = roundCurrency(finalUnit * qty, currency);
+    return {
+      basePrice: roundCurrency(base, currency), finalUnit, discountAmount, subtotal, quantity: qty,
+      savingsText: type === 'fixed'
+        ? 'Save ' + formatMoney(discountAmount, currency)
+        : 'Save ' + Math.max(0, value) + '%',
+    };
+  };
+  const maxProducts = (settings) => Math.max(1, Math.min(10, +settings.maximum_products || 4));
+  const availableVariant = (variant) => variant && variant.available !== false && +variant.price > 0 &&
+    (variant.inventory == null || variant.inventory > 0 || variant.allowOversell);
+  const upsellPreviewKey = (ctx) => 'offer-preview-upsell:' +
+    String((ctx || {}).checkoutPage === 'upsell'
+      ? ((ctx || {}).checkoutTemplateId || 'default')
+      : ((ctx || {}).precedingUpsellTemplateId || 'default'));
+  const catalogOf = (offer) => {
+    const products = Array.isArray(offer && offer.catalog) ? offer.catalog
+      : Array.isArray(offer && offer.products) ? offer.products : [offer || {}];
+    return products.filter(Boolean);
+  };
+  const productRef = (value) => {
+    if (value && typeof value === 'object') {
+      return { productId: String(value.productId || ''), variantId: String(value.variantId || '') };
+    }
+    const parts = String(value || '').split('::');
+    return { productId: parts[0] || '', variantId: parts[1] && parts[1] !== 'default' ? parts[1] : '' };
+  };
+  const productsForRefs = (values, catalog) => {
+    const groups = [];
+    (values || []).forEach((value) => {
+      const ref = productRef(value);
+      let group = groups.find((item) => item.productId === ref.productId);
+      if (!group) { group = { productId: ref.productId, variantIds: [], allVariants: false }; groups.push(group); }
+      if (ref.variantId) {
+        if (group.variantIds.indexOf(ref.variantId) < 0) group.variantIds.push(ref.variantId);
+      } else {
+        group.allVariants = true;
+      }
+    });
+    return groups.map((group) => {
+      const source = catalog.find((product) => product.id === group.productId);
+      if (!source) return null;
+      const product = Object.assign({}, source);
+      if (!group.allVariants && group.variantIds.length && Array.isArray(source.variants) && source.variants.length) {
+        product.variants = source.variants.filter((variant) => group.variantIds.indexOf(variant.id) >= 0);
+        product.selectedVariantId = group.variantIds[0];
+      }
+      return product;
+    }).filter(Boolean);
+  };
+  const effectivePrice = (product, settings, currency) => {
+    if (!product) return 0;
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    const selected = variants.find((variant) => variant.id === product.selectedVariantId && availableVariant(variant)) ||
+      variants.find(availableVariant);
+    const value = +(selected ? selected.price : product.price);
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return quotePrice(value, 1, settings, currency).finalUnit;
+  };
+  const availableProduct = (product) => {
+    if (!product || product.deleted || product.status === 'draft' || product.status === 'inactive' ||
+        product.published === false || product.marketSupported === false || product.available === false ||
+        (product.inventory != null && product.inventory <= 0 && !product.allowOversell)) return false;
+    const variants = Array.isArray(product.variants) ? product.variants : [];
+    if (variants.length) {
+      if (product.selectedVariantId) {
+        return availableVariant(variants.find((variant) => variant.id === product.selectedVariantId));
+      }
+      return variants.some(availableVariant);
+    }
+    return +product.price > 0;
+  };
+  const acceptedIds = () => Object.keys((OS.ckState && OS.ckState['post-purchase-accepted']) || {});
+  function orderLines(ctx) {
+    const offer = ctx.offer || {};
+    const mock = Array.isArray(offer.mockOrderProducts) ? offer.mockOrderProducts : [];
+    return { lines: mock.map((line, index) => Object.assign({ orderIndex: index }, line)), usingMock: true };
+  }
+  function resolveRecommendation(settings, ctx) {
+    const offer = ctx.offer || {};
+    const catalog = catalogOf(offer);
+    const order = orderLines(ctx);
+    const orderIds = new Set(order.lines.map((line) => line.productId));
+    const liveUpsellState = (OS.ckState || {})[upsellPreviewKey(ctx)] || {};
+    const liveUpsell = liveUpsellState.products;
+    const livePriorIds = ctx.checkoutPage === 'downsell' && Array.isArray(liveUpsell)
+      ? liveUpsell.map((item) => item.productId) : [];
+    const priorIds = new Set((offer.previouslyDisplayedProductIds || []).concat(livePriorIds));
+    const purchased = new Set(acceptedIds().concat(offer.acceptedProductIds || []));
+    const max = maxProducts(settings);
+    const rule = settings.recommendation_rule || 'best_sellers';
+    let candidateRefs = [], matchedMapping = null;
+    let upsellThreshold = null;
+
+    if (rule === 'best_sellers') {
+      const ranked = catalog.slice().sort((a, b) =>
+        ((a.bestSellerRank == null ? 9999 : a.bestSellerRank) - (b.bestSellerRank == null ? 9999 : b.bestSellerRank))
+      ).slice(0, 20);
+      if (ctx.checkoutPage === 'downsell') {
+        const preceding = liveUpsellState.generated && Array.isArray(liveUpsell)
+          ? liveUpsell : (offer.precedingUpsellOfferProducts || []);
+        const prices = preceding.map((item) => +item.effectivePrice)
+          .filter((price) => Number.isFinite(price) && price >= 0);
+        upsellThreshold = prices.length ? Math.min.apply(null, prices) : null;
+        candidateRefs = upsellThreshold != null
+          ? ranked.filter((product) => effectivePrice(product, settings, offer.currency) < upsellThreshold).map((product) => product.id)
+          : [];
+      } else {
+        candidateRefs = ranked.map((product) => product.id);
+      }
+    } else if (rule === 'mapping') {
+      const mappings = Array.isArray(settings.product_mappings) ? settings.product_mappings : [];
+      matchedMapping = mappings.find((mapping) => mapping.purchasedProductId && orderIds.has(mapping.purchasedProductId) &&
+        Array.isArray(mapping.recommendedProductIds) && mapping.recommendedProductIds.length) || null;
+      candidateRefs = matchedMapping ? matchedMapping.recommendedProductIds.slice() : [];
+    } else if (rule === 'most_expensive' || rule === 'least_expensive') {
+      const ranked = order.lines.filter((line) => +line.quantity > 0 && (+line.paidAmount / +line.quantity) > 0).sort((a, b) => {
+        const delta = (+a.paidAmount / +a.quantity) - (+b.paidAmount / +b.quantity);
+        return (rule === 'most_expensive' ? -delta : delta) || ((a.orderIndex || 0) - (b.orderIndex || 0));
+      });
+      candidateRefs = ranked.map((line) => line.variantId ? line.productId + '::' + line.variantId : line.productId);
+    } else {
+      candidateRefs = Array.isArray(settings.specific_products) ? settings.specific_products.slice() : [];
+    }
+
+    const seen = new Set();
+    const filtered = [];
+    const allowOriginalPrimary = rule === 'most_expensive' || rule === 'least_expensive';
+    const append = (refs, isDefault) => {
+      productsForRefs(refs, catalog).forEach((product) => {
+        const id = product.id;
+        if (allowOriginalPrimary && !isDefault && filtered.length >= 1) return;
+        if (filtered.length >= max || seen.has(id)) return;
+        seen.add(id);
+        if (!availableProduct(product) || purchased.has(id) || priorIds.has(id)) return;
+        if (rule === 'best_sellers' && ctx.checkoutPage === 'downsell' &&
+            (upsellThreshold == null || effectivePrice(product, settings, offer.currency) >= upsellThreshold)) return;
+        const excludeOriginal = rule === 'best_sellers' || settings.exclude_original_order_products !== false;
+        if (excludeOriginal && orderIds.has(id) && !(allowOriginalPrimary && !isDefault)) return;
+        filtered.push(product);
+      });
+    };
+    append(candidateRefs, false);
+    const primaryCount = filtered.length;
+    const defaults = Array.isArray(settings.default_products) ? settings.default_products : [];
+    const shouldUseDefaults = primaryCount === 0 || (settings.fill_default_products !== false && primaryCount < max);
+    if (shouldUseDefaults) append(defaults, true);
+
+    return {
+      products: filtered.slice(0, max),
+      rule,
+      ruleLabel: RULE_LABELS[rule] || RULE_LABELS.specific,
+      matchedMapping,
+      order,
+      primaryCount,
+      defaultProductsUsed: filtered.length > primaryCount,
+      noMappingMatched: rule === 'mapping' && !matchedMapping,
+      upsellThreshold,
+      candidatePoolSize: Math.min(20, catalog.length),
+    };
+  }
+  function discountIssues(settings) {
+    const raw = settings.discount_value;
+    const value = raw == null || raw === '' ? 0 : +raw;
+    if (!Number.isFinite(value)) return ['Enter a valid discount value.'];
+    if (value < 0) return ['Discount value must be 0 or greater.'];
+    if ((settings.discount_type || 'percentage') === 'percentage' && value > 100) {
+      return ['Percentage discount must be between 0 and 100.'];
+    }
+    if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-8) {
+      return ['Discount value supports up to 2 decimal places.'];
+    }
+    return [];
+  }
+  function discountPreviewHtml(settings, ctx) {
+    const currency = String((((ctx || {}).offer || {}).currency) || 'USD').toUpperCase();
+    const type = settings.discount_type || 'percentage';
+    const base = type === 'fixed' ? 10 : 50;
+    const quote = quotePrice(base, 1, settings, currency);
+    const issues = discountIssues(settings);
+    return '<div class="cko-disc-preview" data-discount-preview>' +
+      '<div class="cko-disc-preview-head"><strong>Price preview</strong><span>' + esc(currency) + '</span></div>' +
+      (issues.length
+        ? '<div class="cko-disc-error">' + esc(issues[0]) + '</div>'
+        : '<p>If your product is ' + formatMoney(base, currency) + ', customer pays <strong>' +
+          formatMoney(quote.finalUnit, currency) + '</strong> (saves ' + formatMoney(quote.discountAmount, currency) + ').</p>') +
+      '<small>Calculated from the current selling price. Shopify discounts and compare-at price are not applied.</small>' +
+    '</div>';
+  }
 
   OS.register('checkout-offer-product', {
     name: 'Offer', icon: 'cart',
     schema: [
-      { info: 'Offer rules supply 1–4 ranked products. Theme controls presentation only; product count is not configured here.' },
+      { sub: 'Product recommendation' },
+      { info: 'Choose which products this template recommends. Live storefront eligibility and Session locking are validated by the Offer service.' },
+      { key: 'recommendation_rule', label: 'Recommendation rule', control: 'select', default: 'best_sellers', options: [
+        { value: 'best_sellers', label: 'Best sellers' },
+        { value: 'specific', label: 'Specific products' },
+        { value: 'mapping', label: 'Order product mapping' },
+        { value: 'most_expensive', label: 'Most expensive purchased product' },
+        { value: 'least_expensive', label: 'Least expensive purchased product' },
+      ] },
+      { info: 'Uses Shopify BEST_SELLING order. The system evaluates a fixed Top 20 candidate pool; ranking and time range are not merchant-configurable. Original order products are always excluded.',
+        visibleWhen: (s) => (s.recommendation_rule || 'best_sellers') === 'best_sellers' },
+      { sub: 'Rule configuration' },
+      { key: 'specific_products', label: 'Specific product variants', control: 'ordered_variants', default: [], max: 10,
+        info: 'Select up to 10 products, then choose the eligible variants. Drag to set storefront order.',
+        visibleWhen: (s) => (s.recommendation_rule || 'best_sellers') === 'specific' },
+      { key: 'product_mappings', label: 'Order product mapping', control: 'product_mappings', default: [], max: 50,
+        info: 'The first mapping matched from top to bottom wins.',
+        visibleWhen: (s) => s.recommendation_rule === 'mapping' },
+      { sub: 'Default products' },
+      { key: 'default_products', label: 'Default product variants', control: 'ordered_variants', default: [], max: 10,
+        info: 'Select fallback products and their eligible variants, then drag to set priority.' },
+      { key: 'fill_default_products', label: 'Fill with default products', control: 'toggle', default: true },
+      { sub: 'Product filters' },
+      { key: 'exclude_original_order_products', label: 'Exclude original order products', control: 'toggle', default: true,
+        info: 'Most/Least expensive rules may still return the selected purchased product.',
+        visibleWhen: (s) => (s.recommendation_rule || 'best_sellers') !== 'best_sellers' },
+      { key: 'maximum_products', label: 'Maximum products', control: 'number', default: 4, min: 1, max: 10,
+        info: 'The storefront displays no more than this number.' },
+      { sub: 'Discount' },
+      { key: 'discount_type', label: 'Discount type', control: 'select', default: 'percentage', options: (s, ctx) => [
+        { value: 'percentage', label: '% Off' },
+        { value: 'fixed', label: String((((ctx || {}).offer || {}).currency) || 'USD').toUpperCase() + ' Off' },
+      ] },
+      { key: 'discount_value', label: 'Discount value', control: 'number', default: 10, min: 0, step: 0.01,
+        info: 'Applied to each item’s current selling price. Empty or 0 means no discount.', refreshPanel: true },
+      { control: 'discount_preview', render: discountPreviewHtml },
+      { sub: 'Layout' },
       { key: 'multiple_layout', label: 'Multiple products layout', control: 'segmented', default: 'stacked', options: [
         { value: 'stacked', label: 'List' }, { value: 'grid', label: '2-column grid' } ],
-        info: 'Used when the Offer returns 2–4 products. A single product keeps the focused image-and-details layout.' },
+        info: 'Used when the recommendation returns multiple products. A single product keeps the focused image-and-details layout.' },
       { key: 'layout', label: 'Image position · list', control: 'segmented', default: 'image_left', options: [
         { value: 'image_left', label: 'Image left' }, { value: 'image_right', label: 'Image right' } ] },
       { key: 'image_ratio', label: 'Image ratio', control: 'select', default: 'square', options: [
@@ -41,6 +307,39 @@
       { key: 'savings_color', label: 'Savings color', control: 'color', default: '#2E8B57' },
       { key: 'border_radius', label: 'Card radius', control: 'number', default: 0, min: 0, max: 24 },
     ],
+    defaults() {
+      return {
+        specific_products: ['p3::p3-blk-m', 'p5::default', 'p6::default', 'p7::default'],
+        product_mappings: [
+          { id: 'map-p1', purchasedProductId: 'p1', recommendedProductIds: ['p3::p3-blk-m', 'p6::default'] },
+          { id: 'map-p5', purchasedProductId: 'p5', recommendedProductIds: ['p7::default', 'p8::default'] },
+        ],
+        default_products: [],
+      };
+    },
+    validate(settings) {
+      const issues = [];
+      const defaults = Array.isArray(settings.default_products) ? settings.default_products : [];
+      const rule = settings.recommendation_rule || 'best_sellers';
+      if (rule === 'specific' && !(settings.specific_products || []).length && !defaults.length) {
+        issues.push('Select at least one product or configure default products.');
+      }
+      if (rule === 'mapping') {
+        const mappings = Array.isArray(settings.product_mappings) ? settings.product_mappings : [];
+        if (mappings.length > 50) issues.push('You can create up to 50 product mappings.');
+        const seen = new Set();
+        mappings.forEach((mapping, index) => {
+          if (!mapping.purchasedProductId) issues.push('Mapping ' + (index + 1) + ': Select a purchased product.');
+          else if (seen.has(mapping.purchasedProductId)) issues.push('Mapping ' + (index + 1) + ': A mapping for this product already exists.');
+          else seen.add(mapping.purchasedProductId);
+          if (!Array.isArray(mapping.recommendedProductIds) || !mapping.recommendedProductIds.length) {
+            issues.push('Mapping ' + (index + 1) + ': Select at least one recommended product variant.');
+          }
+        });
+      }
+      discountIssues(settings).forEach((issue) => issues.push(issue));
+      return issues;
+    },
     render(s, blocks, ctx) {
       const o = ctx.offer || {};
       const cur = o.currency || 'USD';
@@ -50,35 +349,56 @@
         esc(s.payment_note || 'Uses the payment method from your completed checkout') + '</div>';
       const decline = '<button class="cko-decline" type="button" data-offer-decline>' +
         esc(s.decline_text || 'No thanks, continue') + '</button>';
-      const products = getProducts(o);
+      const recommendation = resolveRecommendation(s, ctx);
+      const products = recommendation.products;
+      if (!products.length) {
+        if (ctx.checkoutPage === 'upsell') OS.ckSet(upsellPreviewKey(ctx), { products: [], generated: true });
+        return '<div class="cksec cko-rec-empty" data-offer-count="0" data-offer-skip>' +
+          '<strong>No recommendation result</strong>' +
+          '<p>No eligible products matched this preview. The live storefront executes the Funnel node’s Skip route, or continues to the Thank you page.</p>' +
+          '<button type="button" data-offer-skip-continue>Continue preview</button>' +
+        '</div>';
+      }
       const multi = products.length > 1;
+      if (ctx.checkoutPage === 'upsell') {
+        OS.ckSet(upsellPreviewKey(ctx), {
+          generated: true,
+          products: products.map((product) => ({
+            productId: product.id,
+            effectivePrice: effectivePrice(product, s, cur),
+          })),
+        });
+      }
       const cardHtml = products.map((product, index) => {
         const variants = Array.isArray(product.variants) ? product.variants : [];
-        const selectedVariant = variants.find((v) => v.id === product.selectedVariantId) ||
-          variants.find((v) => v.available !== false) || variants[0] || {};
+        const selectedVariant = variants.find((v) => v.id === product.selectedVariantId && availableVariant(v)) ||
+          variants.find(availableVariant) || {};
         const shown = Object.assign({}, product, selectedVariant);
-        const amount = money(+shown.total || +shown.price || 0) + ' ' + cur;
-        const accept = acceptTemplate.replace(/\{amount\}/g, amount);
-        const compare = s.show_compare_price !== false && +shown.compareAt > +shown.price
-          ? '<s class="cko-compare" data-offer-compare>' + money(shown.compareAt) + '</s>' : '';
-        const savings = s.show_savings !== false && shown.savings
-          ? '<span class="cko-save" data-offer-savings style="color:' + (s.savings_color || '#2E8B57') + '">(' + esc(shown.savings) + ')</span>' : '';
+        const initialQty = Math.max(1, +product.quantity || 1);
+        const quote = quotePrice(+shown.price || +product.price || 0, initialQty, s, cur);
+        const amount = formatMoney(quote.subtotal, cur) + ' ' + cur;
+        const alreadyAdded = acceptedIds().indexOf(product.id) >= 0;
+        const accept = alreadyAdded ? 'Added to order' : acceptTemplate.replace(/\{amount\}/g, amount);
+        const compareValue = quote.discountAmount > 0 ? quote.basePrice
+          : (+shown.compareAt > quote.basePrice ? +shown.compareAt : 0);
+        const compare = s.show_compare_price !== false && compareValue > quote.finalUnit
+          ? '<s class="cko-compare" data-offer-base>' + formatMoney(compareValue, cur) + '</s>' : '';
+        const savings = s.show_savings !== false && quote.discountAmount > 0
+          ? '<span class="cko-save" data-offer-savings style="color:' + (s.savings_color || '#2E8B57') + '">' + esc(quote.savingsText) + '</span>' : '';
         const rating = s.show_rating === false || product.rating == null ? '' :
           '<div class="cko-rating"><span class="stars">\u2605\u2605\u2605\u2605\u2605</span><span>' +
           esc(String(product.rating)) + ' (' + esc(String(product.reviewCount || 0)) + ')</span></div>';
         const desc = s.show_description === false || !product.description ? '' :
           '<p class="cko-desc">' + esc(product.description) + '</p>';
         const variantOptions = variants.map((v) => '<option value="' + esc(v.id) + '"' +
-          ' data-price="' + (+v.price || +product.price || 0) + '" data-compare="' + (+v.compareAt || 0) +
-          '" data-total="' + (+v.total || +v.price || +product.total || +product.price || 0) +
-          '" data-savings="' + esc(v.savings || '') + '"' +
-          (v.available === false ? ' disabled' : '') +
+          ' data-base-price="' + (+v.price || +product.price || 0) + '" data-compare="' + (+v.compareAt || 0) + '"' +
+          (!availableVariant(v) ? ' disabled' : '') +
           (v.id === selectedVariant.id ? ' selected' : '') + '>' + esc(v.title) + '</option>').join('');
         const variant = s.show_variant === false || !variants.length ? '' :
           '<label class="cko-choice cko-variant-choice"><span>' + esc(product.variantLabel || 'Variant') + '</span>' +
             '<select data-offer-variant>' + variantOptions + '</select></label>';
         const quantities = (product.quantityOptions || [product.quantity || 1]).map((q) =>
-          '<option' + (+q === +product.quantity ? ' selected' : '') + '>' + esc(String(q)) + '</option>').join('');
+          '<option value="' + esc(String(q)) + '"' + (+q === initialQty ? ' selected' : '') + '>' + esc(String(q)) + '</option>').join('');
         const qty = s.show_quantity === false ? '' :
           '<label class="cko-choice cko-qty-choice"><span>' + esc(s.quantity_label || 'Quantity') + '</span>' +
             '<select data-offer-qty>' + quantities + '</select></label>';
@@ -91,10 +411,11 @@
         const singleFlowActions = multi ? '' : decline + paymentNote;
         const info = '<div class="cko-info">' +
           '<div class="cko-titleline"><h2>' + esc(product.title || 'Preview offer product') + '</h2></div>' +
-          '<div class="cko-price">' + compare + '<strong data-offer-price>' + money(+shown.price || 0) + '</strong>' + savings + '</div>' +
+          '<div class="cko-price">' + compare + '<strong data-offer-price>' + formatMoney(quote.finalUnit, cur) + '</strong>' + savings + '</div>' +
           rating + desc + choices + shipping +
           '<button class="cko-accept" type="button" data-offer-accept data-accept-template="' + esc(acceptTemplate) +
             '" data-offer-id="' + esc(product.id || String(index + 1)) +
+            '"' + (alreadyAdded ? ' disabled data-offer-added="1"' : '') +
             '" style="background:' + (s.button_background || 'var(--ck-btn-bg)') +
             ';color:' + (s.button_text_color || 'var(--ck-btn-text)') + '">' + esc(accept) + '</button>' +
           singleFlowActions +
@@ -102,7 +423,10 @@
         const reversed = s.layout === 'image_right' ? ' reverse' : '';
         return '<article class="cko-card' + reversed + '" data-offer-card style="background:' +
           (s.card_background || '#fff') + ';border-radius:' + (s.border_radius == null ? 0 : s.border_radius) +
-          'px">' + media + info + '</article>';
+          'px" data-offer-id="' + esc(product.id || String(index + 1)) +
+          '" data-offer-title="' + esc(product.title || 'Offer product') +
+          '" data-offer-image="' + esc(product.image || '') +
+          '" data-base-price="' + quote.basePrice + '">' + media + info + '</article>';
       }).join('');
       const layout = multi && s.multiple_layout === 'grid' ? ' grid' : ' stacked';
       const sharedFlowActions = multi ? '<div class="cko-flow-actions">' + decline + paymentNote + '</div>' : '';
@@ -110,26 +434,70 @@
         '" data-offer-count="' + products.length + '">' + cardHtml + sharedFlowActions + '</div>';
     },
     hydrate(el, settings, blocks, ctx) {
+      const skip = el.querySelector('[data-offer-skip-continue]');
+      if (skip) {
+        skip.addEventListener('click', (e) => {
+          e.preventDefault();
+          OS.goCheckoutPage(ctx && ctx.checkoutPage === 'upsell' ? 'downsell' : 'thankyou');
+        });
+      }
       const decline = el.querySelector('[data-offer-decline]');
       const accepts = Array.from(el.querySelectorAll('[data-offer-accept]'));
-      el.querySelectorAll('[data-offer-card]').forEach((card) => {
-        const accept = card.querySelector('[data-offer-accept]');
+      const currency = ((ctx || {}).offer && ctx.offer.currency) || 'USD';
+      const updateUpsellThreshold = (card, quote) => {
+        if (!ctx || ctx.checkoutPage !== 'upsell') return;
+        const stateKey = upsellPreviewKey(ctx);
+        const state = Object.assign({ products: [] }, (OS.ckState || {})[stateKey] || {});
+        const id = card.getAttribute('data-offer-id');
+        const products = Array.isArray(state.products) ? state.products.slice() : [];
+        const index = products.findIndex((item) => item.productId === id);
+        const next = { productId: id, effectivePrice: quote.finalUnit };
+        if (index >= 0) products[index] = next; else products.push(next);
+        OS.ckSet(stateKey, { products });
+      };
+      const updateCard = (card) => {
         const variant = card.querySelector('[data-offer-variant]');
-        if (!variant) return;
-        variant.addEventListener('change', () => {
-          const option = variant.selectedOptions[0]; if (!option) return;
-          const cur = (ctx.offer && ctx.offer.currency) || 'USD';
-          const price = card.querySelector('[data-offer-price]');
-          const compare = card.querySelector('[data-offer-compare]');
-          const savings = card.querySelector('[data-offer-savings]');
-          if (price) price.textContent = money(+option.dataset.price || 0);
-          if (compare) compare.textContent = money(+option.dataset.compare || 0);
-          if (savings) savings.textContent = option.dataset.savings ? '(' + option.dataset.savings + ')' : '';
-          if (accept) {
-            const amount = money(+option.dataset.total || +option.dataset.price || 0) + ' ' + cur;
+        const option = variant && variant.selectedOptions[0];
+        const qtyEl = card.querySelector('[data-offer-qty]');
+        const base = option ? (+option.dataset.basePrice || 0) : (+card.dataset.basePrice || 0);
+        const qty = qtyEl ? (+qtyEl.value || 1) : 1;
+        const quote = quotePrice(base, qty, settings, currency);
+        const validPrice = Number.isFinite(base) && base > 0;
+        card.dataset.basePrice = String(quote.basePrice);
+        card.dataset.finalUnit = String(quote.finalUnit);
+        card.dataset.subtotal = String(quote.subtotal);
+        const price = card.querySelector('[data-offer-price]');
+        const compare = card.querySelector('[data-offer-base]');
+        const savings = card.querySelector('[data-offer-savings]');
+        const accept = card.querySelector('[data-offer-accept]');
+        if (price) price.textContent = validPrice ? formatMoney(quote.finalUnit, currency) : 'Unavailable';
+        if (compare) {
+          const compareValue = quote.discountAmount > 0 ? quote.basePrice : (+((option || {}).dataset || {}).compare || 0);
+          compare.textContent = formatMoney(compareValue, currency);
+          compare.hidden = compareValue <= quote.finalUnit;
+        }
+        if (savings) {
+          savings.textContent = quote.savingsText;
+          savings.hidden = quote.discountAmount <= 0;
+        }
+        if (accept && !accept.hasAttribute('data-offer-added')) {
+          if (!validPrice) {
+            accept.disabled = true;
+            accept.textContent = 'Product unavailable';
+          } else {
+            const amount = formatMoney(quote.subtotal, currency) + ' ' + currency;
             accept.textContent = String(accept.dataset.acceptTemplate || 'Add to my order · {amount}').replace(/\{amount\}/g, amount);
           }
-        });
+        }
+        updateUpsellThreshold(card, quote);
+        return quote;
+      };
+      el.querySelectorAll('[data-offer-card]').forEach((card) => {
+        const variant = card.querySelector('[data-offer-variant]');
+        const qty = card.querySelector('[data-offer-qty]');
+        if (variant) variant.addEventListener('change', () => updateCard(card));
+        if (qty) qty.addEventListener('change', () => updateCard(card));
+        updateCard(card);
       });
       accepts.forEach((accept) => {
         accept.addEventListener('click', (e) => {
@@ -137,7 +505,46 @@
           if (accept.disabled) return;
           accepts.forEach((button) => { button.disabled = true; });
           accept.textContent = 'Adding\u2026';
-          setTimeout(() => OS.goCheckoutPage('thankyou'), 500);
+          setTimeout(() => {
+            const id = accept.getAttribute('data-offer-id');
+            const card = accept.closest('[data-offer-card]');
+            const quote = card ? updateCard(card) : quotePrice(0, 1, settings, currency);
+            const variant = card && card.querySelector('[data-offer-variant]');
+            const qty = card && card.querySelector('[data-offer-qty]');
+            const current = Object.assign({}, OS.ckState['post-purchase-accepted'] || {});
+            if (id) current[id] = true;
+            OS.ckSet('post-purchase-accepted', current);
+            const locked = Array.isArray(OS.ckState['post-purchase-accepted-lines'])
+              ? OS.ckState['post-purchase-accepted-lines'].slice() : [];
+            const line = {
+              id: 'offer-' + ((ctx && ctx.checkoutPage) || 'upsell') + '-' + (id || locked.length + 1),
+              productId: id,
+              title: (card && card.getAttribute('data-offer-title')) || 'Offer product',
+              variant: variant && variant.selectedOptions[0] ? variant.selectedOptions[0].textContent : '',
+              variantId: variant ? variant.value : '',
+              variant_id: variant ? variant.value : '',
+              qty: qty ? (+qty.value || 1) : 1,
+              price: quote.finalUnit,
+              compareAt: quote.discountAmount > 0 ? quote.basePrice : 0,
+              base_price: quote.basePrice,
+              image: (card && card.getAttribute('data-offer-image')) || '',
+              discountType: settings.discount_type || 'percentage',
+              discountValue: discountValue(settings),
+              discountAmount: quote.discountAmount,
+              discount_type: settings.discount_type || 'percentage',
+              discount_value: discountValue(settings),
+              discount_amount: quote.discountAmount,
+              offerFinalPrice: quote.finalUnit,
+              offer_final_price: quote.finalUnit,
+              currency,
+            };
+            line[(ctx && ctx.checkoutPage) === 'downsell' ? 'downsell' : 'upsell'] = true;
+            const existingLine = locked.findIndex((item) => item.id === line.id);
+            if (existingLine >= 0) locked[existingLine] = line; else locked.push(line);
+            OS.ckState['post-purchase-accepted-lines'] = locked;
+            accept.textContent = 'Added to order';
+            OS.goCheckoutPage('thankyou');
+          }, 500);
         });
       });
       if (decline) decline.addEventListener('click', (e) => {
@@ -182,6 +589,12 @@
   .cko-accept:disabled{opacity:.72;cursor:default}
   .cko-decline{align-self:center;margin-top:11px;border:0;background:none;color:var(--ck-accent);font:inherit;font-size:var(--ck-small-fs);text-decoration:underline;cursor:pointer}
   .cko-payment-note{margin-top:12px;text-align:center;color:var(--ck-muted);font-size:10.5px;line-height:1.4}
+  .cko-rec-empty{padding:28px;border:1px dashed var(--ck-divider);border-radius:10px;background:color-mix(in srgb,var(--ck-page-bg) 88%,#fff);text-align:center}
+  .cko-rec-empty strong{display:block;font-family:var(--ck-heading-font);font-size:17px}.cko-rec-empty p{max-width:520px;margin:7px auto 0;color:var(--ck-muted);font-size:12px;line-height:1.5}
+  .cko-rec-empty button{min-height:40px;margin-top:14px;padding:0 18px;border:1px solid var(--ck-divider);border-radius:var(--ck-btn-radius);background:#fff;color:var(--ck-text);font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+  .cko-disc-preview{margin:12px 0 4px;padding:12px;border:1px solid #d8dde6;border-radius:9px;background:#f8f9fb;color:#2c3440;font-size:11.5px;line-height:1.45}
+  .cko-disc-preview-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.cko-disc-preview-head strong{font-size:12.5px}.cko-disc-preview-head span{color:#6a7482;font-size:10.5px}
+  .cko-disc-preview p{margin:7px 0 0}.cko-disc-preview small{display:block;margin-top:7px;color:#6a7482}.cko-disc-error{margin-top:8px;color:#a63b32}
   .ckpage.mob .cko-offers.multi,.ckpage.mob .cko-offers.multi.grid{display:flex;flex-direction:column;gap:18px}
   .ckpage.mob .cko-card{display:flex;flex-direction:column;gap:18px}
   .ckpage.mob .cko-card.reverse .cko-media,.ckpage.mob .cko-card.reverse .cko-info{order:initial}
