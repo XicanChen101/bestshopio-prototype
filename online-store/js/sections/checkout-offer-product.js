@@ -187,8 +187,7 @@
         if (!availableProduct(product) || purchased.has(id) || priorIds.has(id)) return;
         if (rule === 'best_sellers' && ctx.checkoutPage === 'downsell' &&
             (upsellThreshold == null || effectivePrice(product, settings, offer.currency) >= upsellThreshold)) return;
-        const excludeOriginal = rule === 'best_sellers' || settings.exclude_original_order_products !== false;
-        if (excludeOriginal && orderIds.has(id) && !(allowOriginalPrimary && !isDefault)) return;
+        if (orderIds.has(id) && !(allowOriginalPrimary && !isDefault)) return;
         filtered.push(product);
       });
     };
@@ -266,9 +265,6 @@
         info: 'Select fallback products and their eligible variants, then drag to set priority.' },
       { key: 'fill_default_products', label: 'Fill with default products', control: 'toggle', default: true },
       { sub: 'Product filters' },
-      { key: 'exclude_original_order_products', label: 'Exclude original order products', control: 'toggle', default: true,
-        info: 'Most/Least expensive rules may still return the selected purchased product.',
-        visibleWhen: (s) => (s.recommendation_rule || 'best_sellers') !== 'best_sellers' },
       { key: 'maximum_products', label: 'Maximum products', control: 'number', default: 4, min: 1, max: 10,
         info: 'Enter a value from 1 to 10. The storefront displays no more than this number.' },
       { sub: 'Discount' },
