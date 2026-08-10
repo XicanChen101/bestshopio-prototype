@@ -9,7 +9,7 @@
    #/orders/5042, or 'base' for #/settings/base). Internal navigation just sets
    location.hash; the router re-dispatches. */
 (function () {
-  var V = '20260810i'; // cache-bust for multi-order summary colors
+  var V = '20260810o'; // preview snapshots only the latest saved draft or published version
   var s = function (p) { return '<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>'; };
   var ICONS = {
     home: s('<path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10h14V10"/>'),
@@ -428,7 +428,12 @@
     backdrop.addEventListener('click', closeDrawer);
     app.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a[href^="#/"]')) closeDrawer(); });
 
-    if (!location.hash) location.replace('#/home');
+    var qs = new URLSearchParams(location.search || '');
+    if (qs.get('preview_id')) {
+      if ((location.hash || '').indexOf('#/online-store') !== 0) location.replace(location.pathname + location.search + '#/online-store');
+    } else if (!location.hash) {
+      location.replace('#/home');
+    }
     window.addEventListener('hashchange', dispatch);
     dispatch();
   }

@@ -123,7 +123,7 @@
     <header class="top">
       <div class="top-copy">
         <h1>V1.137 Theme 手工验收作战台</h1>
-        <p class="muted">覆盖 Theme Editor、全宽/买家预览、48 小时分享、发布链路、20 个 Header/Home/Footer 组件、8 组 Theme settings 与真实 Storefront。</p>
+        <p class="muted">覆盖 Theme Editor、全宽/商户买家预览、交互安全边界、发布链路、20 个 Header/Home/Footer 组件、8 组 Theme settings 与真实 Storefront。</p>
       </div>
       <div class="actions">
         <button class="button" id="printBtn">打印 / 导出 PDF</button>
@@ -372,15 +372,17 @@
       ["preview-media-fail","媒体加载失败","图片显示占位；视频回退封面；页面结构不坍塌。"],
       ["preview-fail","预览加载失败","显示 Retry；重试后恢复且当前编辑数据不丢。"],
       ["preview-full-width","编辑器全宽预览","再次点击当前 Sections/Settings 图标后左右面板收起；Esc 或工具栏退出后选中项与滚动位置保持。"],
-      ["preview-working-state","全宽预览读取工作态","未保存修改立即出现在全宽画布，顶部明确显示 Unsaved preview，不误标为 Saved/Published。"],
-      ["preview-save-gate","买家预览保存门禁","有未保存修改时弹 Save and preview；Cancel 不保存也不开新页，校验失败不生成快照。"],
-      ["preview-saved-draft","新标签页最近保存草稿","买家视角只展示最近保存草稿；页面无顶部预览控制区或黄色提示条，店铺/Checkout 视觉与真实买家页面一致。"],
+      ["preview-working-state","全宽预览读取工作态","未保存修改立即出现在全宽画布；存在未发布修改时顶部显示 Draft preview，不提供 Unsaved preview 状态。"],
+      ["preview-saved-tab","新标签页最近保存版本","有未保存修改时不弹保存提示；直接打开新页，但只展示最近已保存版本，未保存编辑不进入快照。"],
+      ["preview-merchant-only","仅商户预览","预览地址只使用 preview_id 且要求商户会话；无公开访客预览与 preview_token。"],
       ["preview-context","预览页面与响应式上下文","初始页面、模板、预览商品/集合与快照一致；新标签页按实际浏览器宽度响应，不提供 Page 或设备切换控件。"],
-      ["preview-share","预览链接分享","Online Store 与 Checkout 各页面的底栏链接图标均复制 48 小时同浏览器访客链接；访客页不显示商户控制栏。"],
-      ["preview-bottom-bar","Shopify 式底部预览栏","左侧显示主题名与 Draft/Published，中间无市场/语言功能；右侧为复制链接、Hide bar/Exit preview 菜单和 Edit theme，隐藏后可恢复。"],
-      ["preview-expired","过期与缺失链接","快照过期、访客 Token 过期、跨浏览器缺失分别显示明确失效页；重复访问过期/撤销链接仍保留准确终态，禁止静默回退线上主题。"],
-      ["preview-checkout-boundary","Checkout 预览安全边界","编辑器全宽预览与新标签页均不显示黄色提示；公开访客链接只使用 Mock 数据和模拟交易，不创建真实订单、扣款、库存或通知。"],
-      ["preview-source-label","预览版本标识","编辑器工作态显示 Unsaved/Saved draft/Published preview；新标签页底栏显示 Draft/Published，Save/Publish 后立即刷新。"],
+      ["preview-no-share","分享能力已删除","底栏、More 和页面内均无复制、分享、撤销或链接管理入口；原型不创建 Share Token 或 Share 数据。"],
+      ["preview-bottom-bar","商户预览底部栏","左侧显示主题名与 Draft/Published；右侧仅有 Preview limits、Hide bar/Exit preview 菜单和 Edit theme，隐藏后可恢复。"],
+      ["preview-limits","交互边界说明","Preview limits 按当前 Online Store、Checkout、Upsell、Downsell、Thank you 页面展示可测试与永不执行的操作。"],
+      ["preview-online-boundary","Online Store 预览边界","浏览、筛选、Variant 和本地购物车可用；账号、表单、真实 Checkout、外部 App 与第三方写入被阻止并提示。"],
+      ["preview-checkout-boundary","Checkout 全链路安全边界","字段、Mock 优惠、配送与支付选择、页面跳转可测试；不创建真实订单、扣款、库存、客户、履约、通知或第三方事件。"],
+      ["preview-expired","过期与缺失预览","商户快照 30 天过期；过期或缺失均显示明确失效页，禁止静默回退线上主题。"],
+      ["preview-source-label","预览版本标识","全宽预览与新标签页都只显示 Draft/Published；不存在 Unsaved 预览状态，Save/Publish 后新建预览读取对应版本。"],
       ["save-state","Save 按钮状态","无修改禁用；有修改可用；保存中 Loading 并防重复点击。"],
       ["save-success","Save 成功与刷新","状态变 Saved；刷新、退出重进后草稿保持一致。"],
       ["save-fail","Save 失败","当前修改不丢、错误明确、按钮恢复并可重试。"],

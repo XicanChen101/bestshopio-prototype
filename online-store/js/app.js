@@ -40,6 +40,7 @@
     gear: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
     eye: svg('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>', 15),
     eyeOff: svg('<path d="M9.9 4.24A9 9 0 0 1 12 4c6 0 10 7 10 7a13 13 0 0 1-1.67 2.18M6.6 6.6A13 13 0 0 0 2 11s4 7 10 7a9 9 0 0 0 4.5-1.2"/><path d="m2 2 20 20"/>', 15),
+    clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 15),
     trash: svg('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>', 14),
     grip: svg('<circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>', 14),
     plus: svg('<path d="M12 5v14M5 12h14"/>', 14),
@@ -185,15 +186,10 @@
   //  STATE  (3 snapshots + UI state, mirrors theme-editor.canvas)
   // ==========================================================================
   let ED = null;
-  const PREVIEW_STORAGE_KEY = 'bestshopio-theme-preview-snapshots-v2';
-  const PREVIEW_SHARE_STORAGE_KEY = 'bestshopio-theme-preview-shares-v1';
-  const MERCHANT_PREVIEW_TTL_MS = 30 * 60 * 1000;
-  const VISITOR_PREVIEW_TTL_MS = 48 * 60 * 60 * 1000;
+  const PREVIEW_STORAGE_KEY = 'bestshopio-theme-preview-snapshots-v3';
+  const MERCHANT_PREVIEW_TTL_MS = 30 * 24 * 60 * 60 * 1000;
   const PREVIEW_TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   let ACTIVE_PREVIEW = null;
-  let ACTIVE_PREVIEW_SHARE = null;
-  let ACTIVE_PREVIEW_VISITOR = false;
-  let ACTIVE_PREVIEW_VISITOR_TOKEN = '';
   let ACTIVE_PREVIEW_EXPIRY_TIMER = null;
   let ACTIVE_PREVIEW_BAR_HIDDEN = false;
 
@@ -207,45 +203,17 @@
     try { localStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(store)); return true; }
     catch (e) { toast('Preview could not be created. Browser storage is unavailable.', 'err'); return false; }
   }
-  function previewShareStore() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(PREVIEW_SHARE_STORAGE_KEY) || '{}');
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-    } catch (e) { return {}; }
-  }
-  function writePreviewShareStore(store) {
-    try { localStorage.setItem(PREVIEW_SHARE_STORAGE_KEY, JSON.stringify(store)); return true; }
-    catch (e) { toast('Share link could not be updated. Browser storage is unavailable.', 'err'); return false; }
-  }
-  function prunePreviewShareStore(store) {
+  function prunePreviewStore(store) {
     const now = Date.now();
-    Object.keys(store).forEach((token) => {
-      const share = store[token];
-      if (!share || share.version !== 1 || !share.previewId || !share.expiresAt ||
-          (share.tombstoneUntil && share.tombstoneUntil <= now)) delete store[token];
-    });
-    return store;
-  }
-  function activePreviewShareIds(shares) {
-    const now = Date.now(); const ids = {};
-    Object.keys(shares).forEach((token) => {
-      const share = shares[token];
-      if (!share.revokedAt && share.expiresAt > now) ids[share.previewId] = true;
-    });
-    return ids;
-  }
-  function prunePreviewStore(store, shares) {
-    const now = Date.now();
-    const activeIds = activePreviewShareIds(shares || prunePreviewShareStore(previewShareStore()));
     Object.keys(store).forEach((id) => {
       const item = store[id];
-      if (!item || item.version !== 2 || !item.merchantExpiresAt) { delete store[id]; return; }
-      if (item.merchantExpiresAt > now || activeIds[id]) return;
+      if (!item || item.version !== 3 || !item.merchantExpiresAt) { delete store[id]; return; }
+      if (item.merchantExpiresAt > now) return;
       if (!item.tombstoneUntil || item.tombstoneUntil <= now) { delete store[id]; return; }
       // Keep a compact terminal record so repeated visits remain "expired", not "not found".
       if (item.theme) {
         store[id] = {
-          version: 2, id: item.id, editorHash: item.editorHash,
+          version: 3, id: item.id, editorHash: item.editorHash,
           merchantExpiresAt: item.merchantExpiresAt, tombstoneUntil: item.tombstoneUntil,
           expired: true,
         };
@@ -259,16 +227,13 @@
     }
     return uid('preview').replace(/[^a-z0-9]/gi, '') + Math.random().toString(36).slice(2, 10);
   }
-  function newPreviewToken() {
-    if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
-      const bytes = new Uint8Array(32); window.crypto.getRandomValues(bytes);
-      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    }
-    return [newPreviewId(), newPreviewId(), newPreviewId(), newPreviewId()].join('');
-  }
-  function previewUrl(id, visitor, visitorToken) {
-    return location.href.split('#')[0] + '#/online-store/preview/' + encodeURIComponent(id) +
-      (visitor ? '/visitor?token=' + encodeURIComponent(visitorToken || '') : '');
+  function previewUrl(id) {
+    // Production-like store domain + query params. Prototype keeps the current path/hash SPA.
+    const url = new URL(location.href.split('#')[0], location.origin);
+    ['preview_id', 'preview_token', 'store', 'new'].forEach((key) => url.searchParams.delete(key));
+    url.searchParams.set('preview_id', id || '');
+    url.hash = '#/online-store';
+    return url.toString();
   }
   function editorHashForState() {
     if (isCheckout()) {
@@ -276,14 +241,17 @@
     }
     return '#/online-store/edit/' + encodeURIComponent(ED.meta.handle);
   }
+  function previewSourceForSavedState() {
+    return hasDraft() ? 'saved' : 'published';
+  }
   function createPreviewSnapshot() {
     const now = Date.now();
     const snapshot = {
-      version: 2,
+      version: 3,
       id: newPreviewId(),
       themeHandle: ED.meta.handle,
-      themeName: ED.theme.name || ED.meta.title || 'Theme',
-      source: hasDraft() ? 'saved' : 'published',
+      themeName: ED.savedTheme.name || ED.meta.title || 'Theme',
+      source: previewSourceForSavedState(),
       surface: ED.surface,
       currentPage: ED.currentPage,
       checkoutPage: ED.checkoutPage,
@@ -292,44 +260,28 @@
       previewSel: clone(ED.previewSel || {}),
       resourceContext: isResourcePage() ? { pageType: ED.currentPage, resource: clone(previewResource()) } : null,
       device: ED.device,
+      // Merchant preview deliberately excludes unsaved editor changes.
       theme: clone(ED.savedTheme),
       editorHash: editorHashForState(),
       createdAt: now,
       merchantExpiresAt: now + MERCHANT_PREVIEW_TTL_MS,
       tombstoneUntil: now + MERCHANT_PREVIEW_TTL_MS + PREVIEW_TOMBSTONE_TTL_MS,
     };
-    const shares = prunePreviewShareStore(previewShareStore());
-    const store = prunePreviewStore(previewStore(), shares);
+    const store = prunePreviewStore(previewStore());
     store[snapshot.id] = snapshot;
     return writePreviewStore(store) ? snapshot : null;
   }
-  function resolvePreviewSnapshot(id, visitor, visitorToken) {
+  function resolvePreviewSnapshot(id) {
     const now = Date.now();
-    const shares = prunePreviewShareStore(previewShareStore());
-    let share = null;
-    if (visitor) {
-      share = visitorToken ? shares[visitorToken] : null;
-      if (!share || share.previewId !== id) return { error: 'revoked' };
-      if (share.revokedAt) return { error: 'revoked' };
-      if (share.expiresAt <= now) return { error: 'expired' };
-      if (!share.context || typeof share.context !== 'object') return { error: 'missing' };
-    }
-    const store = prunePreviewStore(previewStore(), shares);
+    const store = prunePreviewStore(previewStore());
     const snapshot = store[id];
     if (!snapshot) return { error: 'missing' };
-    if (snapshot.expired || snapshot.merchantExpiresAt <= now && !visitor) {
+    if (snapshot.expired || snapshot.merchantExpiresAt <= now) {
       return { error: 'expired', editorHash: snapshot.editorHash };
     }
-    if (snapshot.version !== 2 || !snapshot.theme || !snapshot.theme.templates ||
+    if (snapshot.version !== 3 || !snapshot.theme || !snapshot.theme.templates ||
         !snapshot.theme.checkout || !snapshot.theme.checkout.templates) return { error: 'missing' };
-    return { snapshot, share };
-  }
-  function activeShareForPreview(previewId) {
-    const now = Date.now();
-    const shares = prunePreviewShareStore(previewShareStore());
-    return Object.keys(shares).map((token) => shares[token])
-      .filter((share) => share.previewId === previewId && !share.revokedAt && share.expiresAt > now)
-      .sort((a, b) => b.createdAt - a.createdAt)[0] || null;
+    return { snapshot };
   }
 
   function buildSettingsDefaults() { return groupDefaults(D.SETTINGS_GROUPS); }
@@ -603,8 +555,7 @@
   const assignedResourceIds = (pt, tpl) => ((tpl || curTpl()).assignedResourceIds || []);
   function previewResource(pt) {
     pt = pt || ED.currentPage;
-    const frozenContext = ACTIVE_PREVIEW_VISITOR && ACTIVE_PREVIEW_SHARE && ACTIVE_PREVIEW_SHARE.context
-      ? ACTIVE_PREVIEW_SHARE.context.resourceContext : (ACTIVE_PREVIEW && ACTIVE_PREVIEW.resourceContext);
+    const frozenContext = ACTIVE_PREVIEW && ACTIVE_PREVIEW.resourceContext;
     if (ED.previewOnly && frozenContext && frozenContext.pageType === pt && frozenContext.resource) {
       return frozenContext.resource;
     }
@@ -1069,7 +1020,7 @@
   function previewBarText() {
     const resource = isResourcePage() ? previewResource() : null;
     const prefix = ED.fullPreview
-      ? (isDirty() ? 'Unsaved preview' : (hasDraft() ? 'Saved draft preview' : 'Published preview'))
+      ? ((isDirty() || hasDraft()) ? 'Draft preview' : 'Published preview')
       : (isCheckout() ? 'Preview' : 'Live preview');
     return prefix + ' · ' + pageLabel() +
       (resource ? ' · ' + resource.title : '') +
@@ -1410,9 +1361,69 @@
   }
   function unknown(kind) { return '<div class="os-render-err">Section “' + esc(kind) + '” isn’t available yet.</div>'; }
 
+  function previewBoundaryNotice(message) {
+    toast(message || 'This action is unavailable in preview. No live data was changed.');
+  }
+  function wirePreviewBoundaries(frame) {
+    frame.addEventListener('submit', (event) => {
+      event.preventDefault(); event.stopImmediatePropagation();
+      previewBoundaryNotice('Form submissions are disabled in preview. No customer data was saved.');
+    }, true);
+    frame.addEventListener('click', (event) => {
+      const target = event.target;
+      const cta = target.closest('[data-ck-cta]');
+      if (cta) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (cta.classList.contains('loading')) return;
+        cta.classList.add('loading');
+        cta.textContent = cta.getAttribute('data-loading') || 'Processing...';
+        previewBoundaryNotice('Simulated checkout only — no order, payment, or inventory change was created.');
+        setTimeout(() => goCheckoutPage('upsell'), 900);
+        return;
+      }
+      if (target.closest('[data-ck-signin],[data-ck-signout]') ||
+          (target.closest('a') && /\/(account|login|register)(?:\/|$|\?)/i.test(target.closest('a').getAttribute('href') || ''))) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        previewBoundaryNotice('Customer account actions are disabled in preview.');
+        return;
+      }
+      if (target.closest('.nl-btn,.ft-fbtn')) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        previewBoundaryNotice('Subscriptions are disabled in preview. No customer data was saved.');
+        return;
+      }
+      if (target.closest('.tycu-link,[data-review-submit],.review-submit')) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        previewBoundaryNotice('Customer messages and reviews cannot be submitted in preview.');
+        return;
+      }
+      if (target.closest('.tycs-btn')) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        ED.surface = 'online-store'; ED.currentPage = 'home'; ED.selection = { kind: 'none' };
+        renderStandalonePreview();
+        return;
+      }
+      if (target.closest('[data-offer-accept]')) {
+        previewBoundaryNotice('Simulated add only — the live order and payment method are unchanged.');
+        return;
+      }
+      const link = target.closest('a');
+      if (link) {
+        const href = String(link.getAttribute('href') || '').trim();
+        try {
+          const url = href ? new URL(href, location.href) : null;
+          if (url && /^https?:$/.test(url.protocol) && url.host !== location.host) {
+            event.preventDefault(); event.stopImmediatePropagation();
+            previewBoundaryNotice('External apps and service links are disabled in preview.');
+          }
+        } catch (e) {}
+      }
+    }, true);
+  }
   function wireCanvas() {
     const frame = document.getElementById('os-frame'); if (!frame) return;
     wireFloatFields(frame);
+    if (ED.previewOnly) wirePreviewBoundaries(frame);
     if (ED.previewOnly || ED.fullPreview) {
       frame.addEventListener('click', (event) => {
         const link = event.target.closest('a'); if (!link) return;
@@ -2873,38 +2884,16 @@
     return true;
   }
   function requestSavedPreview() {
+    // Open the latest saved draft/published state; unsaved editor changes stay in the editor.
     if (!ED || ED.busy || ED.previewOnly) return;
-    if (!isDirty()) { openSavedPreview(); return; }
-    openConfirm({
-      title: 'Save changes to preview?',
-      body: 'Buyer-view preview uses your most recently saved draft. Save the current changes, then open preview in a new tab.',
-      okText: 'Save and preview',
-      onOk: () => {
-        const issues = validate(true);
-        if (issues.length) { openIssues(issues, 'previewing'); return; }
-        const previewWindow = openPreviewPlaceholder();
-        if (!previewWindow) return;
-        saveDraft(() => openSavedPreview(previewWindow), true);
-      },
-    });
+    openSavedPreview();
   }
-  function openPreviewPlaceholder() {
-    const previewWindow = window.open('about:blank', '_blank');
-    if (!previewWindow) { toast('Preview was blocked. Allow pop-ups and try again.', 'err'); return null; }
-    try {
-      previewWindow.opener = null;
-      previewWindow.document.title = 'Opening preview…';
-      previewWindow.document.body.innerHTML = '<div style="font:14px system-ui;color:#4b5563;display:grid;place-items:center;min-height:80vh">Preparing saved draft preview…</div>';
-    } catch (e) {}
-    return previewWindow;
-  }
-  function openSavedPreview(previewWindow) {
+  function openSavedPreview() {
     const snapshot = createPreviewSnapshot();
-    if (!snapshot) { if (previewWindow) previewWindow.close(); return; }
-    const url = previewUrl(snapshot.id, false);
-    const win = previewWindow || openPreviewPlaceholder();
-    if (!win) return;
-    try { win.location.replace(url); } catch (e) { win.location.href = url; }
+    if (!snapshot) return;
+    const url = previewUrl(snapshot.id);
+    const win = window.open(url, '_blank');
+    if (!win) toast('Preview was blocked. Allow pop-ups and try again.', 'err');
   }
   function onDiscard() {
     openConfirm({ title: 'Discard changes?', body: 'Are you sure you want to revert to the last saved state? Your unsaved changes will be lost.', okText: 'Discard', danger: true,
@@ -2999,13 +2988,12 @@
   }
 
   // ==========================================================================
-  //  SAVED-DRAFT BUYER PREVIEW  (#/online-store/preview/:id[/visitor?token=:opaque])
+  //  MERCHANT BUYER PREVIEW  (?preview_id=... · merchant session only)
   // ==========================================================================
   function removeStandalonePreview() {
     const shell = document.getElementById('os-preview-shell');
     if (shell && shell._previewCleanup) shell._previewCleanup();
     if (shell) shell.remove();
-    document.querySelectorAll('[data-preview-share-modal]').forEach((el) => el.remove());
     document.body.classList.remove('os-preview-active', 'os-preview-merchant', 'os-preview-bar-hidden');
   }
   function closeStandalonePreview() {
@@ -3013,19 +3001,16 @@
     if (ACTIVE_PREVIEW_EXPIRY_TIMER) clearTimeout(ACTIVE_PREVIEW_EXPIRY_TIMER);
     ACTIVE_PREVIEW_EXPIRY_TIMER = null;
     ACTIVE_PREVIEW = null;
-    ACTIVE_PREVIEW_SHARE = null;
-    ACTIVE_PREVIEW_VISITOR = false;
-    ACTIVE_PREVIEW_VISITOR_TOKEN = '';
     ACTIVE_PREVIEW_BAR_HIDDEN = false;
   }
-  function renderPreviewRoute(id, visitor, visitorToken) {
+  function renderPreviewRoute(id) {
     closeBuilder(); closeStandalonePreview(); ensureStyles();
-    const result = resolvePreviewSnapshot(id, visitor, visitorToken);
-    if (!result.snapshot) { renderPreviewFailure(result.error, visitor, result.editorHash); return; }
+    const result = resolvePreviewSnapshot(id);
+    if (!result.snapshot) { renderPreviewFailure(result.error, result.editorHash); return; }
     const snapshot = result.snapshot;
     startEditor(snapshot.themeHandle);
     const publishedBaseline = clone(ED.publishedTheme);
-    const previewContext = visitor && result.share ? result.share.context : snapshot;
+    const previewContext = snapshot;
     ED.theme = clone(snapshot.theme);
     ED.savedTheme = clone(snapshot.theme);
     ED.publishedTheme = snapshot.source === 'published' ? clone(snapshot.theme) : publishedBaseline;
@@ -3042,39 +3027,43 @@
     ED.previewOnly = true;
     ED.fullPreview = false;
     ACTIVE_PREVIEW = snapshot;
-    ACTIVE_PREVIEW_SHARE = result.share || null;
-    ACTIVE_PREVIEW_VISITOR = !!visitor;
-    ACTIVE_PREVIEW_VISITOR_TOKEN = visitor ? visitorToken : '';
     if (root) root.innerHTML = '';
     renderStandalonePreview();
   }
-  function renderPreviewFailure(reason, visitor, editorHash) {
+  function renderPreviewFailure(reason, editorHash) {
     closeBuilder(); removeStandalonePreview(); ensureStyles();
     if (ACTIVE_PREVIEW_EXPIRY_TIMER) clearTimeout(ACTIVE_PREVIEW_EXPIRY_TIMER);
     ACTIVE_PREVIEW_EXPIRY_TIMER = null;
-    ACTIVE_PREVIEW = null; ACTIVE_PREVIEW_SHARE = null; ACTIVE_PREVIEW_VISITOR = false; ACTIVE_PREVIEW_VISITOR_TOKEN = '';
-    const copy = reason === 'expired' ? (visitor
-      ? ['Preview link expired', 'This preview is no longer available. Ask the merchant to create a new link.']
-      : ['Preview expired', 'Return to the editor and create a new preview from the latest saved draft.']) : ({
-      revoked: ['Preview link unavailable', 'This visitor preview has been revoked by the merchant.'],
-      missing: ['Preview not found', 'This prototype link only works in the browser and origin where it was created. It may also have been cleared.'],
-    }[reason] || ['Preview unavailable', 'This preview could not be opened.']);
+    ACTIVE_PREVIEW = null;
+    const expired = reason === 'expired';
+    const copy = expired
+      ? ['This preview has expired', 'Return to the editor and open Preview again to continue reviewing.', 'Your theme edits are still in the editor.']
+      : ({
+        missing: ['This preview is unavailable', 'The link may be incomplete, cleared, or no longer valid.', 'Only signed-in merchants can open theme previews.'],
+      }[reason] || ['This preview is unavailable', 'This preview could not be opened.', 'Return to the editor and try again.']);
     if (root) root.innerHTML = '';
     const shell = h('<div class="os-preview-shell os-preview-failure" id="os-preview-shell"></div>');
-    shell.innerHTML = '<div class="os-preview-empty">' + I.eyeOff + '<h1>' + esc(copy[0]) + '</h1><p>' + esc(copy[1]) + '</p>' +
-      '<button type="button" class="btn btn-primary" data-preview-home>' + (visitor ? 'Go back' : (editorHash ? 'Back to editor' : 'Back to themes')) + '</button></div>';
+    shell.innerHTML =
+      '<div class="os-preview-empty' + (expired ? ' is-expired' : '') + '">' +
+        '<div class="os-preview-empty-icon" aria-hidden="true">' + (expired ? I.clock : I.eyeOff) + '</div>' +
+        '<h1>' + esc(copy[0]) + '</h1>' +
+        '<p>' + esc(copy[1]) + '</p>' +
+        (copy[2] ? '<p class="os-preview-empty-note">' + esc(copy[2]) + '</p>' : '') +
+        '<button type="button" class="btn btn-primary" data-preview-home>' + (editorHash ? 'Back to editor' : 'Back to themes') + '</button>' +
+      '</div>';
     document.body.appendChild(shell);
     shell.querySelector('[data-preview-home]').onclick = () => {
-      if (visitor) { if (history.length > 1) history.back(); else window.close(); }
-      else location.hash = editorHash || '#/online-store';
+      clearPreviewQueryParams();
+      location.hash = editorHash || '#/online-store';
     };
   }
   function previewSourceLabel() {
-    return ACTIVE_PREVIEW && ACTIVE_PREVIEW.source === 'published' ? 'Published preview' : 'Saved draft preview';
+    if (!ACTIVE_PREVIEW) return 'Preview';
+    if (ACTIVE_PREVIEW.source === 'published') return 'Published preview';
+    return 'Draft preview';
   }
   function previewExpiry() {
-    if (!ACTIVE_PREVIEW) return 0;
-    return ACTIVE_PREVIEW_VISITOR && ACTIVE_PREVIEW_SHARE ? ACTIVE_PREVIEW_SHARE.expiresAt : ACTIVE_PREVIEW.merchantExpiresAt;
+    return ACTIVE_PREVIEW ? ACTIVE_PREVIEW.merchantExpiresAt : 0;
   }
   function previewExpiryText(ts) {
     const left = Math.max(0, Number(ts || 0) - Date.now());
@@ -3083,27 +3072,48 @@
     if (mins >= 60) return 'Expires in ' + Math.ceil(mins / 60) + ' hours';
     return 'Expires in ' + mins + ' min';
   }
-  function formatPreviewDate(ts) {
-    const d = new Date(ts);
-    return d.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  }
   function previewTemplateName() {
     const tpl = isCheckout() ? curCkTpl() : curTpl();
     const resource = isResourcePage() ? previewResource() : null;
     return ((tpl && tpl.name) || 'Default') + (resource ? ' · ' + resource.title : '');
   }
+  function previewLimitsPanelHtml() {
+    const checkout = isCheckout();
+    const page = checkout ? ED.checkoutPage : ED.currentPage;
+    const allowed = checkout
+      ? (page === 'checkout'
+        ? ['Fill contact, shipping, billing, and card mock fields', 'Apply mock discounts and choose mock delivery or payment options', 'Continue through the simulated post-purchase flow']
+        : page === 'thankyou'
+          ? ['Inspect the fixed, de-identified order snapshot', 'Return to the Online Store preview']
+          : ['Choose variants and quantities', 'Add offers to the local preview order or skip to the next page'])
+      : ['Browse internal pages and responsive layouts', 'Use galleries, filters, selectors, search, and other local UI', 'Add, update, or remove items in the preview-only cart'];
+    const blocked = checkout
+      ? ['Payment authorization or capture', 'Order creation, inventory reservation, fulfillment, or discount redemption', 'Customer/account updates, notifications, analytics, or third-party automation']
+      : ['Customer sign-in, registration, or account changes', 'Newsletter, contact, review, or other form submissions', 'Real checkout, external app authorization, or third-party service writes'];
+    const rows = (items) => items.map((item) => '<li><span aria-hidden="true">•</span>' + esc(item) + '</li>').join('');
+    return '<section class="os-preview-limits-panel" data-preview-limits-panel hidden aria-label="Preview interaction limits">' +
+      '<div class="os-preview-limits-head"><div>' + I.lock + '<div><strong>Preview interaction limits</strong><span>Merchant-only sandbox</span></div></div>' +
+      '<button type="button" data-preview-limits-close aria-label="Close preview limits">' + I.x + '</button></div>' +
+      '<div class="os-preview-limits-group allowed"><strong>Available to test</strong><ul>' + rows(allowed) + '</ul></div>' +
+      '<div class="os-preview-limits-group blocked"><strong>Never executed</strong><ul>' + rows(blocked) + '</ul></div>' +
+      '<p>No live business data is changed. This merchant preview expires 30 days after creation.</p>' +
+    '</section>';
+  }
   function standalonePreviewBarHtml() {
-    const published = ACTIVE_PREVIEW.source === 'published';
+    const source = ACTIVE_PREVIEW.source;
+    const published = source === 'published';
     const status = published ? 'Published' : 'Draft';
+    const statusClass = published ? 'published' : 'draft';
     const statusTitle = previewSourceLabel() + ' · ' + previewExpiryText(previewExpiry());
     return '<footer class="os-preview-bar" aria-label="Theme preview controls">' +
       '<div class="os-preview-bar-left">' +
         '<span class="os-preview-brand" aria-label="BestShopio">B</span>' +
         '<span class="os-preview-bar-theme" title="' + esc(ACTIVE_PREVIEW.themeName) + '">' + esc(ACTIVE_PREVIEW.themeName) + '</span>' +
-        '<span class="os-preview-bar-status ' + (published ? 'published' : 'draft') + '" title="' + esc(statusTitle) + '">' + esc(status) + '</span>' +
+        '<span class="os-preview-bar-status ' + statusClass + '" title="' + esc(statusTitle) + '">' + esc(status) + '</span>' +
       '</div>' +
       '<div class="os-preview-bar-actions">' +
-        '<button type="button" class="os-preview-bar-icon" data-preview-copy-link aria-label="Copy preview link" title="Copy preview link">' + I.link + '</button>' +
+        '<button type="button" class="os-preview-limits-trigger" data-preview-limits aria-label="Show preview interaction limits" title="Preview limits" aria-expanded="false">' + I.lock + '<span>Preview limits</span></button>' +
+        previewLimitsPanelHtml() +
         '<div class="os-preview-more-wrap">' +
           '<button type="button" class="os-preview-bar-icon" data-preview-more aria-label="More preview actions" title="More" aria-expanded="false">' + I.more + '</button>' +
           '<div class="os-preview-menu" data-preview-menu role="menu" hidden>' +
@@ -3121,20 +3131,19 @@
   function renderStandalonePreview() {
     if (!ED || !ACTIVE_PREVIEW) return;
     removeStandalonePreview(); ensureStyles();
-    const visitor = ACTIVE_PREVIEW_VISITOR;
     ED.device = window.innerWidth <= 640 ? 'mobile' : 'desktop';
     let canvasMarkup = '', renderFailed = false;
     try { canvasMarkup = canvasHtml(); }
     catch (e) { renderFailed = true; }
-    const shell = h('<div class="os-preview-shell' + (!visitor ? ' merchant' : '') + (ACTIVE_PREVIEW_BAR_HIDDEN ? ' bar-hidden' : '') + '" id="os-preview-shell"></div>');
+    const shell = h('<div class="os-preview-shell merchant' + (ACTIVE_PREVIEW_BAR_HIDDEN ? ' bar-hidden' : '') + '" id="os-preview-shell"></div>');
     shell.innerHTML =
       '<main class="os-preview-stage">' + (renderFailed
         ? '<div class="os-preview-render-fail">' + I.eyeOff + '<h2>Preview couldn’t be rendered</h2><p>The saved snapshot is intact. Retry the preview or return to the editor.</p><button type="button" class="btn btn-primary" data-preview-retry>Retry</button></div>'
         : '<div class="os-preview-frame os-frame ' + ED.device + '" id="os-frame">' + canvasMarkup + '</div>') + '</main>' +
-      (!visitor ? standalonePreviewBarHtml() : '');
+      standalonePreviewBarHtml();
     document.body.appendChild(shell);
     document.body.classList.add('os-preview-active');
-    if (!visitor) document.body.classList.add('os-preview-merchant');
+    document.body.classList.add('os-preview-merchant');
     if (ACTIVE_PREVIEW_BAR_HIDDEN) document.body.classList.add('os-preview-bar-hidden');
     wireStandalonePreview(shell);
     if (!renderFailed) wireCanvas();
@@ -3145,8 +3154,8 @@
     if (!ACTIVE_PREVIEW) return;
     const delay = Math.max(0, previewExpiry() - Date.now()) + 50;
     ACTIVE_PREVIEW_EXPIRY_TIMER = setTimeout(() => {
-      const result = resolvePreviewSnapshot(ACTIVE_PREVIEW.id, ACTIVE_PREVIEW_VISITOR, ACTIVE_PREVIEW_VISITOR_TOKEN);
-      if (!result.snapshot) renderPreviewFailure(result.error, ACTIVE_PREVIEW_VISITOR, ACTIVE_PREVIEW.editorHash);
+      const result = resolvePreviewSnapshot(ACTIVE_PREVIEW.id);
+      if (!result.snapshot) renderPreviewFailure(result.error, ACTIVE_PREVIEW.editorHash);
       else schedulePreviewExpiry();
     }, Math.min(delay, 2147483647));
   }
@@ -3165,8 +3174,16 @@
     if (retry) retry.onclick = renderStandalonePreview;
     const editor = shell.querySelector('[data-preview-editor]');
     if (editor) editor.onclick = returnToEditorFromPreview;
-    const copy = shell.querySelector('[data-preview-copy-link]');
-    if (copy && !copy.disabled) copy.onclick = () => copyStandalonePreviewLink();
+    const limits = shell.querySelector('[data-preview-limits]');
+    const limitsPanel = shell.querySelector('[data-preview-limits-panel]');
+    const limitsClose = shell.querySelector('[data-preview-limits-close]');
+    const setLimitsOpen = (open) => {
+      if (!limits || !limitsPanel) return;
+      limitsPanel.hidden = !open;
+      limits.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    if (limits) limits.onclick = (event) => { event.stopPropagation(); setLimitsOpen(limitsPanel.hidden); };
+    if (limitsClose) limitsClose.onclick = () => { setLimitsOpen(false); limits.focus(); };
     const more = shell.querySelector('[data-preview-more]');
     const menu = shell.querySelector('[data-preview-menu]');
     if (more && menu) {
@@ -3179,10 +3196,12 @@
         if (!menu.hidden && !event.target.closest('[data-preview-menu]')) {
           menu.hidden = true; more.setAttribute('aria-expanded', 'false');
         }
+        if (limitsPanel && !limitsPanel.hidden && !event.target.closest('[data-preview-limits-panel],[data-preview-limits]')) setLimitsOpen(false);
       });
       shell.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !menu.hidden) {
-          menu.hidden = true; more.setAttribute('aria-expanded', 'false'); more.focus();
+        if (event.key === 'Escape') {
+          if (!menu.hidden) { menu.hidden = true; more.setAttribute('aria-expanded', 'false'); more.focus(); }
+          else if (limitsPanel && !limitsPanel.hidden) { setLimitsOpen(false); limits.focus(); }
         }
       });
     }
@@ -3202,123 +3221,27 @@
       if (more) more.focus();
     }
   }
+  function clearPreviewQueryParams() {
+    try {
+      const url = new URL(location.href);
+      let changed = false;
+      ['preview_id', 'preview_token'].forEach((key) => {
+        if (url.searchParams.has(key)) { url.searchParams.delete(key); changed = true; }
+      });
+      if (changed) history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (e) {}
+  }
   function exitStandalonePreview() {
+    clearPreviewQueryParams();
     window.close();
     setTimeout(() => { if (!window.closed) location.hash = '#/online-store'; }, 120);
   }
   function returnToEditorFromPreview() {
     const fallback = ACTIVE_PREVIEW && ACTIVE_PREVIEW.editorHash ? ACTIVE_PREVIEW.editorHash : '#/online-store';
+    clearPreviewQueryParams();
     window.close();
     setTimeout(() => { if (!window.closed) location.hash = fallback; }, 120);
   }
-  function currentShareContext() {
-    return {
-      currentPage: ED.currentPage,
-      checkoutPage: ED.checkoutPage,
-      tplSel: clone(ED.tplSel || {}),
-      ckTplSel: clone(ED.ckTplSel || {}),
-      previewSel: clone(ED.previewSel || {}),
-      device: ED.device,
-      resourceContext: isResourcePage() ? { pageType: ED.currentPage, resource: clone(previewResource()) } : null,
-    };
-  }
-  function createPreviewShare() {
-    const now = Date.now();
-    const token = newPreviewToken();
-    const share = {
-      version: 1,
-      token,
-      previewId: ACTIVE_PREVIEW.id,
-      createdAt: now,
-      expiresAt: now + VISITOR_PREVIEW_TTL_MS,
-      tombstoneUntil: now + VISITOR_PREVIEW_TTL_MS + PREVIEW_TOMBSTONE_TTL_MS,
-      revokedAt: null,
-      context: currentShareContext(),
-    };
-    const shares = prunePreviewShareStore(previewShareStore());
-    shares[token] = share;
-    return writePreviewShareStore(shares) ? share : null;
-  }
-  function copyStandalonePreviewLink() {
-    if (!ACTIVE_PREVIEW) return;
-    if (!ACTIVE_PREVIEW.merchantExpiresAt || ACTIVE_PREVIEW.merchantExpiresAt <= Date.now()) {
-      toast('This preview expired. Return to the editor and create a new preview.', 'err');
-      return;
-    }
-    ACTIVE_PREVIEW_SHARE = activeShareForPreview(ACTIVE_PREVIEW.id) || createPreviewShare();
-    if (!ACTIVE_PREVIEW_SHARE) return;
-    copyPreviewLink(previewUrl(ACTIVE_PREVIEW.id, true, ACTIVE_PREVIEW_SHARE.token));
-  }
-  function openSharePreview() {
-    if (!ACTIVE_PREVIEW) return;
-    const now = Date.now();
-    if (!ACTIVE_PREVIEW.merchantExpiresAt || ACTIVE_PREVIEW.merchantExpiresAt <= now) {
-      toast('This preview expired. Return to the editor and create a new preview.', 'err');
-      return;
-    }
-    // Always reload share state before presenting/copying it; another merchant tab may have
-    // revoked the previous record since this preview was opened.
-    ACTIVE_PREVIEW_SHARE = activeShareForPreview(ACTIVE_PREVIEW.id) || createPreviewShare();
-    if (!ACTIVE_PREVIEW_SHARE) return;
-    const modalShare = ACTIVE_PREVIEW_SHARE;
-    const url = previewUrl(ACTIVE_PREVIEW.id, true, modalShare.token);
-    const sharedVersion = ACTIVE_PREVIEW.source === 'published' ? 'published theme' : 'saved draft';
-    document.querySelectorAll('[data-preview-share-modal]').forEach((el) => el.remove());
-    const back = h('<div class="modal-backdrop" data-preview-share-modal style="z-index:560"></div>');
-    const m = h('<div class="modal os-share-modal"></div>');
-    m.innerHTML = '<div class="modal-head">Share theme preview</div>' +
-      '<div class="modal-body"><p class="os-share-intro">Anyone with this link can view the ' + esc(sharedVersion) + ' preview until <strong>' + esc(formatPreviewDate(modalShare.expiresAt)) + '</strong>.</p>' +
-        '<div class="os-share-copy"><input type="text" readonly value="' + esc(url) + '" aria-label="Visitor preview link"><button type="button" class="btn btn-primary" data-copy-link>' + I.copy + ' Copy link</button></div>' +
-        '<div class="os-share-limit">' + I.info + '<span>Prototype limitation: the link works only in this browser and on this exact site origin. Production links use a server-side signed token.</span></div>' +
-        '<button type="button" class="os-share-revoke" data-revoke-link>Revoke visitor link</button></div>' +
-      '<div class="modal-foot"><button type="button" class="btn btn-default" data-done>Done</button></div>';
-    back.appendChild(m); document.body.appendChild(back);
-    const close = () => back.remove();
-    m.querySelector('[data-done]').onclick = close;
-    back.onclick = (e) => { if (e.target === back) close(); };
-    m.querySelector('[data-copy-link]').onclick = () => {
-      const live = previewShareStore()[modalShare.token];
-      if (!live || live.revokedAt || live.expiresAt <= Date.now()) {
-        close(); ACTIVE_PREVIEW_SHARE = activeShareForPreview(ACTIVE_PREVIEW.id);
-        toast('This share link is no longer active. Open Share preview again.', 'err'); return;
-      }
-      copyPreviewLink(url, m.querySelector('input'));
-    };
-    m.querySelector('[data-revoke-link]').onclick = () => {
-      const shares = prunePreviewShareStore(previewShareStore());
-      const live = shares[modalShare.token];
-      if (!live || live.revokedAt) { close(); toast('Visitor preview link is already inactive'); return; }
-      shares[live.token] = Object.assign({}, live, {
-        revokedAt: Date.now(),
-        tombstoneUntil: Date.now() + PREVIEW_TOMBSTONE_TTL_MS,
-      });
-      if (!writePreviewShareStore(shares)) return;
-      ACTIVE_PREVIEW_SHARE = null;
-      close(); toast('Visitor preview link revoked');
-    };
-  }
-  function copyPreviewLink(url, input, successMessage) {
-    const done = () => toast(successMessage || 'Preview link copied');
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(done).catch(() => fallbackCopyPreview(input, done, url));
-    } else fallbackCopyPreview(input, done, url);
-  }
-  function fallbackCopyPreview(input, done, url) {
-    let temporary = false;
-    try {
-      if (!input) {
-        input = document.createElement('textarea');
-        input.value = url || '';
-        input.setAttribute('readonly', '');
-        input.style.cssText = 'position:fixed;left:-9999px;top:0';
-        document.body.appendChild(input);
-        temporary = true;
-      }
-      input.focus(); input.select(); document.execCommand('copy'); done();
-    } catch (e) { toast('Copy failed. Copy the link from the browser address bar.', 'err'); }
-    finally { if (temporary && input) input.remove(); }
-  }
-
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && ED && ED.fullPreview && document.getElementById('os-builder') &&
         !document.querySelector('.modal-backdrop,.pop-layer')) {
@@ -3326,24 +3249,9 @@
     }
   });
   window.addEventListener('storage', (event) => {
-    if (!ACTIVE_PREVIEW || (event.key !== PREVIEW_STORAGE_KEY && event.key !== PREVIEW_SHARE_STORAGE_KEY)) return;
-    if (ACTIVE_PREVIEW_VISITOR) {
-      const result = resolvePreviewSnapshot(ACTIVE_PREVIEW.id, true, ACTIVE_PREVIEW_VISITOR_TOKEN);
-      if (!result.snapshot) renderPreviewFailure(result.error, true);
-      else { ACTIVE_PREVIEW = result.snapshot; ACTIVE_PREVIEW_SHARE = result.share; }
-      return;
-    }
-    if (event.key === PREVIEW_SHARE_STORAGE_KEY) {
-      const shares = prunePreviewShareStore(previewShareStore());
-      const current = ACTIVE_PREVIEW_SHARE && shares[ACTIVE_PREVIEW_SHARE.token];
-      if (current && !current.revokedAt && current.expiresAt > Date.now()) {
-        ACTIVE_PREVIEW_SHARE = current;
-        return;
-      }
-      const modal = document.querySelector('[data-preview-share-modal]');
-      if (modal) { modal.remove(); toast('Share link changed in another tab. Open Share preview again.'); }
-      ACTIVE_PREVIEW_SHARE = activeShareForPreview(ACTIVE_PREVIEW.id);
-    }
+    if (!ACTIVE_PREVIEW || event.key !== PREVIEW_STORAGE_KEY) return;
+    const result = resolvePreviewSnapshot(ACTIVE_PREVIEW.id);
+    if (!result.snapshot) renderPreviewFailure(result.error, ACTIVE_PREVIEW.editorHash);
   });
 
   // ==========================================================================
@@ -3481,30 +3389,32 @@
     closePops(); closeStandalonePreview();
     const queryAt = rawRest.indexOf('?');
     const routePath = queryAt >= 0 ? rawRest.slice(0, queryAt) : rawRest;
-    const routeQuery = queryAt >= 0 ? rawRest.slice(queryAt + 1) : '';
+    const search = new URLSearchParams(location.search || '');
+    const previewIdParam = search.get('preview_id') || '';
+    if (previewIdParam) {
+      ensureSections().then(() => {
+        if (generation !== routeGeneration) return;
+        renderPreviewRoute(previewIdParam);
+      });
+      return;
+    }
     const previewMatch = first === 'online-store'
-      ? routePath.match(/^preview\/([^/]+)(?:\/(visitor))?$/) : null;
+      ? routePath.match(/^preview\/([^/]+)$/) : null;
     if (previewMatch) {
       let previewId = '';
-      let visitorToken = '';
       try {
         previewId = decodeURIComponent(previewMatch[1]);
-        visitorToken = new URLSearchParams(routeQuery).get('token') || '';
       } catch (e) {
-        renderPreviewFailure('missing', previewMatch[2] === 'visitor'); return;
+        renderPreviewFailure('missing'); return;
       }
       ensureSections().then(() => {
         if (generation !== routeGeneration) return;
-        renderPreviewRoute(
-          previewId,
-          previewMatch[2] === 'visitor',
-          visitorToken
-        );
+        renderPreviewRoute(previewId);
       });
       return;
     }
     if (routePath.indexOf('preview/') === 0) {
-      renderPreviewFailure('missing', routePath.indexOf('/visitor') >= 0);
+      renderPreviewFailure('missing');
       return;
     }
     // Dedicated Checkout editor route: #/checkout or #/checkout/:handle (bookmarkable —
@@ -3913,7 +3823,7 @@
   .os-issue{display:flex;gap:8px;font-size:13px;color:var(--ink-body);line-height:1.5}
   .os-issue-w{font-weight:600;color:var(--ink);flex:none}
 
-  /* Saved-draft / visitor buyer preview */
+  /* Merchant buyer preview */
   .os-preview-shell{position:fixed;inset:0;z-index:500;display:flex;flex-direction:column;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
   .os-preview-stage{position:relative;z-index:1;isolation:isolate;flex:1;min-height:0;overflow:auto;padding:0;background:#fff}
   .os-preview-frame,.os-preview-frame.mobile,.os-preview-frame.desktop{width:100%;max-width:none;min-height:100%;background:#fff;box-shadow:none;border-radius:0;overflow:hidden}
@@ -3931,8 +3841,23 @@
   .os-preview-bar-actions{justify-content:flex-end;gap:5px;flex:none}
   .os-preview-bar-icon{width:32px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:#d5d5d5;display:grid;place-items:center;cursor:pointer}
   .os-preview-bar-icon:hover,.os-preview-bar-icon[aria-expanded="true"]{background:#303030;color:#fff}
-  .os-preview-bar-icon:focus-visible,.os-preview-edit:focus-visible,.os-preview-menu button:focus-visible,.os-preview-bar-reveal:focus-visible{outline:2px solid #63a8ff;outline-offset:2px}
+  .os-preview-bar-icon:focus-visible,.os-preview-limits-trigger:focus-visible,.os-preview-edit:focus-visible,.os-preview-menu button:focus-visible,.os-preview-bar-reveal:focus-visible{outline:2px solid #63a8ff;outline-offset:2px}
   .os-preview-bar-icon[disabled]{opacity:.4;cursor:not-allowed}
+  .os-preview-limits-trigger{height:32px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#d5d5d5;display:flex;align-items:center;gap:7px;font:600 11px inherit;cursor:pointer}
+  .os-preview-limits-trigger:hover,.os-preview-limits-trigger[aria-expanded="true"]{background:#303030;color:#fff}
+  .os-preview-limits-panel{position:absolute;right:72px;bottom:calc(100% + 8px);width:min(390px,calc(100vw - 24px));padding:16px;background:#fff;border:1px solid #dedede;border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.24);box-sizing:border-box;color:#242424}
+  .os-preview-limits-panel[hidden]{display:none}
+  .os-preview-limits-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .os-preview-limits-head>div{display:flex;align-items:flex-start;gap:10px}.os-preview-limits-head>div>svg{width:18px;height:18px;margin-top:2px;color:#3f5368}
+  .os-preview-limits-head strong{display:block;font-size:14px}.os-preview-limits-head span{display:block;margin-top:2px;color:#748091;font-size:11px}
+  .os-preview-limits-head button{width:28px;height:28px;padding:0;border:0;border-radius:6px;background:transparent;color:#667085;display:grid;place-items:center;cursor:pointer}
+  .os-preview-limits-head button:hover{background:#f0f2f5}.os-preview-limits-head button svg{width:14px;height:14px}
+  .os-preview-limits-group{margin-top:14px;padding:12px;border-radius:9px;background:#f5f7f9}
+  .os-preview-limits-group>strong{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#3e4c5d}
+  .os-preview-limits-group ul{margin:8px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+  .os-preview-limits-group li{display:flex;align-items:flex-start;gap:7px;color:#525e6c;font-size:11.5px;line-height:1.45}
+  .os-preview-limits-group li span{color:#23845a;font-weight:800}.os-preview-limits-group.blocked li span{color:#a0443a}
+  .os-preview-limits-panel>p{margin:12px 2px 0;color:#7a8491;font-size:10.5px;line-height:1.45}
   .os-preview-more-wrap{position:relative;display:flex}
   .os-preview-menu{position:absolute;right:0;bottom:calc(100% + 8px);width:150px;padding:5px;background:#fff;border:1px solid #e2e2e2;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.2);display:flex;flex-direction:column;color:#242424}
   .os-preview-menu[hidden]{display:none}
@@ -3949,24 +3874,22 @@
   .os-preview-render-fail>svg{width:34px;height:34px;color:var(--ink-muted)}
   .os-preview-render-fail h2{margin:16px 0 7px;font-size:18px;color:var(--ink)}
   .os-preview-render-fail p{margin:0 0 20px;color:var(--ink-muted);font-size:13px;line-height:1.6}
-  .os-preview-failure{display:grid;place-items:center;background:#f7f8fa;padding:24px;box-sizing:border-box}
-  .os-preview-empty{width:min(440px,100%);padding:42px 34px;border:1px solid var(--hair);border-radius:14px;background:#fff;text-align:center;box-shadow:0 10px 32px rgba(15,23,42,.08)}
-  .os-preview-empty>svg{width:38px;height:38px;color:var(--ink-muted)}
-  .os-preview-empty h1{margin:18px 0 8px;font-size:20px;color:var(--ink)}
-  .os-preview-empty p{margin:0 0 24px;color:var(--ink-muted);font-size:13px;line-height:1.65}
-  .os-share-modal{width:min(560px,calc(100vw - 32px))}
-  .os-share-intro{margin:0 0 14px;color:var(--ink-body);font-size:13px;line-height:1.6}
-  .os-share-copy{display:flex;gap:8px}
-  .os-share-copy input{flex:1;min-width:0;height:36px;padding:0 10px;border:1px solid var(--ctl);border-radius:8px;background:#f7f8fa;color:var(--ink-body);font:12px ui-monospace,Menlo,monospace}
-  .os-share-copy .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-  .os-share-limit{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:10px;border-radius:8px;background:#fff8e6;color:#6d5200;font-size:11.5px;line-height:1.5}
-  .os-share-limit svg{flex:none;margin-top:1px}
-  .os-share-revoke{margin-top:14px;padding:0;border:0;background:none;color:var(--err);font:600 12px inherit;cursor:pointer}
+  .os-preview-failure{display:grid;place-items:center;background:linear-gradient(180deg,#f4f5f7 0%,#eef0f3 100%);padding:24px;box-sizing:border-box}
+  .os-preview-empty{width:min(420px,100%);padding:8px 12px 0;text-align:center}
+  .os-preview-empty-icon{width:56px;height:56px;margin:0 auto;border-radius:50%;display:grid;place-items:center;background:rgba(15,23,42,.06);color:#6b7280}
+  .os-preview-empty.is-expired .os-preview-empty-icon{background:rgba(146,64,14,.08);color:#92400e}
+  .os-preview-empty-icon>svg{width:26px;height:26px}
+  .os-preview-empty h1{margin:22px 0 10px;font-size:24px;line-height:1.25;letter-spacing:-.02em;color:#111827;font-weight:650}
+  .os-preview-empty p{margin:0 auto;max-width:34ch;color:#6b7280;font-size:14px;line-height:1.65}
+  .os-preview-empty-note{margin-top:10px !important;font-size:13px !important;color:#9ca3af !important}
+  .os-preview-empty .btn{margin-top:28px}
   @media(max-width:640px){
     .os-preview-bar{gap:8px;padding:6px}
     .os-preview-bar-theme{max-width:110px}
+    .os-preview-limits-trigger span{display:none}
+    .os-preview-limits-trigger{width:32px;padding:0;justify-content:center}
+    .os-preview-limits-panel{right:6px}
     .os-preview-edit{padding:0 10px}
-    .os-share-copy{flex-direction:column}
   }
   @media(max-width:420px){.os-preview-bar-theme{display:none}}
 
