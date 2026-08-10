@@ -414,8 +414,9 @@
       { id: 'save-offer', name: 'Save offer' },
     ],
     thankyou: [
-      { id: 'standard', name: 'Standard', isDefault: true },
-      { id: 'survey-thankyou', name: 'Survey thank-you' },
+      { id: 'standard', name: 'Standard', isDefault: true, previewOrderScenario: 'standard' },
+      { id: 'base-order', name: 'Base order', basedOn: 'standard', previewOrderScenario: 'base' },
+      { id: 'survey-thankyou', name: 'Base order + Late Upsell order', previewOrderScenario: 'dual' },
     ],
   };
 
@@ -887,7 +888,6 @@
         { id: 'ty-blk-subtotal', kind: 'subtotal' },
         { id: 'ty-blk-discount', kind: 'discount' },
         { id: 'ty-blk-shipping', kind: 'shipping' },
-        { id: 'ty-blk-tax', kind: 'tax' },
         { id: 'ty-blk-total', kind: 'total' },
       ] },
       { id: 'ty-policy', kind: 'checkout-policy-links', settings: {
@@ -922,15 +922,45 @@
     ] },
   ];
 
-  // Final Order Snapshot (PRD §4, §5, §14) — the FUNNEL-final order shown on the
-  // Thank-you page: the Checkout cart lines PLUS one accepted upsell line. Amounts
-  // are read-only final results (the page never recalculates; PRD §5.3).
-  const THANKYOU_UPSELL_LINE = { id: 'up-crew', title: 'Crewneck sweater', variant: 'Sage / M', qty: 1, price: 44.0, compareAt: 0, image: IMG.p5, upsell: true };
+  // Final Order Snapshot — V1.146.2 keeps Base and Late Upsell as independent orders.
+  // `line_source` remains explicit so Thank you can show Upsell / Downsell badges, while
+  // buyer Account pages deliberately hide those marketing-origin labels.
+  const PP_ORDER_MOCK = window.POST_PURCHASE_ORDER_MOCK;
+  const snapshotOrders = PP_ORDER_MOCK ? PP_ORDER_MOCK.orders.map((order) => ({
+    orderId: order.order_id,
+    orderNumber: '#' + order.order_sn,
+    orderRole: order.order_role,
+    sourceOrderId: order.source_order_id,
+    sourceOrderNumber: order.source_order_sn ? '#' + order.source_order_sn : '',
+    status: order.status,
+    currency: order.currency,
+    lines: order.lines.map((line) => ({
+      id: line.line_id,
+      title: line.title,
+      variant: line.variant,
+      qty: line.qty,
+      price: line.unit_price,
+      compareAt: line.offer_base_price != null ? line.offer_base_price : line.compare_at_price,
+      image: line.image,
+      lineSource: line.line_source,
+      upsell: line.line_source === 'UPSELL',
+      downsell: line.line_source === 'DOWNSELL',
+    })),
+    subtotal: order.subtotal,
+    discounts: order.discounts,
+    shipping: order.shipping_fee,
+    tax: order.tax,
+    total: order.total,
+    paid: order.paid_amount,
+  })) : [];
+  const snapshotLines = snapshotOrders.length
+    ? snapshotOrders.reduce((all, order) => all.concat(order.lines), [])
+    : CHECKOUT_MOCK.cart.slice(0, 3);
   const THANKYOU_SNAPSHOT = {
     storeName: 'AURA',
     currency: 'USD',
     confirmationNumber: 'ABC123EXAMPLE',
-    orderNumber: '#1001',
+    orderNumber: snapshotOrders[0] ? snapshotOrders[0].orderNumber : '#1001',
     orderStatus: 'confirmed',
     customer: { name: 'Alanna', fullName: 'Alanna Bogan', email: 'alanna.bogan@example.com', phone: '+1 (202) 456-1414' },
     shippingAddress: {
@@ -938,22 +968,18 @@
       zip: '20500-0005', country: 'United States', phone: '+1 (202) 456-1414',
     },
     shippingMethod: 'Standard (Example)',
-    payment: { brand: 'Visa', last4: '—', label: 'Credit card' },
+    payment: { brand: 'Visa', last4: '4242', label: 'Credit card' },
     billingSameAsShipping: true,
-    // Final cart lines = the original 3 Checkout items + accepted upsell (PRD §4.3).
-    // Slice to the first 3 so the demo subscription/bundle lines added for the live
-    // Checkout preview don't perturb the read-only snapshot's hardcoded totals below.
-    lines: CHECKOUT_MOCK.cart.slice(0, 3).concat([THANKYOU_UPSELL_LINE]),
-    // Read-only final amounts (USD). subtotal = Σ line totals.
-    subtotal: 152.97,
-    discount: 10.99,
-    // Applied discount breakdown for the summary (read-only). Mirrors the applied-coupon
-    // shape used on Checkout so the Order Summary itemises the same rows: the discount
-    // code chip + Order discount + Shipping discount. Sums to `discount` above.
-    discounts: [{ code: 'THANKS', order: 7.0, shipping: 3.99 }],
-    shipping: 5.99,
-    tax: 7.34,
-    total: 155.31,
+    orders: snapshotOrders,
+    totalPaid: snapshotOrders.reduce((sum, order) => sum + (+order.paid || 0), 0),
+    lines: snapshotLines,
+    subtotal: snapshotOrders.reduce((sum, order) => sum + (+order.subtotal || 0), 0),
+    discount: snapshotOrders.reduce((sum, order) =>
+      sum + (order.discounts || []).reduce((d, item) => d + (+item.amount || 0), 0), 0),
+    discounts: [{ code: 'THANKS', order: 7.0 }],
+    shipping: snapshotOrders.reduce((sum, order) => sum + (+order.shipping || 0), 0),
+    tax: snapshotOrders.reduce((sum, order) => sum + (+order.tax || 0), 0),
+    total: snapshotOrders.reduce((sum, order) => sum + (+order.total || 0), 0),
   };
 
   window.OS_DATA = {

@@ -437,7 +437,9 @@ select::-ms-expand { display: none; }
 /* ---- Shared widgets: antd-style custom Select + dual-month RangePicker (widgets.js) ---- */
 .ui-select { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; user-select: none; box-sizing: border-box; }
 .ui-select:hover { border-color: var(--brand); }
-.ui-select .ui-select-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-select .ui-select-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-select .ui-select-clear { flex: 0 0 16px; width: 16px; height: 16px; place-items: center; border-radius: 50%; color: var(--ink-muted); font-size: 15px; line-height: 1; }
+.ui-select .ui-select-clear:hover { background: var(--panel); color: var(--ink); }
 .ui-select .ui-chev { flex: 0 0 14px; color: var(--ink-muted); }
 .ui-select-pop .opt { padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--ink-body); cursor: pointer; white-space: nowrap; }
 .ui-select-pop .opt:hover { background: var(--panel); color: var(--ink); }

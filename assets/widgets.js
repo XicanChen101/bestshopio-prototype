@@ -31,7 +31,7 @@
     var l = openLayer; openLayer = null;
     document.removeEventListener('mousedown', l._out, true);
     window.removeEventListener('resize', l._close, true);
-    window.removeEventListener('scroll', l._close, true);
+    window.removeEventListener('scroll', l._scroll, true);
     if (l.parentNode) l.parentNode.removeChild(l);
   }
   function openPop(anchor, panel, opts) {
@@ -53,9 +53,10 @@
     panel.style.left = left + 'px';
     layer._close = closePop;
     layer._out = function (e) { if (!panel.contains(e.target) && !anchor.contains(e.target)) closePop(); };
+    layer._scroll = function (e) { if (!panel.contains(e.target)) closePop(); };
     setTimeout(function () { document.addEventListener('mousedown', layer._out, true); }, 0);
     window.addEventListener('resize', layer._close, true);
-    window.addEventListener('scroll', layer._close, true);
+    window.addEventListener('scroll', layer._scroll, true);
     openLayer = layer;
     return layer;
   }
@@ -70,12 +71,40 @@
     var label = document.createElement('span');
     label.className = 'ui-select-label';
     btn.appendChild(label);
+    var clear = null;
+    if (sel.hasAttribute('data-clearable')) {
+      clear = document.createElement('span');
+      clear.className = 'ui-select-clear';
+      clear.setAttribute('role', 'button');
+      clear.setAttribute('aria-label', 'Clear selection');
+      clear.textContent = '×';
+      btn.appendChild(clear);
+    }
     btn.insertAdjacentHTML('beforeend', CHEV);
-    function curText() { var o = sel.options[sel.selectedIndex]; return o ? o.textContent : ''; }
-    function sync() { label.textContent = curText(); }
+    function sync() {
+      var current = sel.options[sel.selectedIndex];
+      var placeholder = !!(current && (current.disabled || current.hidden));
+      label.textContent = current ? current.textContent : '';
+      label.classList.toggle('muted', placeholder);
+      if (clear) clear.style.display = placeholder ? 'none' : 'grid';
+    }
     sync();
     sel.style.display = 'none';
     sel.parentNode.insertBefore(btn, sel);
+
+    if (clear) clear.onclick = function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var clearValue = sel.getAttribute('data-clear-value');
+      var target = Array.prototype.find.call(sel.options, function (o) {
+        return clearValue != null ? o.value === clearValue : (o.disabled || o.hidden);
+      });
+      if (!target) return;
+      sel.value = target.value;
+      sync();
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      closePop();
+    };
 
     btn.onclick = function () {
       if (openLayer && openLayer._owner === btn) { closePop(); return; }
@@ -83,6 +112,7 @@
       panel.className = 'ui-select-pop';
       panel.style.minWidth = Math.max(btn.offsetWidth, 160) + 'px';
       Array.prototype.forEach.call(sel.options, function (o, i) {
+        if (o.disabled || o.hidden) return;
         var opt = document.createElement('div');
         opt.className = 'opt' + (i === sel.selectedIndex ? ' sel' : '');
         opt.textContent = o.textContent;

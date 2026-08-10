@@ -56,6 +56,25 @@
     if (m.dash) return '<span class="muted">--</span>';
     return '<span class="pill ' + m.cls + '"><span class="dot"></span>' + esc(m.text) + '</span>';
   };
+  const sourceBadge = (source) => {
+    if (source !== 'UPSELL' && source !== 'DOWNSELL') return '';
+    const color = source === 'UPSELL' ? '#16794a' : '#9b5b00';
+    const bg = source === 'UPSELL' ? '#e9f7ef' : '#fff2dc';
+    const label = source === 'UPSELL' ? 'Upsell' : 'Downsell';
+    return '<span style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;background:' + bg + ';color:' + color + ';font-size:10px;font-weight:700;letter-spacing:.02em">' + label + '</span>';
+  };
+  const orderRoleBadge = (role) => {
+    if (!role) return '';
+    const late = role === 'LATE_UPSELL';
+    return '<span style="display:inline-flex;align-items:center;border:1px solid ' + (late ? '#b7c9e2' : '#d6d9de') +
+      ';border-radius:999px;padding:3px 8px;background:' + (late ? '#f2f6fb' : '#f7f7f8') +
+      ';color:' + (late ? '#315f92' : '#555f6d') + ';font-size:10px;font-weight:600">' +
+      (late ? 'Late upsell order' : 'Base order') + '</span>';
+  };
+  const integrationHeaderBadges = (integration) => integration
+    ? '<span class="pill pill-blue"><span class="dot"></span>' + esc(integration.via || 'BestCheckout') + '</span>' +
+      '<span class="pill pill-green"><span class="dot"></span>' + esc(integration.status || 'Synced') + '</span>'
+    : '';
 
   // Fulfillment is derived from order status (FulfillmentStatusCell.mapOrderStatus +
   // mapFulfillment): refund -> '--'; shipped/review/archived -> Fulfilled; else Unfulfilled.
@@ -74,6 +93,7 @@
     tab: 'all', kwType: 'order_sn', kw: '', kwApplied: '',
     timeType: 'create_date', dateStart: '', dateEnd: '',
     totalMin: '', totalMax: '', totalApplied: false,
+    postPurchase: 'all',
     page: 1, size: 20,
   };
 
@@ -99,6 +119,8 @@
       const hi = LST.totalMax === '' ? Infinity : Number(LST.totalMax);
       rows = rows.filter((o) => o.total >= lo && o.total <= hi);
     }
+    if (LST.postPurchase === 'base') rows = rows.filter((o) => o.order_role === 'BASE');
+    if (LST.postPurchase === 'late') rows = rows.filter((o) => o.order_role === 'LATE_UPSELL');
     return rows;
   }
 
@@ -124,6 +146,10 @@
 
     const kwOpts = D.KEYWORD_OPTIONS.map((o) => '<option value="' + o.value + '"' + (o.value === LST.kwType ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
     const timeOpts = D.TIME_OPTIONS.map((o) => '<option value="' + o.value + '"' + (o.value === LST.timeType ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
+    const ppOpts =
+      '<option value="all" disabled hidden' + (LST.postPurchase === 'all' ? ' selected' : '') + '>Post-purchase</option>' +
+      [['base', 'Base order'], ['late', 'Late upsell order']]
+        .map((o) => '<option value="' + o[0] + '"' + (o[0] === LST.postPurchase ? ' selected' : '') + '>' + o[1] + '</option>').join('');
 
     const tabsHtml = D.TABS.map((t) =>
       '<div class="tab' + (t.key === LST.tab ? ' active' : '') + '" data-tab="' + t.key + '">' + esc(t.label) +
@@ -175,21 +201,22 @@
             '<div class="sel-trigger" id="total-chip" style="width:240px">' +
               '<span class="' + (LST.totalApplied ? '' : 'muted') + '">' + esc(totalChipText) + '</span>' + I.chevDown +
             '</div>' +
+            '<select class="filter-select" id="pp-filter" data-clearable data-clear-value="all" style="width:190px">' + ppOpts + '</select>' +
           '</div>' +
           (tags.length ? '<div class="flex gap-2 mt-3" style="flex-wrap:wrap" id="filter-tags">' + tags.join('') + '</div>' : '') +
         '</div>' +
         // table (table.tsx columns + leading row-selection checkbox)
         '<div style="overflow-x:auto">' +
-        '<table class="tbl" style="min-width:1320px">' +
+        '<table class="tbl" style="min-width:1420px">' +
           '<thead><tr>' +
             '<th style="width:48px;text-align:center"><input type="checkbox" class="ord-check-all" /></th>' +
             '<th>Order number</th><th>Order date</th><th>User</th><th>Shipping address</th>' +
             '<th>Total</th><th>Order status</th><th>Payment status</th>' +
-            '<th>Payment method</th><th>Fulfillment status</th><th style="text-align:center">Action</th>' +
+            '<th>Payment method</th><th>Fulfillment status</th><th>Post-purchase</th><th style="text-align:center">Action</th>' +
           '</tr></thead>' +
           '<tbody id="ord-tbody">' +
             (pageRows.length ? pageRows.map(rowHtml).join('')
-              : '<tr><td colspan="11" style="text-align:center;padding:40px" class="muted">No orders match these filters.</td></tr>') +
+              : '<tr><td colspan="12" style="text-align:center;padding:40px" class="muted">No orders match these filters.</td></tr>') +
           '</tbody>' +
         '</table>' +
         '</div>' +
@@ -222,8 +249,13 @@
       '<td>' + pill(PAY_STATUS, o.payment_status) + '</td>' +
       '<td class="muted">' + esc(o.payment_method) + '</td>' +
       '<td>' + pill(FULFILL_STATUS, ful) + '</td>' +
+      '<td>' + postPurchaseCell(o) + '</td>' +
       '<td style="text-align:center"><button class="back-btn" data-view="' + o.order_id + '" title="Detail" style="width:30px;height:30px">' + I.eye + '</button></td>' +
     '</tr>';
+  }
+
+  function postPurchaseCell(o) {
+    return o.order_role ? orderRoleBadge(o.order_role) : '<span class="muted">--</span>';
   }
 
   function pagerHtml(page, pages) {
@@ -273,6 +305,8 @@
     });
     const ps = root.querySelector('#pg-size');
     if (ps) ps.onchange = () => { LST.size = Number(ps.value); LST.page = 1; renderList(); };
+    const pp = root.querySelector('#pp-filter');
+    if (pp) pp.onchange = () => { LST.postPurchase = pp.value; LST.page = 1; renderList(); };
     root.querySelectorAll('.pg-item[data-page]').forEach((el) => el.onclick = () => { LST.page = Number(el.getAttribute('data-page')); renderList(); });
     // row click -> detail (but not when clicking checkbox / ship popover / view button)
     root.querySelectorAll('#ord-tbody tr[data-id]').forEach((tr) => tr.onclick = (e) => {
@@ -374,6 +408,7 @@
               '<span class="page-title">' + esc(o.order_sn) + '</span>' +
               '<button class="back-btn" data-act="copy" title="Copy" style="width:30px;height:30px;background:transparent">' + I.copy + '</button>' +
               pill(ORDER_STATUS, o.status) + pill(PAY_STATUS, o.payment_status) + pill(FULFILL_STATUS, fulfillment) +
+              integrationHeaderBadges(o.integration) +
             '</div>' +
           '</div>' +
           '<div class="flex items-center gap-2">' + actions + '</div>' +
@@ -385,11 +420,13 @@
             amountCard(o) +
             shippingAddressCard(o) +
             shippingLogisticsCard(o) +
+            integrationStatusCard(o) +
             timelineCard(o) +
           '</div>' +
           '<div class="detail-rail">' +
             notesCard(o) +
             userCard(o) +
+            orderRelationshipCard(o) +
           '</div>' +
         '</div>' +
       '</div>';
@@ -406,19 +443,18 @@
   }
 
   // ---- Products card: flat ant List (ProductsCard.tsx) — title + SKU + discount tags ----
-  function productsCard(o, fulfillment) {
-    const items = (o.items || []).map((it, i, arr) => {
+  function flatProductItemHtml(it, i, total) {
       const hasDisc = (it.discounts || []).length > 0;
       const disc = (it.discounts || []).map((d) =>
         '<div class="flex items-center gap-1 mt-1" style="font-size:12px;color:#8B8B8B">' + I.tag +
         '<span>' + esc(d.name) + ' (-' + money(d.amount) + ')</span></div>').join('');
       // grid: [1fr 140px 80px] — left product, middle unit×qty, right line price (after disc) + struck original
       return '<div style="display:grid;grid-template-columns:minmax(0,1fr) 140px 80px;gap:16px;align-items:flex-start;padding:14px 0' +
-          (i < arr.length - 1 ? ';border-bottom:1px solid var(--hair)' : '') + '">' +
+          (i < total - 1 ? ';border-bottom:1px solid var(--hair)' : '') + '">' +
         '<div class="flex items-center gap-3" style="min-width:0">' +
           '<img src="' + it.image + '" alt="" style="width:40px;height:40px;border-radius:6px;flex:none" />' +
           '<div style="min-width:0">' +
-            '<div style="font-weight:500;font-size:13.5px;color:var(--ink);line-height:1.35">' + esc(it.title) + '</div>' +
+            '<div style="font-weight:500;font-size:13.5px;color:var(--ink);line-height:1.35;display:flex;align-items:center;gap:7px;flex-wrap:wrap">' + esc(it.title) + sourceBadge(it.line_source) + '</div>' +
             '<div class="muted" style="font-size:12px">' + esc(it.sku) + '</div>' +
             disc +
           '</div>' +
@@ -429,9 +465,77 @@
           (hasDisc ? '<div class="muted" style="text-decoration:line-through">' + money(it.line_total) + '</div>' : '') +
         '</div>' +
       '</div>';
+  }
+
+  function richProductsCard(o, fulfillment) {
+    const referenceItems = (o.rich_items || []).map((item) => {
+      const typeBadge = item.kind === 'bundle'
+        ? '<span style="display:inline-flex;border-radius:4px;padding:2px 6px;background:#f7edcf;color:#8a6815;font-size:10px;font-weight:700">Bundle</span>'
+        : '';
+      const subscription = item.subscription
+        ? '<div class="flex items-center gap-2 mt-2" style="font-size:12px;color:var(--ink-muted)">' +
+            '<span style="color:var(--brand)">↻</span><span>Subscription · ' + esc(item.subscription.cadence) + '</span>' +
+            '<span>·</span><span style="color:var(--brand);font-weight:600">' + esc(item.subscription.id) + '</span>' +
+          '</div>'
+        : '';
+      const discounts = (item.discounts || []).map((discount) =>
+        '<div class="flex items-center gap-1 mt-1" style="font-size:12px;color:#8B8B8B">' + I.tag +
+          '<span>' + esc(discount.name) + ' (-' + money(discount.amount) + ')</span></div>').join('');
+      const children = (item.children || []).map((child) => {
+        const free = child.badge === 'Free shipping';
+        return '<div style="display:grid;grid-template-columns:minmax(0,1fr) 60px;gap:16px;align-items:center;padding:10px 12px;border-top:1px solid var(--hair);background:#fcfcfd">' +
+          '<div class="flex items-center gap-3" style="min-width:0">' +
+            '<img src="' + esc(child.image || '') + '" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:6px;flex:none" />' +
+            '<div style="min-width:0"><div class="flex items-center gap-2" style="font-size:12.5px;font-weight:500;color:var(--ink)">' +
+              '<span style="border-radius:4px;padding:2px 5px;background:' + (free ? '#eaf7ef' : '#f7edcf') + ';color:' + (free ? '#39704a' : '#8a6815') + ';font-size:9px;font-weight:700">' + esc(child.badge) + '</span>' +
+              '<span>' + esc(child.title) + '</span></div>' +
+              '<div class="muted" style="font-size:11.5px;margin-top:2px">' + esc(child.variant) + '</div></div>' +
+          '</div><div class="muted" style="font-size:12px;text-align:right">x ' + child.qty + '</div></div>';
+      }).join('');
+      return '<div style="border:1px solid var(--hair);border-radius:10px;overflow:hidden;margin-bottom:10px">' +
+        '<div style="display:grid;grid-template-columns:minmax(0,1fr) 60px 88px;gap:16px;align-items:flex-start;padding:14px 12px">' +
+          '<div class="flex items-start gap-3" style="min-width:0">' +
+            '<img src="' + item.image + '" alt="" style="width:40px;height:40px;border-radius:6px;flex:none" />' +
+            '<div style="min-width:0"><div class="flex items-center gap-2" style="font-size:13.5px;font-weight:500;color:var(--ink)">' + typeBadge + '<span>' + esc(item.title) + '</span></div>' +
+              (item.variant ? '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(item.variant) + '</div>' : '') +
+              subscription + discounts +
+            '</div>' +
+          '</div>' +
+          '<div class="muted" style="font-size:12px;text-align:right">x ' + item.qty + '</div>' +
+          '<div style="font-size:13px;font-weight:600;color:var(--ink);text-align:right"><div>' + money(item.product_price) + '</div>' +
+            (item.line_total > item.product_price ? '<div class="muted" style="text-decoration:line-through;font-weight:400">' + money(item.line_total) + '</div>' : '') +
+          '</div>' +
+        '</div>' + children +
+      '</div>';
     }).join('');
+    const postItems = o.items || [];
+    const postPurchase = postItems.length
+      ? '<div style="border:1px solid var(--hair);border-radius:10px;padding:0 16px;margin-top:10px">' +
+          postItems.map((item, index) => flatProductItemHtml(item, index, postItems.length)).join('') +
+        '</div>'
+      : '';
+    return cardOpen('<span>Product</span>' + pill(FULFILL_STATUS, fulfillment)) + referenceItems + postPurchase + '</div>';
+  }
+
+  function productsCard(o, fulfillment) {
+    if (Array.isArray(o.rich_items) && o.rich_items.length) return richProductsCard(o, fulfillment);
+    const items = (o.items || []).map((it, i, arr) => flatProductItemHtml(it, i, arr.length)).join('');
     const inner = '<div style="border:1px solid var(--hair);border-radius:10px;padding:0 16px">' + items + '</div>';
     return cardOpen('<span>Product</span>' + pill(FULFILL_STATUS, fulfillment)) + inner + '</div>';
+  }
+
+  function orderRelationshipCard(o) {
+    const related = (o.related_orders || [])[0];
+    if (!o.order_role && !related) return '';
+    const type = o.order_role === 'LATE_UPSELL' ? 'Late upsell order' : 'Base order';
+    return cardOpen('<span>Post-purchase</span>') +
+      '<div class="flex items-center gap-2" style="font-size:13px">' +
+        '<span>' + esc(type) + '</span>' +
+      (related
+        ? '<button type="button" data-related-detail="' + related.order_id + '" style="border:0;background:none;padding:0;color:var(--brand);font-weight:600;cursor:pointer">' + esc(related.order_sn) + '</button>'
+        : '') +
+      '</div>' +
+    '</div>';
   }
 
   // ---- Amount card (AmountCard.tsx): subtotal / order discounts / shipping / total / savings / paid ----
@@ -499,6 +603,19 @@
     return cardOpen('<span>Shipping logistics</span>') + grid + '</div>';
   }
 
+  function integrationStatusCard(o) {
+    const integration = o.integration;
+    if (!integration) return '';
+    const channel = '<div><div>' + esc(integration.channel) + '</div><div class="muted" style="font-size:11px;margin-top:2px">via ' + esc(integration.via) + '</div></div>';
+    const sync = '<div class="flex items-center gap-2"><span class="pill pill-green" style="padding:3px 8px;font-size:11px"><span class="dot" style="width:6px;height:6px"></span>' +
+      esc(integration.status) + '</span><span style="color:var(--brand);font-weight:600">' + esc(integration.reference) + '</span></div>';
+    return cardOpen('<span>Integration status</span>') +
+      descRow('Channel', channel) +
+      descRow('Shopify write-back', sync) +
+      '<div class="muted" style="font-size:11px;line-height:1.5;margin-top:8px">' + esc(integration.description) + '</div>' +
+    '</div>';
+  }
+
   // ---- Timeline card (TimelineCard.tsx): label left, time right; Ant Empty when none ----
   function timelineCard(o) {
     const list = o.timeline || [];
@@ -527,8 +644,12 @@
 
   // ---- User card (UserCard.tsx): Nickname + User ID only ----
   function userCard(o) {
-    return cardOpen('<span>User</span>') +
-      descRow('Nickname', esc(o.user.nickname)) +
+    const rich = o.user.email || o.user.phone;
+    const action = rich ? '<button type="button" style="border:0;background:none;padding:0;color:var(--brand);font-size:11px;font-weight:600;cursor:pointer">View customer</button>' : '';
+    return cardOpen('<span>User</span>', action) +
+      descRow(rich ? 'Name' : 'Nickname', esc(o.user.nickname)) +
+      (o.user.email ? descRow('Email', esc(o.user.email)) : '') +
+      (o.user.phone ? descRow('Phone', esc(o.user.phone)) : '') +
       descRow('User ID', String(o.user.uid)) +
     '</div>';
   }
@@ -554,6 +675,8 @@
     const ver = root.querySelector('[data-act="verify"]'); if (ver) ver.onclick = () => openVerifyModal(o);
     const ea = root.querySelector('[data-act="edit-address"]'); if (ea) ea.onclick = () => openEditAddressModal(o);
     const en = root.querySelector('[data-act="edit-note"]'); if (en) en.onclick = () => openEditNoteModal(o);
+    const related = root.querySelector('[data-related-detail]');
+    if (related) related.onclick = () => goDetail(related.getAttribute('data-related-detail'));
   }
 
   // ================= MODALS =================

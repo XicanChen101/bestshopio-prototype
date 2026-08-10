@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout 手工验收作战台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f6f7;
+      --surface: #fff;
+      --text: #202223;
+      --muted: #6d7175;
+      --border: #dfe3e8;
+      --primary: #303030;
+      --primary-soft: #f1f1f1;
+      --blue: #005bd3;
+      --blue-soft: #eaf4ff;
+      --green: #008060;
+      --green-soft: #e3f5ee;
+      --orange: #b98900;
+      --orange-soft: #fff5d9;
+      --red: #d72c0d;
+      --red-soft: #fff0ee;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input { font: inherit; }
+    a { color: var(--blue); }
+    .shell { width: min(1460px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+    .top { display: flex; align-items: flex-start; gap: 20px; }
+    .top-copy { flex: 1; }
+    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.02em; }
+    h2 { margin: 0 0 14px; font-size: 19px; }
+    h3 { margin: 0; font-size: 15px; }
+    p { margin: 0; line-height: 1.65; }
+    .muted { color: var(--muted); }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 600;
+    }
+    .button:hover { background: var(--primary-soft); }
+    .button.primary { background: var(--primary); color: white; border-color: var(--primary); }
+    .button.danger { color: var(--red); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 17px; }
+    .stat strong { display: block; font-size: 24px; margin-bottom: 4px; }
+    .stat span { color: var(--muted); font-size: 13px; }
+    .progress { height: 7px; background: #e8e8e8; border-radius: 99px; overflow: hidden; margin-top: 12px; }
+    .progress > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
+    .tabs {
+      position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; flex-wrap: wrap;
+      padding: 12px 0; margin-bottom: 18px; background: color-mix(in srgb, var(--bg) 92%, transparent);
+      backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+    }
+    .tab { border: 0; background: transparent; border-radius: 999px; padding: 8px 13px; cursor: pointer; color: var(--muted); }
+    .tab.active { background: var(--primary); color: white; font-weight: 650; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .grid-2 { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .stack { display: grid; gap: 12px; }
+    .callout { border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; background: var(--blue-soft); border: 1px solid #b5d9ff; }
+    .callout.warning { background: var(--orange-soft); border-color: #ead58c; }
+    .callout.danger { background: var(--red-soft); border-color: #ffc2b8; }
+    .callout.success { background: var(--green-soft); border-color: #a9dfce; }
+    .callout strong { display: block; margin-bottom: 4px; }
+    .round { padding: 13px 0; border-bottom: 1px solid var(--border); }
+    .round:last-child { border-bottom: 0; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13px; line-height: 1.5; }
+    th { background: #f7f7f7; color: var(--muted); font-weight: 650; position: sticky; top: 55px; z-index: 5; }
+    tr:last-child td { border-bottom: 0; }
+    .section-head { display: flex; align-items: center; gap: 12px; margin: 24px 0 12px; flex-wrap: wrap; }
+    .section-head h2 { margin: 0; }
+    .section-head .spacer { flex: 1; }
+    .count { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .filters { display: flex; gap: 7px; flex-wrap: wrap; }
+    .filter { border: 1px solid var(--border); background: var(--surface); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+    .filter.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .risk { display: inline-flex; min-width: 34px; justify-content: center; border-radius: 99px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
+    .risk.Blocker { color: #fff; background: var(--red); }
+    .risk.P0 { color: #8b2500; background: var(--orange-soft); }
+    .risk.P1 { color: #004c99; background: var(--blue-soft); }
+    .risk.P2 { color: var(--muted); background: var(--primary-soft); }
+    .scope { display: inline-flex; border-radius: 99px; padding: 3px 7px; font-size: 11px; font-weight: 650; background: var(--primary-soft); color: var(--muted); }
+    .scope.production { background: var(--orange-soft); color: #725b00; }
+    details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 9px; overflow: hidden; }
+    summary { padding: 13px 15px; cursor: pointer; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+    summary::marker { color: var(--muted); }
+    .summary-meta { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; }
+    .check-row {
+      display: grid; grid-template-columns: 24px minmax(190px, .42fr) minmax(300px, 1fr);
+      gap: 10px; align-items: start; padding: 11px 15px; border-top: 1px solid var(--border);
+    }
+    .check-row.simple { grid-template-columns: 24px minmax(0, 1fr); }
+    .check-row.done .check-title, .check-row.done .check-copy { text-decoration: line-through; color: #8c9196; }
+    .checkbox { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--green); cursor: pointer; }
+    .check-title { font-weight: 650; }
+    .check-copy { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .list { margin: 0; padding-left: 19px; display: grid; gap: 8px; color: var(--muted); line-height: 1.55; }
+    .decision { padding: 15px; }
+    .decision p + p { margin-top: 8px; }
+    .source-links { display: grid; gap: 7px; margin-top: 12px; }
+    .footer-note { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 20px, 1460px); padding-top: 20px; }
+      .top, .grid-2 { display: grid; grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .check-row { grid-template-columns: 24px minmax(0, 1fr); }
+      .check-copy { grid-column: 2; }
+      .table-wrap { overflow-x: auto; }
+      table { min-width: 760px; }
+    }
+    @media print {
+      .actions, .tabs, .filters, .button { display: none !important; }
+      .panel { display: block !important; page-break-before: always; }
+      .panel:first-of-type { page-break-before: auto; }
+      details > * { display: block !important; }
+      details { break-inside: avoid; }
+      body { background: #fff; }
+      .shell { width: 100%; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div class="top-copy">
+        <h1>Checkout 手工验收作战台</h1>
+        <p class="muted">基于 3 份 Checkout PRD，覆盖固定交易骨架、13 个增强组件、7 组独立设置、金额同步、PC/M 与异常安全。</p>
+      </div>
+      <div class="actions">
+        <a class="button primary" href="./index.html#/checkout/aura" target="_blank">打开本地 Checkout</a>
+        <a class="button" href="https://xicanchen101.github.io/bestshopio-prototype/#/checkout/aura" target="_blank" rel="noopener">打开线上原型</a>
+        <button class="button" id="printBtn">打印 / 导出 PDF</button>
+        <button class="button" id="exportBtn">导出进度</button>
+        <button class="button danger" id="resetBtn">重置全部</button>
+      </div>
+    </header>
+
+    <section class="stats">
+      <div class="stat"><strong id="coreTotal">0</strong><span>核心场景</span></div>
+      <div class="stat"><strong id="componentTotal">0</strong><span>组件详细检查</span></div>
+      <div class="stat"><strong id="settingTotal">0</strong><span>设置详细检查</span></div>
+      <div class="stat"><strong id="allProgress">0%</strong><span id="allProgressCopy">总体完成进度</span><div class="progress"><i id="progressBar"></i></div></div>
+    </section>
+
+    <nav class="tabs" aria-label="验收内容">
+      <button class="tab active" data-tab="overview">总览</button>
+      <button class="tab" data-tab="core">执行清单</button>
+      <button class="tab" data-tab="components">组件清单</button>
+      <button class="tab" data-tab="settings">Checkout settings</button>
+      <button class="tab" data-tab="schedule">验收节奏</button>
+      <button class="tab" data-tab="decisions">待拍板 / 限制</button>
+    </nav>
+
+    <section class="panel active" id="overview">
+      <div class="callout">
+        <strong>完整手工验收范围</strong>
+        这是 1.5–2 天的正式验收套件，不是视觉走查。原型可完成编辑器和交互验证；真实支付、接口失败、竞态与安全项必须在生产验收环境补验。
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>八轮验收</h2>
+          <div class="round"><h3>A · 入口与编辑器</h3><p class="muted">Checkout 独立环境、页面/模板选择、固定骨架、组件区域、Save/Discard/Publish。</p></div>
+          <div class="round"><h3>B · 核心买家交易</h3><p class="muted">游客/登录、地址、运费、支付、Billing address、CTA 与错误定位。</p></div>
+          <div class="round"><h3>C · 金额与订单摘要</h3><p class="muted">商品、优惠、运费、税费、Booster 与 PC/M 多处 Total 的一致性。</p></div>
+          <div class="round"><h3>D · Commerce boosters</h3><p class="muted">Product upsell、Shipping Insurance、VIP Club 的交易联动和失败回滚。</p></div>
+          <div class="round"><h3>E · 内容与信任</h3><p class="muted">10 个静态增强组件的添加、位置、空态、移动端和内容合规。</p></div>
+          <div class="round"><h3>F · Checkout settings</h3><p class="muted">7 组独立设置、边界值、继承优先级和 Online Store 隔离。</p></div>
+          <div class="round"><h3>G · 响应式与无障碍</h3><p class="muted">Desktop、390px、真机、键盘、焦点、触控面积和 200% Zoom。</p></div>
+          <div class="round"><h3>H · 异常、安全、兼容</h3><p class="muted">失败恢复、敏感支付信息、XSS/CSS 隔离、接口乱序和历史配置。</p></div>
+        </div>
+        <div class="card">
+          <h2>上线门槛</h2>
+          <ul class="list">
+            <li>全部 Blocker / P0 通过；P1 有 owner、修复日期及书面豁免。</li>
+            <li>金额矩阵逐分一致，无旧 Quote 覆盖、旧价支付或负数 Total。</li>
+            <li>Save 与 Publish 隔离，无草稿污染线上或修改丢失。</li>
+            <li>Desktop 与 390px 真机都能完成一次真实测试支付。</li>
+            <li>无重复订单/扣款、支付敏感信息泄漏、XSS 或支付区域样式覆盖。</li>
+            <li>所有会影响 Pass/Fail 的 PRD 歧义已形成书面决定。</li>
+          </ul>
+          <div class="source-links">
+            <a href="https://bestfulfill.feishu.cn/wiki/ExziwtoQEibsGGkoj5ucTNGGnYg" target="_blank" rel="noopener">PRD 1 · 必备组件 + 独立 Checkout settings</a>
+            <a href="https://bestfulfill.feishu.cn/wiki/RcFWwh44qiolZFkvgWmcKJUZndf" target="_blank" rel="noopener">PRD 2 · 3 个交易增强组件</a>
+            <a href="https://bestfulfill.feishu.cn/wiki/FweLwUIlMiiezHkwCl5cEjeNnwh" target="_blank" rel="noopener">PRD 3 · 10 个内容与信任组件</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-head"><h2>固定覆盖矩阵</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>维度</th><th>必须覆盖</th><th>不允许替代</th></tr></thead>
+          <tbody>
+            <tr><td>页面</td><td>Checkout Standard + 第二模板；Thank you 只抽查跳转和共享样式</td><td>只验默认 Standard</td></tr>
+            <tr><td>买家</td><td>游客 + 已登录且有 2 个地址</td><td>只验 Demo 默认状态</td></tr>
+            <tr><td>设备</td><td>Desktop + 390px + 至少一台真机</td><td>只缩浏览器窗口</td></tr>
+            <tr><td>金额</td><td>初始、Coupon、Shipping、Upsell、Insurance、VIP 及组合</td><td>肉眼判断“看起来对”</td></tr>
+            <tr><td>状态</td><td>默认、修改、隐藏、空数据、失效资源、接口失败</td><td>只看正常数据</td></tr>
+            <tr><td>版本</td><td>草稿、最近保存、已发布、匿名访问</td><td>把 Save 当 Publish</td></tr>
+            <tr><td>证据</td><td>步骤、期望、实际、模板、设备、金额、截图/录屏</td><td>只写一句“有问题”</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="core">
+      <div class="callout warning">
+        <strong>先准备金额 Oracle，再验交易链路</strong>
+        固定购物车、地址、运费、税和优惠的预期金额必须由订单计算服务给出；验收人员不能自行猜测 Booster 是否参与税费或优惠。
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h2>固定种子数据</h2>
+          <ul class="list">
+            <li>买家：游客；已登录且有 2 个保存地址。</li>
+            <li>商品：单规格、多变体、Bundle、订阅、售罄、下架、缺图各 1 个。</li>
+            <li>配送：单一方式、免费+付费两种方式、不可配送地址。</li>
+            <li>优惠：WELCOME10、SAVE10，以及无效、不适用、接口失败码。</li>
+            <li>支付：成功、拒付、超时、3DS/跳转型测试方式。</li>
+            <li>Booster：Upsell 多变体、Insurance $3.95、VIP $29.99。</li>
+            <li>内容：空/超长/Emoji/CJK 文案、有效/404 图片、合法/非法 URL。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>开始前资料</h2>
+          <ul class="list">
+            <li>Build / commit / API / 订单计算服务版本与环境 URL。</li>
+            <li>真实测试支付环境、支付方式和脱敏规则。</li>
+            <li>固定 Quote 矩阵及每一步预期金额。</li>
+            <li>已发布基线 + 独立验收草稿，禁止直接改生产店。</li>
+            <li>本期不做项、已知限制和待拍板项的书面结论。</li>
+            <li>匿名无痕窗口、Safari/iOS 与 Android 真机。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="section-head"><h2>核心验收场景</h2><span class="spacer"></span><span class="count" id="coreCount">0/0 完成</span><button class="button" data-reset="core">重置本页</button></div>
+      <div id="coreList"></div>
+    </section>
+
+    <section class="panel" id="components">
+      <div class="callout">
+        <strong>23 个组件逐项验收</strong>
+        10 个固定交易组件、3 个交易增强组件、10 个内容与信任组件。P0 组件必须覆盖正常、失败和 Mobile；静态组件必须证明不改变订单金额。
+      </div>
+      <div class="section-head">
+        <h2>组件风险与证据</h2><span class="spacer"></span>
+        <div class="filters" id="riskFilters">
+          <button class="filter active" data-risk="All">All</button>
+          <button class="filter" data-risk="Blocker">Blocker</button>
+          <button class="filter" data-risk="P0">P0</button>
+          <button class="filter" data-risk="P1">P1</button>
+          <button class="filter" data-risk="P2">P2</button>
+        </div>
+        <span class="count" id="componentCount">0/0 完成</span>
+        <button class="button" data-reset="component">重置本页</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>组件</th><th>族</th><th>风险</th><th>手工验收重点</th><th>保留证据</th></tr></thead>
+          <tbody id="componentSummary"></tbody>
+        </table>
+      </div>
+      <div class="section-head"><h2>详细用例</h2></div>
+      <div id="componentList"></div>
+    </section>
+
+    <section class="panel" id="settings">
+      <div class="callout">
+        <strong>7 组 Checkout settings</strong>
+        每组执行“默认 → 最小 → 最大 → Save 刷新 → Publish 匿名页”，并验证 Component setting ＞ Checkout setting ＞ System default。
+      </div>
+      <div class="section-head"><h2>逐组详细检查</h2><span class="spacer"></span><span class="count" id="settingCount">0/0 完成</span><button class="button" data-reset="setting">重置本页</button></div>
+      <div id="settingList"></div>
+      <div class="callout warning">
+        <strong>显式值不能被错误回退</strong>
+        false、0、Transparent 和清空覆盖必须分别验证；Checkout settings 不得污染 Online Store Theme settings。
+      </div>
+    </section>
+
+    <section class="panel" id="schedule">
+      <div class="callout success">
+        <strong>建议按 1.5–2 天安排</strong>
+        原型验收与生产交易验收分开记结论。原型不具备的真实支付、接口失败和安全测试，不得直接勾选为通过。
+      </div>
+      <h2>标准两天版</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>阶段</th><th>时间</th><th>范围</th><th>完成标准</th></tr></thead>
+          <tbody>
+            <tr><td>0. 预检</td><td>30 min</td><td>Build、权限、范围、种子、金额 Oracle</td><td>阻塞项清零</td></tr>
+            <tr><td>1. Editor</td><td>2 h</td><td>入口、模板、骨架、区域、Save/Publish</td><td>A 组通过</td></tr>
+            <tr><td>2. 核心交易</td><td>3 h</td><td>游客/登录、地址、运费、支付、CTA</td><td>B 组完整支付一次</td></tr>
+            <tr><td>3. 金额矩阵</td><td>2 h</td><td>Coupon、Shipping、Booster 及组合</td><td>C 组逐分一致</td></tr>
+            <tr><td>4. Commerce</td><td>1.5 h</td><td>Upsell、Insurance、VIP</td><td>联动与失败回滚</td></tr>
+            <tr><td>5. 内容组件</td><td>3 h</td><td>10 个内容与信任组件</td><td>位置、空态、Mobile</td></tr>
+            <tr><td>6. Settings</td><td>1.5 h</td><td>7 组设置与继承</td><td>真实匿名页一致</td></tr>
+            <tr><td>7. 响应式/异常</td><td>2.5 h</td><td>真机、键盘、失败、安全、兼容</td><td>G/H 门禁通过</td></tr>
+            <tr><td>8. 结论</td><td>30 min</td><td>缺陷分级、证据、owner、豁免</td><td>可作上线决策</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-head"><h2>每个可添加组件统一九步</h2></div>
+      <div class="card">
+        <p>添加 → 修改核心字段 → 触发条件字段 → 拖入允许/禁止区域 → 验空值与失效资源 → 切 Mobile → Save 刷新 → 隐藏/删除/恢复 → Publish 后到匿名 Checkout 核对。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="decisions">
+      <div class="callout danger">
+        <strong>以下问题不拍板，就没有统一 Pass/Fail 标准</strong>
+        “原型当前如此”不等于 PRD 已自动变更。请在正式验收前为每项记录 Accept / Fix / Defer。
+      </div>
+      <div id="decisionList"></div>
+      <div class="section-head"><h2>缺陷严重级别</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>级别</th><th>Checkout 场景</th><th>上线策略</th></tr></thead>
+          <tbody>
+            <tr><td><span class="risk Blocker">Blocker</span></td><td>金额错误、重复订单/扣款、草稿污染线上、支付敏感数据泄漏、XSS</td><td>必须修复</td></tr>
+            <tr><td><span class="risk P0">P0</span></td><td>无法结账、核心字段/运费/支付失败、Save/Publish 丢数据、移动端主链路不可用</td><td>必须修复</td></tr>
+            <tr><td><span class="risk P1">P1</span></td><td>单组件、布局、回退或低频错误，有明确绕行方案</td><td>需 owner、日期和书面豁免</td></tr>
+            <tr><td><span class="risk P2">P2</span></td><td>轻微间距、非核心文案或低频视觉差异</td><td>可进入后续清单</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="footer-note">来源：Theme Checkout PRD (1) 必备组件 + 独立设置、PRD (2) 3 个交易增强组件、PRD (3) 10 个内容与信任组件，以及当前 Checkout 原型实现。更新日期：2026-08-04。</p>
+  </main>
+
+  <script>
+    const coreGroups = {
+      "A · 入口、编辑器、模板与发布": [
+        ["scope","范围冻结","确认 3 份 PRD、Checkout 页面范围、本期不详验 Upsell/Downsell/Thank you，以及全部已知限制。","P0","prototype"],
+        ["build","冻结验收 Build","记录 Admin、Theme、Storefront、后端、订单计算与支付版本。","P0","production"],
+        ["entry-card","Theme 列表入口","从 Online Store Theme 列表点击 Edit checkout，进入正确主题和 Checkout 模板。","P0","prototype"],
+        ["entry-selector","Online Store 编辑器跳转","页面选择器底部点击 Checkout theme，surface、URL 和左侧菜单同时切换。","P0","prototype"],
+        ["back-online","返回 Online store theme","从 Checkout 页面选择器返回 Online Store，环境和当前主题正确。","P1","prototype"],
+        ["page-selector","页面与模板选择器","Checkout 当前页面、模板名、搜索、返回按钮和长列表滚动均正常。","P1","prototype"],
+        ["multi-template","Checkout 多模板","Standard 与第二模板隔离；新建模板后可进入，当前模板高亮。","P1","prototype"],
+        ["core-tree","固定骨架完整","Header、Mobile Summary、Express、Contact、Delivery、Shipping、Payment、CTA、Order Summary、Policy Links 齐全。","P0","prototype"],
+        ["core-locked","核心组件锁定","核心组件不可删除、复制、重命名、跨区域拖拽或自由添加 Block。","P0","prototype"],
+        ["catalog","Add component 目录","3 个 Commerce boosters 与 10 个内容/信任组件分类、名称、描述齐全。","P1","prototype"],
+        ["zone-valid","允许区域","组件可放到 PRD 允许区域，树和预览同步，Save 刷新后顺序保留。","P1","prototype"],
+        ["zone-invalid","禁止区域","非法放置被阻止并有明确反馈；Footer 单例底部、Announcement 顶部、Testimonials 底部。","P1","prototype"],
+        ["dirty-positive","产生 Unsaved changes","改字段、设置、增删/显隐/拖拽组件均变脏。","P0","prototype"],
+        ["dirty-negative","不产生 Unsaved changes","切设备、选组件、展开树、滚动预览不变脏。","P1","prototype"],
+        ["switch-cancel","未保存切换 · Cancel","停留原页面/模板，修改完整保留。","P0","prototype"],
+        ["switch-discard","未保存切换 · Discard","放弃后切换，返回原模板时修改不存在。","P0","prototype"],
+        ["switch-save","未保存切换 · Save","先保存再切换，返回后修改存在。","P0","prototype"],
+        ["save-success","Save 成功与刷新","保存中防重复；刷新、退出重进后草稿完整。","P0","production"],
+        ["save-fail","Save 失败恢复","断网/登录过期时修改不丢，错误明确，恢复后可重试。","P0","production"],
+        ["publish-success","Publish 与匿名访问","发布成功后匿名 Checkout 使用新版本；仅 Save 的草稿线上不可见。","Blocker","production"],
+        ["publish-fail","Publish 失败保护","线上继续旧版本，草稿保留，重复点击不创建多个发布任务。","Blocker","production"],
+        ["legacy","历史配置兼容","缺字段、未知组件、旧枚举配置不导致编辑器或 Checkout 崩溃。","P1","production"]
+      ],
+      "B · 核心买家交易流程": [
+        ["guest-flow","游客完整结账","邮箱 → 地址 → 配送 → 支付 → CTA；订单只创建一次并进入 Thank you。","Blocker","production"],
+        ["signed-flow","登录买家","Sign in 状态、邮箱、保存地址列表、地址切换和 Sign out 正确。","P0","prototype"],
+        ["email","邮箱校验","空、格式错误、合法邮箱提示正确；修正后错误即时解除。","P0","production"],
+        ["country","国家字段联动","国家切换后 State/Province、邮编、电话区号和必填规则正确。","P0","production"],
+        ["shipping-empty","运费空态","地址不完整时显示 Empty state；完整后 loading 并返回方式。","P0","production"],
+        ["shipping-single","单一配送方式","唯一方式自动选中，Shipping 与 Total 更新。","P0","production"],
+        ["shipping-multiple","多个配送方式","默认项正确；切换免费/付费方式后金额同步。","P0","prototype"],
+        ["shipping-fail","运费失败/不可配送","提示明确、可重试、CTA 不得绕过。","P0","production"],
+        ["express","快捷支付可用性","仅展示网关和设备真实可用方式，不可用方式不留空按钮。","P1","production"],
+        ["hosted-card","支付托管边界","Theme 不修改或保存 Card number、Expiry、CVC；Hosted Card 边界清晰。","Blocker","production"],
+        ["billing-default","账单地址默认态","默认复用 Shipping address，独立表单隐藏。","P0","prototype"],
+        ["billing-expand","独立账单地址","取消勾选后展开；必填校验、PC 多列/Mobile 单列正确。","P0","prototype"],
+        ["billing-retain","账单地址会话保留","重新勾选隐藏但保留输入；提交仍使用最新 Shipping。","P0","production"],
+        ["no-shipping","无需配送订单","不显示复用勾选项，直接要求 Billing address。","P0","production"],
+        ["validation-order","CTA 校验顺序","Contact → Shipping → Shipping Method → Payment → Billing → 最新金额，并定位首错。","P0","production"],
+        ["cta-loading","CTA 防重复提交","显示配置 Loading text；双击、回车连击不重复订单或扣款。","Blocker","production"],
+        ["payment-fail","支付失败恢复","拒付、超时、网络失败停留当前页，安全提示明确，允许重试。","P0","production"],
+        ["header-links","Header 生产交互","Cart 返回购物车，Email/Phone 使用 mailto/tel，Logo 回退正确。","P1","production"],
+        ["policy-modal","政策链接","仅展示已配置页面；点击按最终口径弹窗或跳转，无死链。","P1","prototype"]
+      ],
+      "C · Order Summary 与金额同步": [
+        ["cart-lines","Cart Lines","商品图、标题、变体、数量、价格、划线价、Savings、Bundle 与订阅信息正确。","P0","prototype"],
+        ["initial-total","初始金额 Oracle","Subtotal、Discount、Shipping、Tax、Total 与订单计算服务逐分一致。","Blocker","production"],
+        ["address-quote","地址更新 Quote","国家/地址变化只刷新规定金额；旧请求晚返回不覆盖新结果。","Blocker","production"],
+        ["shipping-total","配送金额","切换方式后 Summary 和最终提交金额都使用最后选中项。","Blocker","production"],
+        ["coupon-valid","有效优惠码","WELCOME10 / SAVE10 应用后 Discount、Total 和标签正确。","P0","prototype"],
+        ["coupon-errors","优惠码异常","空、无效、不适用、重复、接口失败分别提示；移除后金额恢复。","P0","production"],
+        ["quantity-variant","数量与变体","商品数量/变体价格变化后行项目、Subtotal、件数和 Total 同步。","Blocker","production"],
+        ["boosters-total","Booster 金额","Upsell、Insurance、VIP 单独及组合加入后新增行和 Total 正确。","Blocker","prototype"],
+        ["race","并发金额变化","地址、配送、优惠和 Booster 快速连续改变时只接受最新 Quote。","Blocker","production"],
+        ["price-change","提交前价格变化","刷新并要求确认，不得按旧 Total 支付。","Blocker","production"],
+        ["summary-parity","多摘要一致","Desktop、Mobile 顶部、Mobile 底部和 CTA 提交金额一致。","P0","prototype"],
+        ["rounding","币种与舍入","多币种、小数舍入、最低 $0 与负数保护符合订单服务。","Blocker","production"],
+        ["quote-fail","总价刷新失败","CTA 禁用并提供恢复路径，旧金额不可提交。","Blocker","production"]
+      ],
+      "D · Commerce boosters 通用": [
+        ["booster-crud","组件生命周期","三组件分别添加、隐藏、删除、恢复、Save/Publish 后状态正确。","P1","prototype"],
+        ["booster-zones","Commerce 区域","可在 Contact/Shipping/Payment/CTA/Summary 后放置，非法区域拒绝。","P1","prototype"],
+        ["booster-loading","Cart Mutation 状态","Add/Remove/Update loading、防重复、失败回滚和重试正确。","P0","production"],
+        ["booster-buyer-dirty","买家操作不污染 Theme","勾选、加购、切变体不产生编辑器 Unsaved changes。","P0","prototype"],
+        ["booster-combo","三组件组合","顺序、独立取消、优惠/税/运费适用与订单记录符合金额 Oracle。","Blocker","production"]
+      ],
+      "E · 内容组件通用": [
+        ["content-crud","静态组件生命周期","10 个组件均可按规则添加、隐藏、删除、拖拽和保存。","P1","prototype"],
+        ["content-no-order","订单数据不变","添加、修改、显隐静态组件前后 Cart/Quote/Total 完全不变。","Blocker","production"],
+        ["content-empty","空内容","无有效内容或 Block 时前台不展示，也不保留异常空白。","P1","prototype"],
+        ["content-image","图片失败","404、慢加载、不支持格式有规定回退，不出现破图或布局坍塌。","P1","production"],
+        ["content-long","长内容","超长、Emoji、中英文混排在 PC/M 自动换行，不遮挡 CTA。","P1","prototype"],
+        ["content-compliance","内容真实性提示","评论、认证、倒计时和第三方风格组件显示 PRD 合规提醒。","P1","prototype"]
+      ],
+      "G · Desktop、Mobile 与可访问性": [
+        ["desktop","Desktop 双栏","默认 980px 居中；左表单、右 Summary；Header 通栏。","P0","prototype"],
+        ["breakpoints","响应式断点","1280、1024、768、390、320px 无页面级横向滚动。","P0","prototype"],
+        ["mobile-order","Mobile 顺序","Header → Top Summary → Express → Contact → Delivery → Shipping → Payment → Bottom Summary → CTA → Policy。","P0","prototype"],
+        ["mobile-form","Mobile 表单","字段单列、Express/CTA 全宽、触控目标不低于 44px。","P0","prototype"],
+        ["mobile-header","Mobile Header 收敛","Logo 居中 + Cart；Trust/Secure/Contact 自动隐藏。","P1","prototype"],
+        ["keyboard","键盘完成结账","Tab 顺序与视觉一致，无焦点陷阱，可无鼠标完成。","P0","production"],
+        ["focus-error","焦点与错误","Focus 可见；错误定位首字段并被屏幕阅读器读出。","P0","production"],
+        ["semantics","交互语义","摘要、Countdown、轮播、政策弹窗具有正确 expanded/dialog/button 语义。","P1","production"],
+        ["zoom","Zoom 与大字号","200% Zoom、系统大字号、横竖屏仍能完成支付。","P0","production"],
+        ["contrast","对比度","文字、错误、Focus、按钮和 Disabled 达到 WCAG AA。","P0","production"],
+        ["reduced-motion","减少动态效果","系统开启 reduced motion 后，跑马灯/轮播不造成强制干扰。","P1","production"]
+      ],
+      "H · Loading、错误、安全与兼容": [
+        ["loading","分区 Loading","页面、商品、Shipping、Payment、Coupon、CTA 不出现可操作的半成品状态。","P0","production"],
+        ["retry","全局失败重试","重试后购物车和非敏感已填字段保留。","P0","production"],
+        ["blocking-states","阻断状态","空购物车、下架、库存不足、不可配送、无支付方式均阻止提交。","P0","production"],
+        ["resource-fallback","资源回退","Logo、政策页、组件图片删除后无死链/破图。","P1","production"],
+        ["sensitive","支付敏感信息","卡号、Expiry、CVC 不进入 Theme JSON、日志、Analytics 或错误上报。","Blocker","production"],
+        ["injection","XSS / CSS 隔离","富文本、URL、SVG、Custom CSS 不执行脚本、不覆盖支付区或隐藏 CTA。","Blocker","production"],
+        ["unsafe-url","危险 URL","javascript: / data: 等协议被拒绝；新窗口外链安全隔离。","Blocker","production"],
+        ["privacy","隐私与错误文案","支付错误不暴露银行敏感原因；邮箱、地址、Token 在证据中脱敏。","P0","production"],
+        ["slow-network","慢网与乱序","离线恢复、返回/刷新、接口乱序不产生旧金额或重复支付。","Blocker","production"],
+        ["browsers","浏览器兼容","Chrome、Safari、Edge；iOS Safari 与 Android Chrome 真机抽查。","P1","production"],
+        ["console","前端稳定性","Console 无未处理异常；关键接口无意外 4xx/5xx。","P0","production"],
+        ["idempotency","订单与支付幂等","重复回调、刷新成功页、网络重放不重复订单或扣款。","Blocker","production"]
+      ]
+    };
+
+    const components = [
+      ["Header","Core","P1","品牌回退、结构轴、信任/联系/购物车、Mobile 收敛","PC/M 截图；Logo 三级回退"],
+      ["Order summary (Mobile)","Core","P0","顶部折叠、Total 刷新、与底部摘要同步","展开/折叠录屏；三处金额对照"],
+      ["Express checkout","Core","P1","网关可用性、按钮布局、支付跳转边界","可用/不可用环境截图"],
+      ["Contact","Core","P0","邮箱、登录态、Sign in/out 与错误提示","游客/登录各一段录屏"],
+      ["Delivery","Core","P0","国家联动、保存地址、Add/Edit modal、浮动标签","游客/登录/移动端录屏"],
+      ["Shipping Method","Core","Blocker","空态、默认选中、切换方式与 Total","免费/付费切换前后金额"],
+      ["Payment + Billing address","Core","Blocker","Hosted Card 边界、账单地址显隐/校验/提交","脱敏支付请求；PC/M 表单"],
+      ["CTA","Core","Blocker","校验顺序、Loading、防重复、失败恢复","双击测试；订单/付款记录"],
+      ["Order Summary","Core","Blocker","Cart Lines、Coupon、折扣/运费/税/Total","完整金额矩阵与 Quote 响应"],
+      ["Policy Links","Core","P1","页面选择、隐藏、弹窗/跳转、死链回退","五链接 + 空状态截图"],
+      ["Product upsell","Commerce","Blocker","商品来源、变体、数量、加购与 Summary","Cart Mutation + 订单行"],
+      ["Shipping Insurance","Commerce","Blocker","Price、默认选择、勾选回滚、Summary 服务行","$3.95 前后金额与失败录屏"],
+      ["VIP Club","Commerce","Blocker","Price、富文本、明确同意、计费时点","订单行、续费文案与金额"],
+      ["Announcement Bar","Promotion","P1","仅 Header 上方、无跳转、长文案","PC/M + 非法位置"],
+      ["Countdown","Promotion","P1","样式、格式、1–1440 分钟、三种到期行为","边界值 + 到期录屏"],
+      ["Payment Icons","Trust","P1","Section+Block、内置/自定义、布局与 Alt","PC/M 换行 + 无 Block"],
+      ["Trust badges","Trust","P1","Structured/Full image、空值、Grid","两种模式 + 图片失败"],
+      ["Trustpilot Review","Social proof","P1","静态评分/评论、空值、真实性提示","无 API 请求证据 + Mobile"],
+      ["Review card","Social proof","P1","Carousel/Grid、图片/徽章/作者、空态","PC/M + 无 Block"],
+      ["Testimonials","Social proof","P1","无产品配置、仅底部、Footer 上方","位置限制 + Mobile"],
+      ["Facebook-style Comments","Social proof","P1","Reaction、品牌回复、0/1/N 文案、合规","组合截图 + 空评论"],
+      ["Static content","Content","P1","Notice/Plain、富文本、链接、净化","空值 + 非法 URL/XSS"],
+      ["Footer","Content","P1","单例固定底部、五类 Block、品牌回退","PC/M + 重复添加"]
+    ];
+
+    const componentCases = {
+      "Header":["Logo image、Store brand logo、Store name 的三级回退","Logo Left/Center/Right 时 start/center/end 模块落位正确","Trust message、Secure badge、Contact、Cart 开关及条件字段即时显隐","Email/Phone 生产环境使用 mailto/tel，Cart 返回购物车","组件颜色覆盖 Checkout Header settings，清空后恢复继承","Mobile 仅保留居中 Logo 与 Cart，无横向拥挤"],
+      "Order summary (Mobile)":["仅 Mobile 出现，默认折叠只显示标题和最新 Total","点击展开/收起；Cart Lines、Coupon 与金额完整","应用 Coupon、切 Shipping、勾 Booster 时折叠态 Total 仍刷新","顶部与底部 Summary 的商品、优惠、件数、Savings 和 Total 一致","背景、文字、Total 色在折叠和展开态均生效"],
+      "Express checkout":["Heading 修改后实时预览并可保存","仅展示当前网关与设备可用的支付方式","按钮在 Mobile 全宽，点击目标不低于 44px","支付方式为空/接口失败时不保留空容器","真实快捷支付成功、取消、失败后返回路径正确"],
+      "Contact":["Heading、Email placeholder、Sign in text 和显隐开关","游客输入空/非法/合法邮箱的校验与浮动标签","Sign in 后邮箱/身份正确，Sign out 恢复游客表单","买家交互不产生 Theme Unsaved changes","键盘焦点与错误提示可被读屏识别"],
+      "Delivery":["国家/州省/城市/邮编字段联动与各 placeholder","游客字段浮动标签、必填、格式错误和首错定位","登录买家保存地址单选切换后 Shipping/Tax 刷新","Add/Edit address modal 打开、保存、取消和会话保留","登录态 standalone Shipping Method 隐藏，但地址卡内仍可选","PC 姓名双列、城市/州/邮编三列；Mobile 全部单列"],
+      "Shipping Method":["地址不完整时展示配置的 Empty state","唯一配送方式自动选中；多个方式选服务端默认项","切换免费/付费方式，Shipping 与 Total 逐分更新","选中边框颜色继承/覆盖正确","加载、无可用方式、接口失败与重试","快速切地址时旧运费响应不覆盖新地址"],
+      "Payment + Billing address":["Heading/Description 与支付方式列表样式","Card number/Expiry/CVC 由托管字段处理，不进入 Theme 数据","默认勾选 Use shipping address，Billing 表单隐藏","取消勾选展开独立表单；必填、浮动标签、错误色正确","再次勾选后隐藏但保留会话输入；提交使用 Shipping","无配送订单直接展示 Billing；PC 多列/Mobile 单列","支付拒绝、超时、3DS/跳转和恢复路径"],
+      "CTA":["Button text、full width、颜色、圆角、Loading text","空表单点击后按 PRD 顺序定位首错","Coupon/Shipping/Total 计算中按钮禁用","提交中 Loading 且双击/回车连击不重复订单","支付成功进入 Thank you；失败停留并允许重试","Mobile 全宽、点击区域和 Focus 状态达标"],
+      "Order Summary":["普通、Bundle、订阅商品的图、变体、数量、价格和 Savings","有效 Coupon 应用、移除及无效/不适用/重复/接口失败","Discount code 浮动标签且紧凑输入布局不被破坏","产品折扣、订单折扣、运费折扣分别展示并参与 Total","切 Shipping、数量、变体、Booster 后所有金额同步","Discount/Tax 为 0、Shipping Free 和小数舍入规则","Mobile 顶部/底部与 Desktop Summary 完全一致"],
+      "Policy Links":["Refund/Privacy/Terms/Shipping/Contact 分别选择 Page","未选单个 Page 不展示；全部未选时整个区域隐藏","链接文案使用 Page 真实标题，超长时 Mobile 自动换行","点击按最终口径弹窗或跳转，内容与目标 Page 一致","Page 删除/无权限后不出现死链","组件可隐藏；Link color 与 Text size 生效"],
+      "Product upsell":["Manual products / Collection 数据源和空数据状态","最多选择 6 个；Products limit 1/6；已在 Cart 商品排除","草稿、下架、售罄、无可售变体商品不可加购","Slider/Grid、PC 1–4、Mobile 1–2 与显示字段开关","多变体下拉联动图片、价格与 Order Summary","Plus/Button CTA，Add、+、-、减至 0 的完整往返","Default-checked 初始化一次，买家取消后不因重渲染恢复","Add/Remove/Update loading、失败回滚与重试"],
+      "Shipping Insurance":["Heading、Title、Description、Price、Summary image、Social proof、Icon","Description 价格变量与配置 Price 一致","Default selected 关闭/开启的初始订单状态","勾选加入服务行与金额；取消完整移除","Order Summary 移除后组件自动取消选择","Price 缺失/0、图片失败和服务不可用状态","Mutation 失败回滚选择并提示"],
+      "VIP Club":["Title、富文本 Description、Price、Summary image 和样式","Default selected 关闭/开启的明确同意口径","勾选只加入一次；取消后会员行与金额移除","Order Summary 移除后组件自动取消选择","续费金额、首次收费时点、周期和取消方式与真实计费一致","富文本净化，不执行脚本或污染支付区域","Mutation 失败回滚且可重试"],
+      "Announcement Bar":["复用 Online Store 组件但 Checkout 不展示链接配置/不执行跳转","仅允许 Header 上方，拖到其他区域被阻止","0/1/多条消息下的隐藏、箭头和轮播","空文案不展示；超长文案 Mobile 换行或跑马灯不溢出","隐藏/删除/Save/Publish 后状态正确"],
+      "Countdown":["Inline / Alert bar 两种当前样式；Success bar 按决策单处理","MM:SS / HH:MM:SS 与 1、10、1440 分钟边界","Stop at 0、Restart、Hide section 三种到期行为","Prefix/Icon 为空的条件展示","后台改时长重新计算；设备切换不改配置","刷新后重置/保留剩余时间按最终会话规则","移动端长文案换行，无误导性库存声明"],
+      "Payment Icons":["新增、删除、排序 Payment Icon Block","Visa/PayPal/Mastercard/Amex 等内置图标与 Custom image","自定义图片为空/失败时不显示破图","Heading 空值、Inline/Grid、PC/M 每行数、尺寸、间距、对齐","Alt text 准确；装饰性图标不重复朗读","无有效 Block 时整个组件隐藏"],
+      "Trust badges":["Structured badges / Full image 互斥切换","整图为空/失败时整个组件隐藏","Block 的内置/自定义图标、Title、Description 空值组合","Vertical/Horizontal/Grid 与 PC/M 每行数边界","无有效 Block 时隐藏且不留空白","认证真实性提示与 Custom CSS 隔离"],
+      "Trustpilot Review":["Overall rating 0–5 含小数，Review rating 1–5","Trustpilot text 开关与自定义文案","Review Title/Content/Name/Date/Verified 的空值规则","无 Review 时只保留有效评分摘要","确认无 Trustpilot API 请求，仅静态配置","真实性提示、Mobile 卡片全宽与长正文"],
+      "Review card":["新增/删除/排序 Card Block","Carousel/Grid、PC 1–3、Mobile 1–2","主图、徽章图、Title、Content、Author 和 Subtitle","Image Left/Top/Right 与缺图布局","无 Block/空字段按规则隐藏","Mobile 单卡全宽，长正文不遮挡 CTA"],
+      "Testimonials":["Checkout 不出现 Product 绑定控件","保留评价、头像、姓名、星级和布局能力","只允许 Policy Links 下方/底部；有 Footer 时位于其上","无内容隐藏；头像缺失按最终回退口径","Mobile 按现有 Testimonials 规则展示","非法位置、隐藏、删除和发布后状态"],
+      "Facebook-style Comments":["空 Comment 不渲染；头像/姓名/Time 的空值回退","Reaction count=0 隐藏；不同表情组合和计数正确","Hide、Like、Reply 文案配置与空值回退","Brand reply 开关及 0/1/N Reply 文案","头像为空时首字母占位；Mobile 单列","不冒充真实 Facebook 数据，显示合规提醒"],
+      "Static content":["Notice bar / Plain text；Card 按决策单处理","系统图标/Custom icon、Heading、富文本 Content","Heading 与 Content 都空时整个组件隐藏","Link text/URL 不完整时不展示链接；新标签页正确","javascript:/data: 与危险富文本被拒绝或净化","Mobile 自动换行，Custom CSS 不污染其他组件"],
+      "Footer":["只能添加一个，固定页面最底部，重复添加被阻止","Logo → Brand name → Store name 回退","Disclaimer、Policy、Contact、Copyright {{year}}、Payment icons 开关","Policy/Payment/Text/Social/Contact Block 新增、排序、删除","空 Page/URL/联系方式不展示死链或空行","PC 对齐与 Padding；Mobile 内容纵向且无溢出","Footer Custom CSS 不能覆盖支付区域"]
+    };
+
+    const settingCases = {
+      "Main":["Page background、Text、Muted、Divider 分别作用于正确区域","默认值、清空和非法颜色的回退明确","Checkout 设置不污染 Online Store 页面","Header/Order Summary 有独立 Token 时不被 Main 错误覆盖","Save/Publish 后匿名 Checkout 与编辑器一致"],
+      "Header":["Background、Text、Accent 与 Header Section 覆盖优先级","PC height 48/64/120，Mobile 44/56/100 边界","Header divider 开/关与 Section Show divider 关系正确","Mobile 高度变化不挤压 Logo/Cart","清除 Section 颜色后恢复 Checkout Header settings"],
+      "Order Summary":["Background、Text、Muted 同时作用于 Desktop 与 Mobile 两处摘要","Summary Section 自定义色覆盖全局，清空后恢复","Total color 仅作用金额重点，不破坏对比度","商品行、Coupon、折扣标签在深浅背景均可读","三处 Summary 对同一 Token 的消费一致"],
+      "Accent and buttons":["Accent 作用于链接、Radio、Checkbox 和选中态","Button background/text/hover 分别生效","Radius 0/40，Height 40/52/64 边界","CTA Section 覆盖 Theme，清除后恢复继承","Focus/Disabled/Loading 状态仍清晰且对比度达标"],
+      "Input fields":["背景、输入文字、Placeholder、默认/Focus/Error 边框颜色","Radius 0/24，Height 40/48/64 边界","Transparent input 显式开启后不错误回退白色","浮动标签在空值、聚焦、已填、自动填充时正确","Payment 紧凑字段、Discount code、CVC 不被统一高度破坏","Error color 同时用于边框、文案和首错定位"],
+      "Typography":["Heading/Body font 分别作用标题与正文","Base 12/18、Heading 14/28、Small 10/14 边界","Heading 400/700、Body 400/600 字重","字体加载失败使用系统字体，无明显布局抖动","长标题、政策链接和 Mobile 下不截断关键内容"],
+      "Layout":["Page max width 900/980/1280，背景仍可通栏","Column gap 16/40/80 不导致 Summary 过窄","Section spacing 12/24/48 只影响区块间距","Mobile padding 12/18/24 无横向滚动","Desktop 双栏与 Mobile 单列切换顺序正确","Checkout Layout 不改变 Online Store 容器宽度"]
+    };
+
+    const decisions = [
+      ["页面范围已扩展到四类","PRD 1 只写 Checkout / Thank you；当前原型还有 Upsell / Downsell 与统一开关。","本清单只详验 Checkout；确认四类页面是否正式回写 PRD。"],
+      ["Mobile 存在顶部和底部两个 Order Summary","PRD 同时描述两处摘要，但未定义两者是否独立配置或可处于不同折叠状态。","拍板折叠状态与配置共享规则；金额必须始终一致。"],
+      ["Insurance / VIP 的税、优惠和运费规则","组件级 Price 已明确，但是否参与税、优惠、运费缺少统一 Oracle。","由订单计算服务提供组合矩阵，测试不自行判断。"],
+      ["VIP 的计费时点和默认勾选","默认文案写“首月后收取 $29.99”，同时组件可能立即把 $29.99 加入本单。","明确一次性/订阅模型、首次扣费时间和明确同意要求。"],
+      ["Commerce 默认添加位置","组件库写 CTA 下方；当前 Standard 模板分别预置在 Contact、Shipping、Payment 后。","区分“新添加默认位置”和“模板预置位置”，写入 PRD。"],
+      ["Coupon 单码还是多码","PRD 1 只描述应用优惠码；当前原型支持多码和产品/订单/运费三类折扣。","明确可叠加规则、冲突优先级和最多码数。"],
+      ["Countdown 规格冲突","主配置写 1 分钟–24 小时；异常章节写 1–60 分钟；验收还残留 Success bar。","建议以 1–1440 分钟、Inline/Alert、三种到期行为为当前口径。"],
+      ["Countdown 刷新后的会话规则","PRD 明确留给技术方案，当前没有统一预期。","决定刷新后重置、按 Session 保留，或按绝对到期时间计算。"],
+      ["Static content 的 Card 样式","配置表只有 Notice bar / Plain text，展示与验收章节仍出现 Card。","删除 Card 要求或补回控件与前台样式。"],
+      ["Policy Links 是弹窗还是跳转","PRD 摘要写链接跳转，详细规则写弹窗打开；当前原型使用弹窗。","建议 Checkout 内弹窗展示，避免丢失结账状态，并回写 PRD。"],
+      ["Custom CSS 安全契约","三个 PRD 允许组件级 Custom CSS，但没有作用域、净化和禁止覆盖交易控件的契约。","脚本执行、覆盖支付 iframe/CTA 或跨 Section 污染一律 Blocker。"],
+      ["原型无法替代生产交易验收","当前 CTA、Express、Hosted Card、Skeleton 和多类接口失败主要为 Mock。","原型项只验交互；真实支付、Cart Mutation、失败恢复和竞态必须在测试环境补验。"],
+      ["非法拖拽的反馈","当前原型可能静默拒绝非法 Zone，而 PRD 要求明确提示 This Section can’t be placed here。","决定是否补 Toast；正式产品验收建议要求明确反馈。"],
+      ["Announcement Bar 链接字段","PRD 要求 Checkout 移除跳转链接；复用组件时需同时隐藏编辑字段和前台行为。","验收编辑面板和前台两层都不得残留链接能力。"]
+    ];
+
+    const STORAGE_KEY = "bestshopio-checkout-acceptance-v1";
+    let checked = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    let currentRisk = "All";
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(checked));
+      updateProgress();
+    }
+
+    function makeCheck(id, title, copy, simple = false, risk = "", scope = "") {
+      const row = document.createElement("label");
+      row.className = `check-row${simple ? " simple" : ""}${checked[id] ? " done" : ""}`;
+      const badges = `${risk ? `<span class="risk ${risk}">${risk}</span>` : ""}${scope ? `<span class="scope ${scope === "production" ? "production" : ""}">${scope === "production" ? "生产补验" : "原型可验"}</span>` : ""}`;
+      row.innerHTML = `<input class="checkbox" type="checkbox" ${checked[id] ? "checked" : ""}><span class="check-title">${title} ${badges}</span>${simple ? "" : `<span class="check-copy">${copy}</span>`}`;
+      const input = row.querySelector("input");
+      input.addEventListener("change", () => {
+        checked[id] = input.checked;
+        row.classList.toggle("done", input.checked);
+        save();
+      });
+      return row;
+    }
+
+    function renderCore() {
+      const root = document.getElementById("coreList");
+      root.innerHTML = "";
+      Object.entries(coreGroups).forEach(([group, items], groupIndex) => {
+        const details = document.createElement("details");
+        details.open = groupIndex < 3;
+        const done = items.filter(([id]) => checked[`core:${id}`]).length;
+        details.innerHTML = `<summary>${group}<span class="summary-meta">${done}/${items.length}</span></summary>`;
+        items.forEach(([id, title, copy, risk, scope], index) => {
+          details.appendChild(makeCheck(`core:${id}`, `${String(index + 1).padStart(2, "0")} · ${title}`, copy, false, risk, scope));
+        });
+        root.appendChild(details);
+      });
+    }
+
+    function renderComponents() {
+      const summary = document.getElementById("componentSummary");
+      const list = document.getElementById("componentList");
+      summary.innerHTML = "";
+      list.innerHTML = "";
+      components.filter(([, , risk]) => currentRisk === "All" || risk === currentRisk).forEach(([name, family, risk, acceptance, evidence]) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><strong>${name}</strong></td><td>${family}</td><td><span class="risk ${risk}">${risk}</span></td><td>${acceptance}</td><td>${evidence}</td>`;
+        summary.appendChild(tr);
+        const details = document.createElement("details");
+        if (risk === "Blocker" || risk === "P0") details.open = true;
+        const done = componentCases[name].filter((_, index) => checked[`component:${name}:${index}`]).length;
+        details.innerHTML = `<summary>${name}<span class="risk ${risk}">${risk}</span><span class="summary-meta">${done}/${componentCases[name].length}</span></summary>`;
+        componentCases[name].forEach((item, index) => details.appendChild(makeCheck(`component:${name}:${index}`, item, "", true)));
+        list.appendChild(details);
+      });
+    }
+
+    function renderSettings() {
+      const root = document.getElementById("settingList");
+      root.innerHTML = "";
+      Object.entries(settingCases).forEach(([name, items]) => {
+        const details = document.createElement("details");
+        details.open = true;
+        const done = items.filter((_, index) => checked[`setting:${name}:${index}`]).length;
+        details.innerHTML = `<summary>${name}<span class="summary-meta">${done}/${items.length}</span></summary>`;
+        items.forEach((item, index) => details.appendChild(makeCheck(`setting:${name}:${index}`, item, "", true)));
+        root.appendChild(details);
+      });
+    }
+
+    function renderDecisions() {
+      document.getElementById("decisionList").innerHTML = decisions.map(([title, evidence, action], index) => `
+        <details ${index < 4 ? "open" : ""}>
+          <summary>${index + 1} · ${title}</summary>
+          <div class="decision"><p class="muted">${evidence}</p><p><strong>${action}</strong></p></div>
+        </details>`).join("");
+    }
+
+    function countPrefix(prefix) {
+      return Object.entries(checked).filter(([key, value]) => key.startsWith(prefix) && value).length;
+    }
+
+    function coreItems() {
+      return Object.values(coreGroups).flat();
+    }
+
+    function updateProgress() {
+      const coreDone = countPrefix("core:");
+      const componentDone = countPrefix("component:");
+      const settingDone = countPrefix("setting:");
+      const componentTotal = Object.values(componentCases).flat().length;
+      const settingTotal = Object.values(settingCases).flat().length;
+      const total = coreItems().length + componentTotal + settingTotal;
+      const done = coreDone + componentDone + settingDone;
+      const percent = total ? Math.round(done / total * 100) : 0;
+      document.getElementById("coreCount").textContent = `${coreDone}/${coreItems().length} 完成`;
+      document.getElementById("componentCount").textContent = `${componentDone}/${componentTotal} 完成`;
+      document.getElementById("settingCount").textContent = `${settingDone}/${settingTotal} 完成`;
+      document.getElementById("allProgress").textContent = `${percent}%`;
+      document.getElementById("allProgressCopy").textContent = `${done}/${total} 项完成`;
+      document.getElementById("progressBar").style.width = `${percent}%`;
+      document.getElementById("coreTotal").textContent = coreItems().length;
+      document.getElementById("componentTotal").textContent = componentTotal;
+      document.getElementById("settingTotal").textContent = settingTotal;
+    }
+
+    document.querySelectorAll(".tab").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(item => item.classList.toggle("active", item === button));
+        document.querySelectorAll(".panel").forEach(panel => panel.classList.toggle("active", panel.id === button.dataset.tab));
+        history.replaceState(null, "", `#${button.dataset.tab}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    document.querySelectorAll(".filter").forEach(button => {
+      button.addEventListener("click", () => {
+        currentRisk = button.dataset.risk;
+        document.querySelectorAll(".filter").forEach(item => item.classList.toggle("active", item === button));
+        renderComponents();
+      });
+    });
+
+    document.querySelectorAll("[data-reset]").forEach(button => {
+      button.addEventListener("click", () => {
+        if (!confirm("确认重置本页勾选进度？")) return;
+        const prefix = `${button.dataset.reset}:`;
+        Object.keys(checked).forEach(key => { if (key.startsWith(prefix)) delete checked[key]; });
+        save();
+        renderCore();
+        renderComponents();
+        renderSettings();
+      });
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      if (!confirm("确认清空全部验收进度？此操作无法撤销。")) return;
+      checked = {};
+      save();
+      renderCore();
+      renderComponents();
+      renderSettings();
+    });
+
+    document.getElementById("printBtn").addEventListener("click", () => window.print());
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), checked }, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `checkout-acceptance-progress-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    renderCore();
+    renderComponents();
+    renderSettings();
+    renderDecisions();
+    updateProgress();
+
+    const initialTab = location.hash.slice(1);
+    const initialButton = document.querySelector(`.tab[data-tab="${initialTab}"]`);
+    if (initialButton) initialButton.click();
+  </script>
+</body>
+</html>

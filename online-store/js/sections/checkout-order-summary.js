@@ -9,6 +9,74 @@
   const blk = (id, html, sel) => '<div class="ck-blk' + (sel ? ' os-block-sel' : '') + '" data-block-id="' + esc(id) + '">' + html + '</div>';
   const TAG = '<svg class="ck-tag-i" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
 
+  function multiOrderCard(order, currency) {
+    const lines = (order.lines || []).map((line) => {
+      const source = line.lineSource || (line.downsell ? 'DOWNSELL' : (line.upsell ? 'UPSELL' : ''));
+      const flag = source === 'UPSELL' || source === 'DOWNSELL'
+        ? '<span class="ck-mo-flag offer">Special offer</span>' : '';
+      const qty = +line.qty || 1;
+      const finalPrice = (+line.price || 0) * qty;
+      const comparePrice = (+line.compareAt || 0) * qty;
+      const compareHtml = comparePrice > finalPrice
+        ? '<span class="ck-mo-price-cmp">' + money(comparePrice) + '</span>' : '';
+      return '<div class="ck-mo-line">' +
+        '<div class="ck-mo-img"><img src="' + esc(line.image || '') + '" alt=""><span>' + (+line.qty || 1) + '</span></div>' +
+        '<div class="ck-mo-info"><div class="ck-mo-title">' + esc(line.title || 'Product') + flag + '</div>' +
+          (line.variant ? '<div class="ck-mo-variant">' + esc(line.variant) + '</div>' : '') +
+        '</div>' +
+        '<div class="ck-mo-price">' + compareHtml + '<strong>' + money(finalPrice) + '</strong></div>' +
+      '</div>';
+    }).join('');
+    const discounts = (order.discounts || []).map((item) => {
+      const amount = (+item.amount || 0) + (+item.product || 0) + (+item.order || 0) + (+item.shipping || 0);
+      return amount > 0
+        ? '<div class="ck-mo-row discount"><span>' + TAG + esc(item.code || item.label || 'Discount') + '</span><b>−' + money(amount) + '</b></div>'
+        : '';
+    }).join('');
+    const shipping = +order.shipping || 0;
+    return '<section class="ck-mo-card">' +
+      '<header class="ck-mo-head"><div><span class="ck-mo-kicker">Order</span><strong>' + esc(order.orderNumber || '') + '</strong></div></header>' +
+      '<div class="ck-mo-lines">' + lines + '</div>' +
+      '<div class="ck-mo-totals">' +
+        '<div class="ck-mo-row"><span>Subtotal · ' + (order.lines || []).reduce((n, line) => n + (+line.qty || 1), 0) + ' items</span><b>' + money(order.subtotal || 0) + '</b></div>' +
+        discounts +
+        '<div class="ck-mo-row"><span>Shipping</span><b>' + (shipping ? money(shipping) : 'Free') + '</b></div>' +
+        '<div class="ck-mo-row total"><span>Total</span><b><small>' + esc(currency) + '</small>' + money(order.total || 0) + '</b></div>' +
+      '</div>' +
+    '</section>';
+  }
+  function renderMultiOrderSummary(s, ctx, snap) {
+    const orders = (snap.orders || []).filter((order) => (order.lines || []).length);
+    const currency = snap.currency || 'USD';
+    const totalPaid = snap.totalPaid != null
+      ? +snap.totalPaid
+      : orders.reduce((total, order) => total + (+order.paid || +order.total || 0), 0);
+    const cards = orders.map((order) => multiOrderCard(order, order.currency || currency)).join('');
+    const overview = '<div class="ck-mo-overview"><div><strong>' + orders.length + ' orders placed</strong></div>' +
+      '<div><span>Total paid</span><strong><small>' + esc(currency) + '</small>' + money(totalPaid) + '</strong></div></div>';
+    if (ctx.mob) {
+      const collapsed = (s.mobile_default || 'collapsed') === 'collapsed';
+      const head = s.heading || 'Order summary';
+      const bg = s.background_color || 'var(--ck-sum-bg)';
+      const txt = s.text_color || 'var(--ck-sum-text)';
+      const totalColor = s.total_color || txt;
+      return '<div class="ck-summary mob tymob ck-multi-mobile' + (collapsed ? ' collapsed' : '') + '" data-ck-summary style="background:' + bg + ';color:' + txt + ';--ck-mo-text:' + txt + ';--ck-mo-total:' + totalColor + '">' +
+        '<button class="ck-tymsum-head" type="button" data-ck-sum-toggle>' +
+          '<span class="ck-tymsum-title">' + esc(head) + '<span class="ck-tymsum-chev">▾</span></span>' +
+          '<span class="ck-tymsum-total" style="color:' + totalColor + '"><span class="cur">' + esc(currency) + '</span>' + money(totalPaid) + '</span>' +
+        '</button>' +
+        '<div class="ck-summary-body"><div class="ck-multi-summary">' + cards + '</div></div>' +
+      '</div>';
+    }
+    const heading = s.show_heading_pc
+      ? '<h3 class="ck-sum-h">' + esc(s.heading || 'Order summary') + '</h3>' : '';
+    const txt = s.text_color || 'var(--ck-sum-text)';
+    const totalColor = s.total_color || txt;
+    return '<div class="ck-summary ck-multi-shell" style="color:' + txt + ';--ck-mo-text:' + txt + ';--ck-mo-total:' + totalColor + '"><div class="ck-multi-summary">' +
+      heading + cards + overview +
+    '</div></div>';
+  }
+
   OS.register('checkout-order-summary', {
     name: 'Order Summary', icon: 'cart',
     schema: [
@@ -41,6 +109,9 @@
       // hides every interactive bit — no coupon input, no editable qty (PRD §5.3/§14).
       const snap = ctx.snapshot;
       const mock = ctx.checkout || {};
+      if (snap && Array.isArray(snap.orders) && snap.orders.filter((order) => (order.lines || []).length).length > 1) {
+        return renderMultiOrderSummary(s, ctx, snap);
+      }
       // Live add-ons: upsell picks become extra cart lines; insurance / VIP become
       // their own summary rows (computed centrally in app.js, shared by every surface).
       const add = snap ? { rows: [], lines: [] } : (ctx.ckAddons || { rows: [], lines: [] });
@@ -87,8 +158,10 @@
         const cmp = l.compareAt && l.compareAt > l.price ? '<span class="ck-line-cmp">' + money(l.compareAt) + '</span>' : '';
         const deal = (l.deal && l.compareAt && l.compareAt > l.price)
           ? '<div class="ck-line-deal">' + TAG + '<span>' + esc(l.deal) + ' (−' + money((l.compareAt - l.price) * l.qty) + ')</span></div>' : '';
-        // Final-order lines may carry an accepted upsell/downsell flag (PRD §14.4).
-        const flag = l.upsell ? '<span class="ck-line-flag">Added offer</span>' : (l.downsell ? '<span class="ck-line-flag">Special offer</span>' : '');
+        // Base-order previews use one buyer-facing label for either offer source.
+        const source = l.lineSource || (l.downsell ? 'DOWNSELL' : (l.upsell ? 'UPSELL' : ''));
+        const flag = source === 'UPSELL' || source === 'DOWNSELL'
+          ? '<span class="ck-line-flag">Special offer</span>' : '';
         const variantHtml = l.variant ? '<div class="ck-line-v">' + esc(l.variant) + '</div>' : '';
         // Item 3 — subscription cadence tag (the (−$x) is the subscription saving).
         const subTag = l.subscription
@@ -163,7 +236,7 @@
         row(sub, money(subtotal), { suffix: ' <span class="ck-itemc">· ' + itemCount + ' items</span>' }) +
         discountHtml +
         row(shp, shipPrice ? money(shipPrice) : 'Free') +
-        row(tx, money(tax)) +
+        (snap ? '' : row(tx, money(tax))) +
         addonRows +
         blk(tot.id, '<div class="ck-trow grand" style="color:' + totalColor + '"><span class="lbl">' + esc((tot.settings || {}).row_label || 'Total') + '</span><span class="amt"><span class="cur">' + esc(cur) + '</span>' + money(total) + '</span></div>', sel === tot.id) +
         savingsLine +
@@ -263,4 +336,31 @@
       }));
     },
   });
+
+  OS.css('ck-multi-order-summary', `
+  .ck-multi-summary{display:flex;flex-direction:column;gap:14px}
+  .ck-mo-overview{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:16px;border:1px solid var(--ck-divider);border-radius:10px;background:rgba(255,255,255,.6)}
+  .ck-mo-overview>div{display:flex;flex-direction:column;gap:3px}.ck-mo-overview strong{color:var(--ck-mo-text,var(--ck-text));font-size:15px}
+  .ck-mo-overview span{color:var(--ck-muted);font-size:11px;line-height:1.45}.ck-mo-overview>div:last-child{text-align:right;flex:none}
+  .ck-mo-overview>div:last-child strong{font-size:20px;color:var(--ck-mo-total,var(--ck-mo-text,var(--ck-text)))}.ck-mo-overview small,.ck-mo-row.total small{font-size:10px;font-weight:500;color:var(--ck-muted);margin-right:5px}
+  .ck-mo-card{border:1px solid var(--ck-divider);border-radius:10px;background:rgba(255,255,255,.74);overflow:hidden}
+  .ck-mo-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid var(--ck-divider)}
+  .ck-mo-head>div{display:flex;align-items:baseline;gap:7px;min-width:0}.ck-mo-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ck-muted)}
+  .ck-mo-head strong{font-size:13px;color:var(--ck-mo-text,var(--ck-text));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ck-mo-lines{padding:2px 14px}.ck-mo-line{display:grid;grid-template-columns:48px minmax(0,1fr) auto;align-items:center;gap:11px;padding:12px 0;border-bottom:1px solid var(--ck-divider)}
+  .ck-mo-line:last-child{border-bottom:0}.ck-mo-img{position:relative;width:48px;height:48px;border-radius:8px;background:#f4f4f4;overflow:visible}
+  .ck-mo-img img{width:100%;height:100%;display:block;object-fit:cover;border-radius:8px}.ck-mo-img>span{position:absolute;right:-6px;top:-6px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;background:#707070;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+  .ck-mo-info{min-width:0}.ck-mo-title{font-size:12px;color:var(--ck-mo-text,var(--ck-text));line-height:1.35;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.ck-mo-variant{font-size:10.5px;color:var(--ck-muted);margin-top:3px}
+  .ck-mo-price{font-size:12px;color:var(--ck-mo-text,var(--ck-text));white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;gap:2px}.ck-mo-price strong{font-weight:600}.ck-mo-price-cmp{font-size:10px;font-weight:400;color:var(--ck-muted);text-decoration:line-through}.ck-mo-flag{font-size:9px;font-weight:700;line-height:1;border-radius:999px;padding:4px 6px;text-transform:uppercase;letter-spacing:.035em}
+  .ck-mo-flag.offer{background:#edf5f0;color:#35634b}
+  .ck-mo-totals{border-top:1px solid var(--ck-divider);padding:9px 14px 12px}.ck-mo-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0;font-size:11px;color:var(--ck-mo-text,var(--ck-text))}
+  .ck-mo-row b{font-weight:500;color:var(--ck-mo-text,var(--ck-text));white-space:nowrap}.ck-mo-row.discount span{display:inline-flex;align-items:center;gap:5px}.ck-mo-row.discount{color:#59655f}
+  .ck-mo-row.total{border-top:1px solid var(--ck-divider);margin-top:5px;padding-top:10px;font-size:14px;color:var(--ck-mo-total,var(--ck-mo-text,var(--ck-text)))}.ck-mo-row.total b{font-size:15px;font-weight:700;color:var(--ck-mo-total,var(--ck-mo-text,var(--ck-text)))}
+  .ckpage.mob .ck-multi-summary{gap:12px}.ckpage.mob .ck-mo-overview{border-left:0;border-right:0;border-radius:0;padding:14px var(--ck-mob-pad)}
+  .ckpage.mob .ck-mo-overview>div:first-child span{display:none}.ckpage.mob .ck-mo-card{margin:0 var(--ck-mob-pad);border-radius:8px}
+  .ckpage.mob .ck-multi-mobile .ck-mo-overview{padding:0 0 12px;border:0;border-bottom:1px solid var(--ck-divider)}
+  .ckpage.mob .ck-multi-mobile .ck-mo-card{margin:0}
+  .ck-multi-mobile .ck-tymsum-title{color:var(--ck-mo-text,var(--ck-text))}
+  @media(max-width:440px){.ck-mo-overview{align-items:center}.ck-mo-overview>div:last-child strong{font-size:17px}.ck-mo-line{grid-template-columns:44px minmax(0,1fr) auto}.ck-mo-img{width:44px;height:44px}}
+  `);
 })();

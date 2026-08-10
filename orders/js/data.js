@@ -7,6 +7,8 @@
    FulfillmentStatusCell.tsx: shipped/review/archived -> Fulfilled, refund -> '--',
    everything else -> Unfulfilled), so it is not stored on rows. */
 (function () {
+  const POST_PURCHASE = window.POST_PURCHASE_ORDER_MOCK || null;
+
   // ---- Tabs (orders/type.ts ORDERS_TAB + ORDERS_TAB_OPTIONS) ----
   const TABS = [
     { key: 'all',     label: 'All' },
@@ -332,6 +334,213 @@
       ],
     },
   };
+
+  const adminLineItem = (line) => {
+    const productDiscounts = (line.product_discounts || []).map((discount) => ({
+      name: discount.name || 'Product Discount',
+      amount: +discount.amount || 0,
+    }));
+    const offerDiscount = line.line_source !== 'CHECKOUT' && line.compare_at_price && line.compare_at_price > line.unit_price
+      ? [{ name: 'Post-purchase offer', amount: (line.compare_at_price - line.unit_price) * line.qty }]
+      : [];
+    const discounts = productDiscounts.concat(offerDiscount);
+    const discountTotal = discounts.reduce((sum, discount) => sum + (+discount.amount || 0), 0);
+    return {
+      title: line.title,
+      sku: line.variant || line.sku,
+      image: line.image,
+      unit_price: line.unit_price,
+      qty: line.qty,
+      line_total: line.line_total + discountTotal,
+      product_price: line.line_total,
+      line_source: line.line_source,
+      accepted_line_id: line.accepted_line_id,
+      offer_instance_id: line.offer_instance_id,
+      discounts,
+    };
+  };
+
+  // V1.146.2 additive contract. Existing historical rows intentionally keep these
+  // fields undefined so the prototype proves backward-compatible empty handling.
+  if (POST_PURCHASE && Array.isArray(POST_PURCHASE.orders)) {
+    const listRows = POST_PURCHASE.orders.map((order) => ({
+      order_id: order.order_id,
+      order_sn: order.order_sn,
+      create_time: order.create_time,
+      order_type: 0,
+      order_role: order.order_role,
+      source_order_id: order.source_order_id,
+      source_order_sn: order.source_order_sn,
+      source_session_id: order.source_session_id,
+      related_orders: order.related_orders,
+      line_sources: Array.from(new Set((order.lines || []).map((line) => line.line_source).filter((source) => source !== 'CHECKOUT'))),
+      user: { nickname: order.customer.name, uid: order.customer.uid },
+      shipping: order.shipping,
+      total: order.total,
+      order_status: order.status,
+      payment_status: order.payment_status,
+      payment_method: order.payment_method,
+      pay_time: order.pay_time,
+      delivery_time: order.status === 'shipped' ? '2026-08-08 09:30' : null,
+    }));
+    ORDERS.unshift.apply(ORDERS, listRows);
+
+    POST_PURCHASE.orders.forEach((order) => {
+      const items = (order.lines || []).map(adminLineItem);
+      DETAILS[order.order_id] = {
+        order_id: order.order_id,
+        order_sn: order.order_sn,
+        status: order.status,
+        paid: order.paid,
+        order_type: 0,
+        payment_status: order.payment_status,
+        verify_code: '',
+        create_time: order.create_time,
+        pay_time: order.pay_time,
+        payment_method: order.payment_method,
+        delivery_name: order.delivery_name,
+        delivery_id: order.delivery_id,
+        order_role: order.order_role,
+        source_order_id: order.source_order_id,
+        source_order_sn: order.source_order_sn,
+        source_session_id: order.source_session_id,
+        related_orders: order.related_orders,
+        user: { nickname: order.customer.name, uid: order.customer.uid },
+        shipping: order.shipping,
+        note: '',
+        total_num: order.total_num,
+        subtotal: order.subtotal,
+        shipping_fee: order.shipping_fee,
+        total: order.total,
+        paid_amount: order.paid_amount,
+        order_discounts: (order.discounts || []).map((item) => ({ name: item.code || item.label, amount: item.amount })),
+        shipping_discounts: [],
+        total_savings: (order.discounts || []).reduce((sum, item) => sum + (+item.amount || 0), 0) +
+          items.reduce((sum, item) => sum + item.discounts.reduce((subtotal, discount) => subtotal + (+discount.amount || 0), 0), 0),
+        items,
+        timeline: order.timeline,
+      };
+    });
+  }
+
+  // Complete-order acceptance scenarios copied from the EN1038/5046 reference
+  // order, then extended with the existing Base/Late post-purchase line sets.
+  if (POST_PURCHASE && POST_PURCHASE.byId) {
+    const referenceImages = {
+      coffeePack: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=240&q=80',
+      coffeeBeans: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=240&q=80',
+      guide: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80',
+      mug: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=240&q=80',
+      barista: 'https://images.unsplash.com/photo-1511081692775-05d0f180a065?auto=format&fit=crop&w=240&q=80',
+      filter: 'https://images.unsplash.com/photo-1497515114629-f71d768fd07c?auto=format&fit=crop&w=240&q=80',
+      carafe: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=240&q=80',
+      journal: 'https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=240&q=80',
+      protein: 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=240&q=80',
+    };
+    const referenceItems = [
+      {
+        kind: 'bundle', title: 'Coffee Office Pack', image: referenceImages.coffeePack,
+        qty: 1, line_total: 69.97, product_price: 48,
+        subscription: { cadence: 'Every 2 months', id: 'SUB-20471' },
+        discounts: [{ name: 'Bundle discount', amount: 7.98 }, { name: 'Subscription discount', amount: 13.99 }],
+        children: [
+          { badge: 'Included', title: 'Signature Blend Coffee 500g', variant: 'Whole bean / 2 Pack', qty: 2, image: referenceImages.coffeeBeans },
+          { badge: 'Free shipping', title: 'Coffee Brew Guide', variant: 'Digital download', qty: 1, image: referenceImages.guide },
+        ],
+      },
+      {
+        title: 'Ceramic Pour-Over Mug', variant: 'Stone / 12oz', image: referenceImages.mug,
+        qty: 1, line_total: 17.99, product_price: 15.99,
+        discounts: [{ name: 'MUG10', amount: 2 }],
+      },
+      {
+        kind: 'bundle', title: 'Home Barista Essentials', image: referenceImages.barista,
+        qty: 1, line_total: 37.98, product_price: 29.98,
+        discounts: [{ name: 'Bundle discount', amount: 8 }],
+        children: [
+          { badge: 'Included', title: 'Reusable Coffee Filter', variant: 'Stainless steel / 2-cup', qty: 1, image: referenceImages.filter },
+          { badge: 'Included', title: 'Borosilicate Glass Carafe', variant: '600ml', qty: 1, image: referenceImages.carafe },
+          { badge: 'Free shipping', title: 'Coffee Tasting Journal', variant: 'Hardcover / 40 pages', qty: 1, image: referenceImages.journal },
+        ],
+      },
+      {
+        title: 'Signature Blend Coffee 500g', variant: 'Whole bean', image: referenceImages.coffeeBeans,
+        qty: 1, line_total: 26.6, product_price: 24,
+        subscription: { cadence: 'Every month', id: 'SUB-20472' },
+        discounts: [{ name: 'Subscription discount', amount: 2.6 }],
+      },
+      {
+        title: 'Whey Protein 1kg', variant: 'Vanilla / 1kg', image: referenceImages.protein,
+        qty: 1, line_total: 39, product_price: 31.59,
+        subscription: { cadence: 'Every month', id: 'SUB-20473' },
+        discounts: [{ name: 'Product Discount', amount: 3.51 }, { name: 'Subscription discount', amount: 3.9 }],
+      },
+    ];
+    const grace = {
+      nickname: 'Grace Lee', uid: 80612, email: 'grace.lee@example.com', phone: '+1 206 555 0188',
+    };
+    const graceShipping = {
+      name: 'Grace Lee', first_name: 'Grace', last_name: 'Lee', detail: '118 King Street', detail2: 'Suite 6',
+      city: 'Seattle', province: 'WA', post_code: '98101', country: 'United States',
+      phone_code: '1', phone: '206 555 0188', email: grace.email,
+    };
+    const referenceTimeline = [
+      { label: 'Order placed', time: '2026-06-20 09:18' },
+      { label: 'Captured by BestCheckout funnel', time: '2026-06-20 09:18' },
+      { label: 'Payment captured · Airwallex Card', time: '2026-06-20 09:19' },
+      { label: 'Subscription SUB-20471 started (Coffee Office Pack)', time: '2026-06-20 09:19' },
+      { label: 'Subscription SUB-20472 started (Signature Blend Coffee)', time: '2026-06-20 09:19' },
+      { label: 'Subscription SUB-20473 started (Whey Protein)', time: '2026-06-20 09:19' },
+      { label: 'One-time products, bundles and gifts included', time: '2026-06-20 09:19' },
+      { label: 'Shopify write-back synced · #SHP-89161', time: '2026-06-20 09:19' },
+    ];
+    const referenceNote = 'QA sample: bundle subscription, one-time bundle, X-for-Y gifts, normal subscription, normal subscription with Product Discount, Product Discount-only normal item, and standard normal item in one order. Preserve item-level bundle, subscription, and product-discount snapshots for future renewals.';
+    const scenarioConfigs = [
+      { id: 11491, sn: 'MINI11491', role: 'BASE', sourceId: 11489, createTime: '2026-08-07 16:51' },
+    ];
+    const scenarioRows = scenarioConfigs.map((config) => {
+      const source = POST_PURCHASE.byId[config.sourceId];
+      const postItems = (source.lines || []).map(adminLineItem);
+      const sourceOrderDiscounts = (source.discounts || []).map((item) => ({ name: item.code || item.label, amount: item.amount }));
+      const lineSavings = postItems.reduce((sum, item) =>
+        sum + (item.discounts || []).reduce((subtotal, discount) => subtotal + (+discount.amount || 0), 0), 0);
+      const detail = {
+        order_id: config.id, order_sn: config.sn, status: 'to_ship', paid: 1, order_type: 0,
+        payment_status: 'paid', verify_code: '', create_time: config.createTime, pay_time: config.createTime,
+        payment_method: 'Airwallex Card', delivery_name: '', delivery_id: '',
+        order_role: config.role, source_reference_order_sn: source.order_sn,
+        related_orders: [],
+        user: grace, shipping: graceShipping, note: referenceNote,
+        total_num: 9 + source.total_num,
+        subtotal: 149.56 + source.subtotal,
+        shipping_fee: 8.99 + source.shipping_fee,
+        total: 144.56 + source.total,
+        paid_amount: 144.56 + source.paid_amount,
+        order_discounts: [{ name: 'WELCOME10', amount: 5 }].concat(sourceOrderDiscounts),
+        shipping_discounts: [{ name: 'FREESHIP', amount: 8.99 }],
+        total_savings: 55.97 + sourceOrderDiscounts.reduce((sum, item) => sum + (+item.amount || 0), 0) + lineSavings,
+        rich_items: referenceItems,
+        items: postItems,
+        integration: {
+          channel: 'Shopify', via: 'BestCheckout', status: 'Synced', reference: '#SHP-89161',
+          description: 'Written back to Shopify with bundle, subscription and post-purchase snapshots for fulfillment.',
+        },
+        timeline: referenceTimeline.concat([
+          { label: (config.role === 'BASE' ? 'Base order' : 'Late upsell order') + ' products added from ' + source.order_sn, time: config.createTime },
+        ]),
+      };
+      DETAILS[config.id] = detail;
+      return {
+        order_id: config.id, order_sn: config.sn, create_time: config.createTime, order_type: 0,
+        order_role: config.role, related_orders: detail.related_orders,
+        line_sources: Array.from(new Set((source.lines || []).map((line) => line.line_source).filter((value) => value !== 'CHECKOUT'))),
+        user: grace, shipping: graceShipping, total: detail.total, order_status: detail.status,
+        payment_status: detail.payment_status, payment_method: detail.payment_method,
+        pay_time: detail.pay_time, delivery_time: null,
+      };
+    });
+    ORDERS.splice.apply(ORDERS, [2, 0].concat(scenarioRows));
+  }
 
   window.DATA_ORDERS = {
     TABS, KEYWORD_OPTIONS, TIME_OPTIONS, ORDERS, DETAILS,
