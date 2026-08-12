@@ -63,14 +63,6 @@
     const label = source === 'UPSELL' ? 'Upsell' : 'Downsell';
     return '<span style="display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;background:' + bg + ';color:' + color + ';font-size:10px;font-weight:700;letter-spacing:.02em">' + label + '</span>';
   };
-  const orderRoleBadge = (role) => {
-    if (!role) return '';
-    const late = role === 'LATE_UPSELL';
-    return '<span style="display:inline-flex;align-items:center;border:1px solid ' + (late ? '#b7c9e2' : '#d6d9de') +
-      ';border-radius:999px;padding:3px 8px;background:' + (late ? '#f2f6fb' : '#f7f7f8') +
-      ';color:' + (late ? '#315f92' : '#555f6d') + ';font-size:10px;font-weight:600">' +
-      (late ? 'Late upsell order' : 'Base order') + '</span>';
-  };
   const integrationHeaderBadges = (integration) => integration
     ? '<span class="pill pill-blue"><span class="dot"></span>' + esc(integration.via || 'BestCheckout') + '</span>' +
       '<span class="pill pill-green"><span class="dot"></span>' + esc(integration.status || 'Synced') + '</span>'
@@ -93,7 +85,7 @@
     tab: 'all', kwType: 'order_sn', kw: '', kwApplied: '',
     timeType: 'create_date', dateStart: '', dateEnd: '',
     totalMin: '', totalMax: '', totalApplied: false,
-    postPurchase: 'all',
+    postPurchase: [],
     page: 1, size: 20,
   };
 
@@ -119,8 +111,10 @@
       const hi = LST.totalMax === '' ? Infinity : Number(LST.totalMax);
       rows = rows.filter((o) => o.total >= lo && o.total <= hi);
     }
-    if (LST.postPurchase === 'base') rows = rows.filter((o) => o.order_role === 'BASE');
-    if (LST.postPurchase === 'late') rows = rows.filter((o) => o.order_role === 'LATE_UPSELL');
+    if (LST.postPurchase.length) {
+      const roles = LST.postPurchase.map((v) => v === 'late' ? 'LATE_UPSELL' : 'BASE');
+      rows = rows.filter((o) => roles.includes(o.order_role));
+    }
     return rows;
   }
 
@@ -146,11 +140,6 @@
 
     const kwOpts = D.KEYWORD_OPTIONS.map((o) => '<option value="' + o.value + '"' + (o.value === LST.kwType ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
     const timeOpts = D.TIME_OPTIONS.map((o) => '<option value="' + o.value + '"' + (o.value === LST.timeType ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('');
-    const ppOpts =
-      '<option value="all" disabled hidden' + (LST.postPurchase === 'all' ? ' selected' : '') + '>Post-purchase</option>' +
-      [['base', 'Base order'], ['late', 'Late upsell order']]
-        .map((o) => '<option value="' + o[0] + '"' + (o[0] === LST.postPurchase ? ' selected' : '') + '>' + o[1] + '</option>').join('');
-
     const tabsHtml = D.TABS.map((t) =>
       '<div class="tab' + (t.key === LST.tab ? ' active' : '') + '" data-tab="' + t.key + '">' + esc(t.label) +
       '<span class="count-badge">' + tabCount(t.key) + '</span></div>').join('');
@@ -169,10 +158,17 @@
       const txt = (LST.totalMin !== '' ? money(LST.totalMin) : 'Min') + ' – ' + (LST.totalMax !== '' ? money(LST.totalMax) : 'Max');
       tags.push('<span class="field-pill" data-clear="total">Total range: ' + esc(txt) + ' <span class="x">&times;</span></span>');
     }
+    if (LST.postPurchase.length) {
+      const labels = LST.postPurchase.map((v) => v === 'late' ? 'Late upsell order' : 'Base order');
+      tags.push('<span class="field-pill" data-clear="postPurchase">Post-purchase: ' + esc(labels.join(', ')) + ' <span class="x">&times;</span></span>');
+    }
 
     const totalChipText = LST.totalApplied
       ? ((LST.totalMin !== '' ? money(LST.totalMin) : 'Min') + ' – ' + (LST.totalMax !== '' ? money(LST.totalMax) : 'Max'))
       : 'Total range';
+    const postPurchaseChipText = LST.postPurchase.length
+      ? LST.postPurchase.length + ' selected'
+      : 'Post-purchase';
 
     root.innerHTML =
       // list.tsx header: just the page title, no action buttons
@@ -201,22 +197,24 @@
             '<div class="sel-trigger" id="total-chip" style="width:240px">' +
               '<span class="' + (LST.totalApplied ? '' : 'muted') + '">' + esc(totalChipText) + '</span>' + I.chevDown +
             '</div>' +
-            '<select class="filter-select" id="pp-filter" data-clearable data-clear-value="all" style="width:190px">' + ppOpts + '</select>' +
+            '<div class="sel-trigger" id="pp-chip" style="width:190px">' +
+              '<span class="' + (LST.postPurchase.length ? '' : 'muted') + '">' + esc(postPurchaseChipText) + '</span>' + I.chevDown +
+            '</div>' +
           '</div>' +
           (tags.length ? '<div class="flex gap-2 mt-3" style="flex-wrap:wrap" id="filter-tags">' + tags.join('') + '</div>' : '') +
         '</div>' +
         // table (table.tsx columns + leading row-selection checkbox)
         '<div style="overflow-x:auto">' +
-        '<table class="tbl" style="min-width:1420px">' +
+        '<table class="tbl" style="min-width:1280px">' +
           '<thead><tr>' +
             '<th style="width:48px;text-align:center"><input type="checkbox" class="ord-check-all" /></th>' +
             '<th>Order number</th><th>Order date</th><th>User</th><th>Shipping address</th>' +
             '<th>Total</th><th>Order status</th><th>Payment status</th>' +
-            '<th>Payment method</th><th>Fulfillment status</th><th>Post-purchase</th><th style="text-align:center">Action</th>' +
+            '<th>Payment method</th><th>Fulfillment status</th><th style="text-align:center">Action</th>' +
           '</tr></thead>' +
           '<tbody id="ord-tbody">' +
             (pageRows.length ? pageRows.map(rowHtml).join('')
-              : '<tr><td colspan="12" style="text-align:center;padding:40px" class="muted">No orders match these filters.</td></tr>') +
+              : '<tr><td colspan="11" style="text-align:center;padding:40px" class="muted">No orders match these filters.</td></tr>') +
           '</tbody>' +
         '</table>' +
         '</div>' +
@@ -249,13 +247,8 @@
       '<td>' + pill(PAY_STATUS, o.payment_status) + '</td>' +
       '<td class="muted">' + esc(o.payment_method) + '</td>' +
       '<td>' + pill(FULFILL_STATUS, ful) + '</td>' +
-      '<td>' + postPurchaseCell(o) + '</td>' +
       '<td style="text-align:center"><button class="back-btn" data-view="' + o.order_id + '" title="Detail" style="width:30px;height:30px">' + I.eye + '</button></td>' +
     '</tr>';
-  }
-
-  function postPurchaseCell(o) {
-    return o.order_role ? orderRoleBadge(o.order_role) : '<span class="muted">--</span>';
   }
 
   function pagerHtml(page, pages) {
@@ -301,12 +294,13 @@
       if (k === 'kw') { LST.kw = ''; LST.kwApplied = ''; }
       if (k === 'date') { LST.dateStart = ''; LST.dateEnd = ''; }
       if (k === 'total') { LST.totalApplied = false; LST.totalMin = ''; LST.totalMax = ''; }
+      if (k === 'postPurchase') LST.postPurchase = [];
       LST.page = 1; renderList();
     });
     const ps = root.querySelector('#pg-size');
     if (ps) ps.onchange = () => { LST.size = Number(ps.value); LST.page = 1; renderList(); };
-    const pp = root.querySelector('#pp-filter');
-    if (pp) pp.onchange = () => { LST.postPurchase = pp.value; LST.page = 1; renderList(); };
+    const pp = root.querySelector('#pp-chip');
+    if (pp) pp.onclick = () => openPostPurchasePopover(pp);
     root.querySelectorAll('.pg-item[data-page]').forEach((el) => el.onclick = () => { LST.page = Number(el.getAttribute('data-page')); renderList(); });
     // row click -> detail (but not when clicking checkbox / ship popover / view button)
     root.querySelectorAll('#ord-tbody tr[data-id]').forEach((tr) => tr.onclick = (e) => {
@@ -343,6 +337,56 @@
     const r = anchor.getBoundingClientRect();
     pop.style.top = (r.bottom + 6) + 'px'; pop.style.left = r.left + 'px';
     setTimeout(() => document.addEventListener('mousedown', function hh(e) { if (!pop.contains(e.target) && !anchor.contains(e.target)) { closePops(); document.removeEventListener('mousedown', hh); } }), 0);
+  }
+
+  function openPostPurchasePopover(anchor) {
+    closePops();
+    const options = [
+      { value: 'base', label: 'Base order' },
+      { value: 'late', label: 'Late upsell order' },
+    ];
+    const layer = h('<div class="pop-layer"></div>');
+    const pop = h('<div class="menu-pop" style="position:fixed;min-width:' + anchor.offsetWidth + 'px;padding:6px"></div>');
+    pop.innerHTML = options.map((o) =>
+      '<label class="edit-check" style="padding:6px 8px;margin:0;border-radius:6px">' +
+        '<input type="checkbox" data-v="' + o.value + '"' + (LST.postPurchase.includes(o.value) ? ' checked' : '') + ' />' +
+        '<span>' + esc(o.label) + '</span>' +
+      '</label>'
+    ).join('');
+    layer.appendChild(pop); document.body.appendChild(layer);
+    const r = anchor.getBoundingClientRect();
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+
+    const dismiss = (e) => {
+      if (!pop.contains(e.target) && !anchor.contains(e.target)) {
+        close();
+      }
+    };
+    const escape = (e) => { if (e.key === 'Escape') close(); };
+    const close = () => {
+      closePops();
+      document.removeEventListener('mousedown', dismiss);
+      document.removeEventListener('keydown', escape);
+    };
+
+    pop.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.onchange = () => {
+      const value = cb.getAttribute('data-v');
+      if (cb.checked) {
+        if (!LST.postPurchase.includes(value)) LST.postPurchase.push(value);
+      } else {
+        LST.postPurchase = LST.postPurchase.filter((item) => item !== value);
+      }
+      document.removeEventListener('mousedown', dismiss);
+      document.removeEventListener('keydown', escape);
+      LST.page = 1;
+      renderList();
+      const nextAnchor = root.querySelector('#pp-chip');
+      if (nextAnchor) openPostPurchasePopover(nextAnchor);
+    });
+
+    setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+    document.addEventListener('keydown', escape);
   }
 
   function openTotalPopover(anchor) {

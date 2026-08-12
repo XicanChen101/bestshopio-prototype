@@ -405,16 +405,15 @@
       busy: null,                      // 'saving' | 'publishing' | 'discarding' | null
       settingsExpand: settingsExpandInit(),
     };
-    // Seed a default applied discount so the Checkout Order Summary shows the discount code
-    // chip + Order discount + Shipping discount rows out of the box (buyer-side runtime
-    // state, not a theme edit). Removable/re-appliable like any coupon.
+    // Seed order + shipping discount codes so the Checkout Order Summary demonstrates
+    // Shopify-style grouped discount details out of the box (buyer runtime state only).
     OS.ckState = {};
-    const seedCode = 'THANKS';
-    const seed = ((D.CHECKOUT_MOCK || {}).coupons || {})[seedCode];
-    if (seed) {
+    const seeds = ((D.CHECKOUT_MOCK || {}).coupons || {});
+    OS.ckState['ck-coupons'] = ['WELCOME5', 'FREESHIP'].map((code) => {
+      const seed = seeds[code] || {};
       const product = +seed.product || 0, order = +seed.order || 0, shipping = +seed.shipping || 0;
-      OS.ckState['ck-coupons'] = [{ code: seedCode, product: product, order: order, shipping: shipping, amount: product + order + shipping }];
-    }
+      return { code, product, order, shipping, amount: product + order + shipping };
+    }).filter((item) => item.amount > 0);
   }
   function settingsExpandInit() { const o = {}; D.SETTINGS_GROUPS.forEach((g) => { o[g.key] = !!g.open; }); (D.CHECKOUT_SETTINGS_GROUPS || []).forEach((g) => { o['ck:' + g.key] = !!g.open; }); return o; }
 
@@ -1064,10 +1063,36 @@
     if (curCkTplId() === 'base-order') return 'base';
     return 'standard';
   }
+  function isOfferLine(line) {
+    const source = line && (line.lineSource || (line.downsell ? 'DOWNSELL' : (line.upsell ? 'UPSELL' : '')));
+    return source === 'UPSELL' || source === 'DOWNSELL';
+  }
+  function offerLinesLast(lines) {
+    const list = Array.isArray(lines) ? lines : [];
+    return list.filter((line) => !isOfferLine(line)).concat(list.filter(isOfferLine));
+  }
+  function recalculatePreviewOrder(order) {
+    order.subtotal = (order.lines || []).reduce((total, line) =>
+      total + (+line.price || 0) * (+line.qty || 1), 0);
+    const discount = (order.discounts || []).reduce((total, item) =>
+      total + (+item.amount || 0) + (+item.product || 0) + (+item.order || 0) + (+item.shipping || 0), 0);
+    order.total = order.subtotal - discount + (+order.shipping || 0) + (+order.tax || 0);
+    order.paid = order.total;
+    return order;
+  }
+  function dualOrderPreviewSnapshot(snapshot) {
+    snapshot.orders = (snapshot.orders || []).map((order) => {
+      order.lines = offerLinesLast(order.lines);
+      return order;
+    });
+    snapshot.lines = snapshot.orders.reduce((all, order) => all.concat(order.lines || []), []);
+    return snapshot;
+  }
   function singleOrderPreviewSnapshot(snapshot, scenario) {
     const orders = Array.isArray(snapshot.orders) ? snapshot.orders : [];
     const order = orders.find((item) => item.orderRole === 'BASE') || orders[0];
     const asCheckoutLine = (line) => Object.assign({}, line, {
+      compareAt: isOfferLine(line) ? null : line.compareAt,
       lineSource: 'CHECKOUT',
       upsell: false,
       downsell: false,
@@ -1076,7 +1101,10 @@
       if (scenario === 'standard') snapshot.lines = (snapshot.lines || []).map(asCheckoutLine);
       return snapshot;
     }
-    if (scenario === 'standard') order.lines = (order.lines || []).map(asCheckoutLine);
+    order.lines = scenario === 'standard'
+      ? (order.lines || []).filter((line) => line.fixtureType !== 'subscription' && line.fixtureType !== 'bundle').map(asCheckoutLine)
+      : offerLinesLast(order.lines);
+    recalculatePreviewOrder(order);
     snapshot.orders = [order];
     snapshot.orderNumber = order.orderNumber || snapshot.orderNumber;
     snapshot.lines = clone(order.lines || []);
@@ -1094,7 +1122,7 @@
     const offerFlow = (OS.ckState || {})['post-purchase-offer-flow'] || {};
     const scenario = thankyouPreviewScenario();
     if (!accepted.length && !offerFlow.visited) {
-      return scenario === 'dual' ? snap : singleOrderPreviewSnapshot(snap, scenario);
+      return scenario === 'dual' ? dualOrderPreviewSnapshot(snap) : singleOrderPreviewSnapshot(snap, scenario);
     }
     const orders = Array.isArray(snap.orders) ? snap.orders : [];
     if (orders.length) {
@@ -1132,7 +1160,7 @@
       snap.total = snap.subtotal - snap.discount + (+snap.shipping || 0) + (+snap.tax || 0);
     }
     if (accepted[0] && accepted[0].currency) snap.currency = accepted[0].currency;
-    return scenario === 'dual' ? snap : singleOrderPreviewSnapshot(snap, scenario);
+    return scenario === 'dual' ? dualOrderPreviewSnapshot(snap) : singleOrderPreviewSnapshot(snap, scenario);
   }
   function ctxFor(scope, id, selBool, selBlk, isFirst, transHdr) { return { mob: ED.device === 'mobile', tokens: tokens(), scope, sectionId: id, selected: selBool, selectedBlockId: selBlk, sample: D.SAMPLE, resource: isResourcePage() ? previewResource() : null, isFirst: !!isFirst, transparentHeader: !!transHdr, page: ED.currentPage, surface: ED.surface, checkoutPage: ED.checkoutPage, checkoutTemplateId: isCheckout() ? curCkTplId() : '', precedingUpsellTemplateId: isCheckout() ? ckTplIdOf('upsell') : '', checkout: D.CHECKOUT_MOCK, offer: isOfferPage() ? ((D.OFFER_MOCKS || {})[ED.checkoutPage] || null) : null, snapshot: isThankyou() ? thankyouSnapshot() : null, ckAddons: CK_ADDONS }; }
 

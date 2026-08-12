@@ -402,7 +402,7 @@
   // products, prices, routing and payment capability while Theme owns presentation only.
   const CHECKOUT_TEMPLATE_SETS = {
     checkout: [
-      { id: 'standard', name: 'Standard', isDefault: true },
+      { id: 'standard', name: 'Default checkout', isDefault: true },
       { id: 'conversion', name: 'Conversion' },
     ],
     upsell: [
@@ -414,7 +414,7 @@
       { id: 'save-offer', name: 'Save offer' },
     ],
     thankyou: [
-      { id: 'standard', name: 'Standard', isDefault: true, previewOrderScenario: 'standard' },
+      { id: 'standard', name: 'Default thank you', isDefault: true, previewOrderScenario: 'standard' },
       { id: 'base-order', name: 'Base order', basedOn: 'standard', previewOrderScenario: 'base' },
       { id: 'survey-thankyou', name: 'Base order + Late Upsell order', previewOrderScenario: 'dual' },
     ],
@@ -593,10 +593,10 @@
         ] },
     ],
     shippingMethods: [
-      { id: 'free', name: 'Free Shipping', eta: '', desc: '4–7 business days', price: 0 },
+      { id: 'standard', name: 'Standard Shipping', eta: '', desc: '4–7 business days', price: 8.99 },
       { id: 'vip', name: 'VIP Shipping', eta: '', desc: '1–2 business days · priority handling', price: 12.99 },
     ],
-    selectedShipping: 'free',
+    selectedShipping: 'standard',
     coupon: { code: 'WELCOME10', amount: 10.99 },
     // Valid demo discount codes (case-insensitive). Shopify itemises discounts into
     // three types (Item 2): product / order / shipping. Each entry is an object with
@@ -605,10 +605,12 @@
     // Order Summary can render a separate row per non-zero discount type.
     coupons: {
       WELCOME10: { product: 10.99 },       // product (line-item) discount
+      WELCOME5: { order: 5.0 },            // seeded Checkout order discount
       SAVE10: { order: 10.0 },             // order discount (matches reference)
       SHIP5: { shipping: 5.0 },            // shipping discount (negative shipping line)
       BUNDLE15: { product: 5.0, order: 7.0, shipping: 3.0 }, // demos all three at once
-      THANKS: { order: 7.0, shipping: 3.99 }, // seeded by default — demos Order + Shipping discount rows
+      THANKS: { order: 7.0 },               // seeded by default — order discount
+      FREESHIP: { shipping: 8.99 },         // seeded by default — makes Standard Shipping free
     },
     tax: 7.34,
     // Signed-in demo account (Item 1). The signed-in flag itself is a runtime toggle
@@ -926,15 +928,21 @@
   // `line_source` remains explicit so Thank you can show Upsell / Downsell badges, while
   // buyer Account pages deliberately hide those marketing-origin labels.
   const PP_ORDER_MOCK = window.POST_PURCHASE_ORDER_MOCK;
-  const snapshotOrders = PP_ORDER_MOCK ? PP_ORDER_MOCK.orders.map((order) => ({
-    orderId: order.order_id,
-    orderNumber: '#' + order.order_sn,
-    orderRole: order.order_role,
-    sourceOrderId: order.source_order_id,
-    sourceOrderNumber: order.source_order_sn ? '#' + order.source_order_sn : '',
-    status: order.status,
-    currency: order.currency,
-    lines: order.lines.map((line) => ({
+  // Thank-you-only fixture lines demonstrate the same product discount, subscription,
+  // and bundle Cart Line types as Checkout. They are appended to the Base Order snapshot
+  // only, so the shared admin/buyer order mock and MINI11490 remain unchanged.
+  const thankyouFixtureLines = [CHECKOUT_MOCK.cart[0], CHECKOUT_MOCK.cart[3], CHECKOUT_MOCK.cart[5]]
+    .filter(Boolean)
+    .map((line, index) => ({
+      ...line,
+      id: 'ty_fixture_' + (index + 1),
+      fixtureType: ['product-discount', 'subscription', 'bundle'][index],
+      lineSource: 'CHECKOUT',
+      subscription: line.subscription ? { ...line.subscription } : undefined,
+      bundleItems: line.bundleItems ? line.bundleItems.map((item) => ({ ...item })) : undefined,
+    }));
+  const snapshotOrders = PP_ORDER_MOCK ? PP_ORDER_MOCK.orders.map((order) => {
+    const mappedLines = order.lines.filter((line) => line.line_id !== 'line_base_1').map((line) => ({
       id: line.line_id,
       title: line.title,
       variant: line.variant,
@@ -945,14 +953,46 @@
       lineSource: line.line_source,
       upsell: line.line_source === 'UPSELL',
       downsell: line.line_source === 'DOWNSELL',
-    })),
-    subtotal: order.subtotal,
-    discounts: order.discounts,
-    shipping: order.shipping_fee,
-    tax: order.tax,
-    total: order.total,
-    paid: order.paid_amount,
-  })) : [];
+    }));
+    const lines = order.order_sn === 'MINI11489'
+      ? mappedLines.concat(thankyouFixtureLines.map((line) => ({
+          ...line,
+          subscription: line.subscription ? { ...line.subscription } : undefined,
+          bundleItems: line.bundleItems ? line.bundleItems.map((item) => ({ ...item })) : undefined,
+        })))
+      : mappedLines;
+    const discounts = (order.discounts || []).map((item) => ({
+      code: item.code,
+      product: +item.product || 0,
+      order: item.order != null ? (+item.order || 0) : (+item.amount || 0),
+      shipping: +item.shipping || 0,
+    }));
+    const shipping = +order.shipping_fee || 0;
+    if (order.order_sn === 'MINI11489' && shipping > 0) {
+      discounts.push({ code: 'FREESHIP', product: 0, order: 0, shipping });
+    }
+    const subtotal = lines.reduce((sum, line) => sum + (+line.price || 0) * (+line.qty || 1), 0);
+    const discount = discounts.reduce((sum, item) =>
+      sum + (+item.product || 0) + (+item.order || 0) + (+item.shipping || 0), 0);
+    const tax = +order.tax || 0;
+    const total = subtotal - discount + shipping + tax;
+    return {
+      orderId: order.order_id,
+      orderNumber: '#' + order.order_sn,
+      orderRole: order.order_role,
+      sourceOrderId: order.source_order_id,
+      sourceOrderNumber: order.source_order_sn ? '#' + order.source_order_sn : '',
+      status: order.status,
+      currency: order.currency,
+      lines,
+      subtotal,
+      discounts,
+      shipping,
+      tax,
+      total,
+      paid: total,
+    };
+  }) : [];
   const snapshotLines = snapshotOrders.length
     ? snapshotOrders.reduce((all, order) => all.concat(order.lines), [])
     : CHECKOUT_MOCK.cart.slice(0, 3);
@@ -975,8 +1015,9 @@
     lines: snapshotLines,
     subtotal: snapshotOrders.reduce((sum, order) => sum + (+order.subtotal || 0), 0),
     discount: snapshotOrders.reduce((sum, order) =>
-      sum + (order.discounts || []).reduce((d, item) => d + (+item.amount || 0), 0), 0),
-    discounts: [{ code: 'THANKS', order: 7.0 }],
+      sum + (order.discounts || []).reduce((d, item) =>
+        d + (+item.product || 0) + (+item.order || 0) + (+item.shipping || 0), 0), 0),
+    discounts: snapshotOrders[0] ? snapshotOrders[0].discounts : [],
     shipping: snapshotOrders.reduce((sum, order) => sum + (+order.shipping || 0), 0),
     tax: snapshotOrders.reduce((sum, order) => sum + (+order.tax || 0), 0),
     total: snapshotOrders.reduce((sum, order) => sum + (+order.total || 0), 0),
